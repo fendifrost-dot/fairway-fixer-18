@@ -1,27 +1,34 @@
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, Clock, RefreshCcw } from 'lucide-react';
-import { mockMatters, mockEntityCases, mockViolations } from '@/data/mockData';
-import { differenceInDays } from 'date-fns';
+import { ArrowRight, Clock, RefreshCcw, Loader2 } from 'lucide-react';
+import { useReinsertionMatters } from '@/hooks/useDashboardData';
+import { differenceInDays, parseISO } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function ReinsertionAlert() {
-  // Find all reinsertion matters
-  const reinsertionMatters = mockMatters.filter(m => m.primaryState === 'ReinsertionDetected');
+  const { data: reinsertionMatters = [], isLoading } = useReinsertionMatters();
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border-2 border-muted bg-muted/10 p-4">
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
   
   if (reinsertionMatters.length === 0) return null;
 
-  const reinsertionData = reinsertionMatters.map(matter => {
-    const relatedEntities = mockEntityCases.filter(e => e.matterId === matter.id);
-    const relatedViolation = mockViolations.find(
-      v => v.matterId === matter.id && v.trigger === 'Reinsertion611a5B'
+  const reinsertionData = reinsertionMatters.map((matter: any) => {
+    const relatedViolation = matter.violations?.find(
+      (v: any) => v.trigger === 'Reinsertion611a5B'
     );
     const daysSinceReinsertion = relatedViolation 
-      ? differenceInDays(new Date(), relatedViolation.createdAt)
+      ? differenceInDays(new Date(), parseISO(relatedViolation.created_at))
       : 0;
 
     return {
       matter,
-      entities: relatedEntities,
       daysSince: daysSinceReinsertion,
     };
   });
@@ -54,7 +61,7 @@ export function ReinsertionAlert() {
             </div>
             
             <div className="space-y-2">
-              {reinsertionData.map(({ matter, entities, daysSince }) => (
+              {reinsertionData.map(({ matter, daysSince }: { matter: any; daysSince: number }) => (
                 <Link
                   key={matter.id}
                   to={`/matters/${matter.id}`}
@@ -62,11 +69,11 @@ export function ReinsertionAlert() {
                 >
                   <div className="flex items-center gap-4">
                     <div>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {matter.client?.preferred_name || matter.client?.legal_name}
+                      </p>
                       <p className="font-semibold text-foreground group-hover:text-[hsl(var(--state-reinsertion))] transition-colors">
                         {matter.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {entities.map(e => e.entityName).join(', ')}
                       </p>
                     </div>
                   </div>

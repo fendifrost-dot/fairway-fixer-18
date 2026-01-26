@@ -8,7 +8,9 @@ import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Clients from "./pages/Clients";
+import ClientDetail from "./pages/ClientDetail";
 import Matters from "./pages/Matters";
+import MatterDetail from "./pages/MatterDetail";
 import Tasks from "./pages/Tasks";
 import Deadlines from "./pages/Deadlines";
 import Violations from "./pages/Violations";
@@ -39,8 +41,9 @@ const AppRoutes = () => {
       <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
       <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
       <Route path="/clients" element={<ProtectedRoute><AppLayout><Clients /></AppLayout></ProtectedRoute>} />
+      <Route path="/clients/:clientId" element={<ProtectedRoute><AppLayout><ClientDetail /></AppLayout></ProtectedRoute>} />
       <Route path="/matters" element={<ProtectedRoute><AppLayout><Matters /></AppLayout></ProtectedRoute>} />
-      <Route path="/matters/:id" element={<ProtectedRoute><AppLayout><Matters /></AppLayout></ProtectedRoute>} />
+      <Route path="/matters/:matterId" element={<ProtectedRoute><AppLayout><MatterDetail /></AppLayout></ProtectedRoute>} />
       <Route path="/tasks" element={<ProtectedRoute><AppLayout><Tasks /></AppLayout></ProtectedRoute>} />
       <Route path="/deadlines" element={<ProtectedRoute><AppLayout><Deadlines /></AppLayout></ProtectedRoute>} />
       <Route path="/violations" element={<ProtectedRoute><AppLayout><Violations /></AppLayout></ProtectedRoute>} />

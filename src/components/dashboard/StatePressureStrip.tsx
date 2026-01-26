@@ -1,7 +1,8 @@
 import { cn } from '@/lib/utils';
-import { mockMatters } from '@/data/mockData';
-import { MatterState } from '@/types/workflow';
+import { useStateCounts } from '@/hooks/useDashboardData';
+import { MatterState, DashboardFilters } from '@/types/database';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   FileText, 
   Clock, 
@@ -20,7 +21,7 @@ interface StateConfig {
   description: string;
   colorClass: string;
   bgClass: string;
-  priority: number; // Lower = more urgent
+  priority: number;
 }
 
 const stateConfigs: Partial<Record<MatterState, StateConfig>> = {
@@ -101,19 +102,34 @@ const stateConfigs: Partial<Record<MatterState, StateConfig>> = {
 interface StatePressureStripProps {
   activeFilter: MatterState | null;
   onFilterChange: (state: MatterState | null) => void;
+  filters?: DashboardFilters;
 }
 
-export function StatePressureStrip({ activeFilter, onFilterChange }: StatePressureStripProps) {
-  // Count matters by state
-  const stateCounts = mockMatters.reduce((acc, matter) => {
-    acc[matter.primaryState] = (acc[matter.primaryState] || 0) + 1;
-    return acc;
-  }, {} as Record<MatterState, number>);
+export function StatePressureStrip({ activeFilter, onFilterChange, filters }: StatePressureStripProps) {
+  const { data: stateCounts, isLoading } = useStateCounts(filters);
 
-  // Sort states by priority (most urgent first)
+  if (isLoading) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {[1, 2, 3, 4, 5].map(i => (
+          <Skeleton key={i} className="h-10 w-28" />
+        ))}
+      </div>
+    );
+  }
+
+  // Sort states by priority (most urgent first) and filter to those with counts > 0
   const sortedStates = Object.entries(stateConfigs)
-    .filter(([state]) => stateCounts[state as MatterState] > 0)
+    .filter(([state]) => stateCounts && stateCounts[state as MatterState] > 0)
     .sort((a, b) => a[1].priority - b[1].priority);
+
+  if (sortedStates.length === 0) {
+    return (
+      <div className="text-sm text-muted-foreground py-2">
+        No active matters to display
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -129,7 +145,7 @@ export function StatePressureStrip({ activeFilter, onFilterChange }: StatePressu
         )}
         
         {sortedStates.map(([state, config]) => {
-          const count = stateCounts[state as MatterState];
+          const count = stateCounts?.[state as MatterState] || 0;
           const Icon = config.icon;
           const isActive = activeFilter === state;
           

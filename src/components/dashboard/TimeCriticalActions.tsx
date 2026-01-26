@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PriorityBadge, EntityBadge, StateBadge } from '@/components/ui/StatusBadge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { mockTasks, mockDeadlines, mockMatters, mockEntityCases } from '@/data/mockData';
-import { DEADLINE_LABELS, MatterState, DeadlineType } from '@/types/workflow';
+import { useTasks, useDeadlines } from '@/hooks/useDashboardData';
+import { DEADLINE_LABELS, MatterState, DeadlineType, DashboardFilters } from '@/types/database';
 import { cn } from '@/lib/utils';
-import { ArrowRight, Clock, AlertOctagon, Info } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { ArrowRight, AlertOctagon, Info, Loader2 } from 'lucide-react';
+import { differenceInDays, format, parseISO } from 'date-fns';
 
 // Legal basis for different deadline types
 const LEGAL_BASIS: Record<DeadlineType, { statute: string; description: string }> = {
@@ -43,56 +43,59 @@ const LEGAL_BASIS: Record<DeadlineType, { statute: string; description: string }
 
 interface TimeCriticalActionsProps {
   stateFilter: MatterState | null;
+  filters?: DashboardFilters;
 }
 
-export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
-  // Combine tasks and deadlines into unified actions
-  const pendingTasks = mockTasks
-    .filter(t => t.status !== 'Done')
-    .map(task => {
-      const matter = mockMatters.find(m => m.id === task.matterId);
-      const entity = task.entityCaseId 
-        ? mockEntityCases.find(e => e.id === task.entityCaseId)
-        : null;
-      
-      return {
-        id: task.id,
-        type: 'task' as const,
-        name: task.taskType,
-        matter,
-        entity,
-        priority: task.priority,
-        dueDate: task.dueDate,
-        legalBasis: null as { statute: string; description: string } | null,
-      };
-    });
+export function TimeCriticalActions({ stateFilter, filters }: TimeCriticalActionsProps) {
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks(filters);
+  const { data: deadlines = [], isLoading: deadlinesLoading } = useDeadlines(filters);
 
-  const activeDeadlines = mockDeadlines
-    .filter(d => d.status !== 'Closed')
-    .map(deadline => {
-      const matter = mockMatters.find(m => m.id === deadline.matterId);
-      const entity = mockEntityCases.find(e => e.id === deadline.entityCaseId);
-      
-      // Determine priority based on deadline type and urgency
-      const daysRemaining = differenceInDays(deadline.dueDate, new Date());
-      let priority: 'P0' | 'P1' | 'P2' | 'P3' = 'P2';
-      if (deadline.deadlineType.includes('611') || deadline.deadlineType.includes('605B') || deadline.deadlineType.includes('Reinsertion')) {
-        priority = daysRemaining < 0 ? 'P0' : daysRemaining <= 3 ? 'P0' : 'P1';
-      } else if (deadline.deadlineType.includes('CFPB')) {
-        priority = daysRemaining < 0 ? 'P0' : 'P1';
-      }
+  const isLoading = tasksLoading || deadlinesLoading;
 
-      return {
-        id: deadline.id,
-        type: 'deadline' as const,
-        name: DEADLINE_LABELS[deadline.deadlineType],
-        matter,
-        entity,
-        priority,
-        dueDate: deadline.dueDate,
-        legalBasis: LEGAL_BASIS[deadline.deadlineType],
-      };
-    });
+  // Transform tasks to unified format
+  const pendingTasks = tasks.map(task => {
+    const dueDate = task.due_date ? parseISO(task.due_date) : null;
+    
+    return {
+      id: task.id,
+      type: 'task' as const,
+      name: task.task_type,
+      clientName: task.matter?.client?.preferred_name || task.matter?.client?.legal_name || 'Unknown',
+      clientId: task.matter?.client_id,
+      matter: task.matter,
+      entity: task.entity_case,
+      priority: task.priority,
+      dueDate,
+      legalBasis: null as { statute: string; description: string } | null,
+    };
+  });
+
+  // Transform deadlines to unified format
+  const activeDeadlines = deadlines.map(deadline => {
+    const dueDate = parseISO(deadline.due_date);
+    const daysRemaining = differenceInDays(dueDate, new Date());
+    
+    // Determine priority based on deadline type and urgency
+    let priority: 'P0' | 'P1' | 'P2' | 'P3' = 'P2';
+    if (deadline.deadline_type.includes('611') || deadline.deadline_type.includes('605B') || deadline.deadline_type.includes('Reinsertion')) {
+      priority = daysRemaining < 0 ? 'P0' : daysRemaining <= 3 ? 'P0' : 'P1';
+    } else if (deadline.deadline_type.includes('CFPB')) {
+      priority = daysRemaining < 0 ? 'P0' : 'P1';
+    }
+
+    return {
+      id: deadline.id,
+      type: 'deadline' as const,
+      name: DEADLINE_LABELS[deadline.deadline_type]?.label || deadline.deadline_type,
+      clientName: deadline.matter?.client?.preferred_name || deadline.matter?.client?.legal_name || 'Unknown',
+      clientId: deadline.matter?.client_id,
+      matter: deadline.matter,
+      entity: deadline.entity_case,
+      priority,
+      dueDate,
+      legalBasis: LEGAL_BASIS[deadline.deadline_type] || null,
+    };
+  });
 
   // Combine and sort by priority, then by due date
   let allActions = [...pendingTasks, ...activeDeadlines].sort((a, b) => {
@@ -107,10 +110,10 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
 
   // Apply state filter
   if (stateFilter) {
-    allActions = allActions.filter(action => action.matter?.primaryState === stateFilter);
+    allActions = allActions.filter(action => action.matter?.primary_state === stateFilter);
   }
 
-  const formatCountdown = (date: Date | undefined) => {
+  const formatCountdown = (date: Date | null) => {
     if (!date) return '—';
     const days = differenceInDays(date, new Date());
     if (days < 0) return `D+${Math.abs(days)}`;
@@ -118,7 +121,7 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
     return `D-${days}`;
   };
 
-  const getCountdownStyle = (date: Date | undefined) => {
+  const getCountdownStyle = (date: Date | null) => {
     if (!date) return '';
     const days = differenceInDays(date, new Date());
     if (days < 0) return 'text-[hsl(var(--state-violation))] font-bold';
@@ -149,7 +152,11 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
           </Link>
         </CardHeader>
         <CardContent className="pt-0">
-          {allActions.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : allActions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No time-critical actions {stateFilter ? 'for this state filter' : 'pending'}
             </div>
@@ -158,6 +165,7 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[60px]">Priority</TableHead>
+                  <TableHead>Client</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Matter</TableHead>
                   <TableHead>Entity</TableHead>
@@ -172,7 +180,7 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
                   
                   return (
                     <TableRow 
-                      key={action.id} 
+                      key={`${action.type}-${action.id}`} 
                       className={cn(
                         "group",
                         isOverdue && "bg-[hsl(var(--state-violation))]/5"
@@ -180,6 +188,14 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
                     >
                       <TableCell>
                         <PriorityBadge priority={action.priority} size="sm" />
+                      </TableCell>
+                      <TableCell>
+                        <Link 
+                          to={`/clients/${action.clientId}`}
+                          className="text-sm font-medium hover:text-accent transition-colors"
+                        >
+                          {action.clientName}
+                        </Link>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -198,20 +214,23 @@ export function TimeCriticalActions({ stateFilter }: TimeCriticalActionsProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm truncate max-w-[150px]">
+                          <Link
+                            to={`/matters/${action.matter?.id}`}
+                            className="text-sm truncate max-w-[150px] hover:text-accent transition-colors"
+                          >
                             {action.matter?.title || 'Unknown'}
-                          </span>
+                          </Link>
                           {action.matter && (
-                            <StateBadge state={action.matter.primaryState} size="sm" />
+                            <StateBadge state={action.matter.primary_state} size="sm" />
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
                         {action.entity ? (
                           <div className="flex items-center gap-1.5">
-                            <EntityBadge type={action.entity.entityType} size="sm" />
+                            <EntityBadge type={action.entity.entity_type} size="sm" />
                             <span className="text-sm text-muted-foreground">
-                              {action.entity.entityName}
+                              {action.entity.entity_name}
                             </span>
                           </div>
                         ) : (

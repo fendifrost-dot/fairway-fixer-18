@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,33 +61,69 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // State colors
+        state: {
+          intake: "hsl(var(--state-intake))",
+          active: "hsl(var(--state-active))",
+          violation: "hsl(var(--state-violation))",
+          reinsertion: "hsl(var(--state-reinsertion))",
+          resolved: "hsl(var(--state-resolved))",
+          regulatory: "hsl(var(--state-regulatory))",
+          blocked: "hsl(var(--state-blocked))",
+          litigation: "hsl(var(--state-litigation))",
+          escalation: "hsl(var(--state-escalation))",
+          partial: "hsl(var(--state-partial))",
+          furnisher: "hsl(var(--state-furnisher))",
+        },
+        // Priority colors
+        priority: {
+          p0: "hsl(var(--priority-p0))",
+          p1: "hsl(var(--priority-p1))",
+          p2: "hsl(var(--priority-p2))",
+          p3: "hsl(var(--priority-p3))",
+        },
+        // Overlay colors
+        overlay: {
+          identityTheft: "hsl(var(--overlay-identity-theft))",
+          mixedFile: "hsl(var(--overlay-mixed-file))",
+          upstream: "hsl(var(--overlay-upstream))",
+        },
+        // Entity colors
+        entity: {
+          cra: "hsl(var(--entity-cra))",
+          furnisher: "hsl(var(--entity-furnisher))",
+          dataBroker: "hsl(var(--entity-data-broker))",
+          agency: "hsl(var(--entity-agency))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        'card': 'var(--shadow-card)',
+        'elevated': 'var(--shadow-md)',
+        'prominent': 'var(--shadow-lg)',
+      },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "pulse-subtle": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-subtle": "pulse-subtle 2s ease-in-out infinite",
       },
     },
   },

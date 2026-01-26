@@ -2,95 +2,134 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Core palette - Deep navy professional theme */
+    --background: 220 25% 97%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 222.2 47.4% 11.2%;
+    /* Primary - Deep navy blue */
+    --primary: 222 47% 20%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Soft slate */
+    --secondary: 215 25% 93%;
+    --secondary-foreground: 222 47% 20%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 215 25% 93%;
+    --muted-foreground: 215 20% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Professional teal */
+    --accent: 186 72% 38%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 20%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    /* State colors */
+    --state-intake: 215 80% 55%;
+    --state-active: 36 90% 50%;
+    --state-violation: 0 72% 51%;
+    --state-reinsertion: 340 82% 52%;
+    --state-resolved: 142 71% 45%;
+    --state-regulatory: 262 83% 58%;
+    --state-blocked: 215 20% 50%;
+    --state-litigation: 0 84% 60%;
+    --state-escalation: 25 95% 53%;
+    --state-partial: 28 80% 52%;
+    --state-furnisher: 280 65% 50%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Priority colors */
+    --priority-p0: 0 84% 60%;
+    --priority-p1: 25 95% 53%;
+    --priority-p2: 215 80% 55%;
+    --priority-p3: 142 71% 45%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    /* Overlay colors */
+    --overlay-identity-theft: 340 82% 52%;
+    --overlay-mixed-file: 262 83% 58%;
+    --overlay-upstream: 186 72% 38%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    /* Entity colors */
+    --entity-cra: 215 80% 55%;
+    --entity-furnisher: 28 80% 52%;
+    --entity-data-broker: 262 83% 58%;
+    --entity-agency: 142 71% 45%;
 
-    --sidebar-accent: 240 4.8% 95.9%;
+    /* Sidebar */
+    --sidebar-background: 222 47% 14%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 186 72% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 22%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 40% 25%;
+    --sidebar-ring: 186 72% 50%;
 
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(222 47% 20%), hsl(222 47% 30%));
+    --gradient-accent: linear-gradient(135deg, hsl(186 72% 38%), hsl(186 72% 48%));
+    --gradient-danger: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 72% 61%));
+    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(142 71% 55%));
 
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 222 47% 8%;
     --foreground: 210 40% 98%;
 
-    --card: 222.2 84% 4.9%;
+    --card: 222 47% 11%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222.2 84% 4.9%;
+    --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 186 72% 50%;
+    --primary-foreground: 222 47% 11%;
 
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 222 47% 18%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 222 47% 18%;
+    --muted-foreground: 215 20% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 186 72% 45%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62% 45%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --border: 222 40% 22%;
+    --input: 222 40% 22%;
+    --ring: 186 72% 50%;
+
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 210 40% 90%;
+    --sidebar-primary: 186 72% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 222 47% 15%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 40% 18%;
+    --sidebar-ring: 186 72% 50%;
   }
 }
 
@@ -100,6 +139,128 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  /* Status badges */
+  .badge-state-intake {
+    @apply bg-[hsl(var(--state-intake))] text-white;
+  }
+  .badge-state-active {
+    @apply bg-[hsl(var(--state-active))] text-white;
+  }
+  .badge-state-violation {
+    @apply bg-[hsl(var(--state-violation))] text-white;
+  }
+  .badge-state-reinsertion {
+    @apply bg-[hsl(var(--state-reinsertion))] text-white;
+  }
+  .badge-state-resolved {
+    @apply bg-[hsl(var(--state-resolved))] text-white;
+  }
+  .badge-state-regulatory {
+    @apply bg-[hsl(var(--state-regulatory))] text-white;
+  }
+  .badge-state-partial {
+    @apply bg-[hsl(var(--state-partial))] text-white;
+  }
+  .badge-state-litigation {
+    @apply bg-[hsl(var(--state-litigation))] text-white;
+  }
+
+  /* Priority badges */
+  .badge-priority-p0 {
+    @apply bg-[hsl(var(--priority-p0))] text-white font-semibold;
+  }
+  .badge-priority-p1 {
+    @apply bg-[hsl(var(--priority-p1))] text-white font-semibold;
+  }
+  .badge-priority-p2 {
+    @apply bg-[hsl(var(--priority-p2))] text-white font-semibold;
+  }
+  .badge-priority-p3 {
+    @apply bg-[hsl(var(--priority-p3))] text-white font-semibold;
+  }
+
+  /* Card variants */
+  .card-elevated {
+    @apply bg-card rounded-lg border shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-md)];
+  }
+
+  .card-interactive {
+    @apply card-elevated cursor-pointer hover:border-accent/50;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors;
+  }
+
+  .nav-item-active {
+    @apply bg-sidebar-accent text-sidebar-foreground;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply card-elevated p-5;
+  }
+
+  /* Deadline urgency */
+  .deadline-overdue {
+    @apply text-[hsl(var(--state-violation))] font-semibold;
+  }
+  .deadline-due-soon {
+    @apply text-[hsl(var(--state-active))] font-medium;
+  }
+  .deadline-open {
+    @apply text-muted-foreground;
+  }
+
+  /* Mono text for IDs and codes */
+  .mono {
+    @apply font-mono text-sm;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.2s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }

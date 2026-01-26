@@ -1,91 +1,75 @@
-import { StatCard } from '@/components/ui/StatCard';
-import { RecentMatters } from '@/components/dashboard/RecentMatters';
-import { UpcomingTasks } from '@/components/dashboard/UpcomingTasks';
-import { DeadlineTimeline } from '@/components/dashboard/DeadlineTimeline';
+import { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ReinsertionAlert } from '@/components/dashboard/ReinsertionAlert';
+import { StatePressureStrip } from '@/components/dashboard/StatePressureStrip';
+import { TimeCriticalActions } from '@/components/dashboard/TimeCriticalActions';
+import { MetricsSummary } from '@/components/dashboard/MetricsSummary';
 import { ViolationAlerts } from '@/components/dashboard/ViolationAlerts';
-import { mockDashboardStats } from '@/data/mockData';
-import { 
-  FolderOpen, 
-  Scale, 
-  AlertTriangle, 
-  Clock, 
-  CheckSquare,
-  ShieldAlert,
-  Gavel
-} from 'lucide-react';
+import { ConsultingDashboard } from '@/components/dashboard/ConsultingDashboard';
+import { MatterState } from '@/types/workflow';
+import { Scale, Briefcase } from 'lucide-react';
 
 export default function Dashboard() {
-  const stats = mockDashboardStats;
+  const [stateFilter, setStateFilter] = useState<MatterState | null>(null);
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Command Console</h1>
         <p className="text-muted-foreground mt-1">
-          Credit repair and consulting workflow overview
+          Statutory compliance and case management
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Active Matters"
-          value={stats.totalMatters}
-          icon={FolderOpen}
-        />
-        <StatCard
-          label="Active Disputes"
-          value={stats.activeDisputes}
-          icon={Scale}
-          variant="warning"
-        />
-        <StatCard
-          label="Violations Confirmed"
-          value={stats.violationsConfirmed}
-          icon={AlertTriangle}
-          variant="danger"
-        />
-        <StatCard
-          label="Overdue Deadlines"
-          value={stats.overdueDeadlines}
-          icon={Clock}
-          variant={stats.overdueDeadlines > 0 ? 'danger' : 'default'}
-        />
-      </div>
+      {/* Tabs for Credit vs Consulting */}
+      <Tabs defaultValue="credit" className="space-y-6">
+        <TabsList className="bg-secondary">
+          <TabsTrigger value="credit" className="flex items-center gap-2 data-[state=active]:bg-card">
+            <Scale className="h-4 w-4" />
+            Credit Compliance
+          </TabsTrigger>
+          <TabsTrigger value="consulting" className="flex items-center gap-2 data-[state=active]:bg-card">
+            <Briefcase className="h-4 w-4" />
+            Consulting
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Secondary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          label="Tasks Due Today"
-          value={stats.tasksDueToday}
-          icon={CheckSquare}
-          variant={stats.tasksDueToday > 0 ? 'warning' : 'default'}
-        />
-        <StatCard
-          label="Reinsertions Detected"
-          value={stats.reinsertionsDetected}
-          icon={ShieldAlert}
-          variant={stats.reinsertionsDetected > 0 ? 'danger' : 'default'}
-        />
-        <StatCard
-          label="Litigation Ready"
-          value={stats.litigationReady}
-          icon={Gavel}
-          variant={stats.litigationReady > 0 ? 'danger' : 'success'}
-        />
-      </div>
+        {/* Credit Compliance Dashboard */}
+        <TabsContent value="credit" className="space-y-6 mt-0">
+          {/* SECTION 1: Reinsertion Alert (only when active) */}
+          <ReinsertionAlert />
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentMatters />
-        <UpcomingTasks />
-      </div>
+          {/* SECTION 2: State Pressure Strip */}
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+              Case States
+            </h2>
+            <StatePressureStrip 
+              activeFilter={stateFilter} 
+              onFilterChange={setStateFilter} 
+            />
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DeadlineTimeline />
-        <ViolationAlerts />
-      </div>
+          {/* SECTION 3: Time-Critical Actions (fused tasks + deadlines) */}
+          <TimeCriticalActions stateFilter={stateFilter} />
+
+          {/* SECTION 4: Violations */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ViolationAlerts />
+          </div>
+
+          {/* SECTION 5: Metrics Summary (demoted to bottom) */}
+          <div className="pt-4 border-t">
+            <MetricsSummary />
+          </div>
+        </TabsContent>
+
+        {/* Consulting Dashboard */}
+        <TabsContent value="consulting" className="mt-0">
+          <ConsultingDashboard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

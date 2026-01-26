@@ -11,24 +11,45 @@ interface StatCardProps {
     isPositive: boolean;
   };
   variant?: 'default' | 'danger' | 'warning' | 'success';
+  size?: 'default' | 'compact';
   className?: string;
 }
 
 const variantStyles = {
   default: 'bg-card',
-  danger: 'bg-card border-l-4 border-l-state-violation',
-  warning: 'bg-card border-l-4 border-l-state-active',
-  success: 'bg-card border-l-4 border-l-state-resolved',
+  danger: 'bg-card border-l-4 border-l-[hsl(var(--state-violation))]',
+  warning: 'bg-card border-l-4 border-l-[hsl(var(--state-active))]',
+  success: 'bg-card border-l-4 border-l-[hsl(var(--state-resolved))]',
 };
 
 const iconVariantStyles = {
   default: 'bg-secondary text-foreground',
-  danger: 'bg-state-violation/10 text-state-violation',
-  warning: 'bg-state-active/10 text-state-active',
-  success: 'bg-state-resolved/10 text-state-resolved',
+  danger: 'bg-[hsl(var(--state-violation))]/10 text-[hsl(var(--state-violation))]',
+  warning: 'bg-[hsl(var(--state-active))]/10 text-[hsl(var(--state-active))]',
+  success: 'bg-[hsl(var(--state-resolved))]/10 text-[hsl(var(--state-resolved))]',
 };
 
-export function StatCard({ label, value, icon: Icon, trend, variant = 'default', className }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, trend, variant = 'default', size = 'default', className }: StatCardProps) {
+  if (size === 'compact') {
+    return (
+      <div className={cn(
+        "card-elevated p-3",
+        variant !== 'default' && variantStyles[variant],
+        className
+      )}>
+        <div className="flex items-center gap-3">
+          <div className={cn("p-2 rounded-lg", iconVariantStyles[variant])}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xl font-bold tracking-tight">{value}</p>
+            <p className="text-xs text-muted-foreground truncate">{label}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("stat-card", variantStyles[variant], className)}>
       <div className="flex items-start justify-between">
@@ -38,7 +59,7 @@ export function StatCard({ label, value, icon: Icon, trend, variant = 'default',
           {trend && (
             <p className={cn(
               "text-sm font-medium",
-              trend.isPositive ? "text-state-resolved" : "text-state-violation"
+              trend.isPositive ? "text-[hsl(var(--state-resolved))]" : "text-[hsl(var(--state-violation))]"
             )}>
               {trend.isPositive ? '↓' : '↑'} {Math.abs(trend.value)}% from last week
             </p>

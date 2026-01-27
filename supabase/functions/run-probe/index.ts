@@ -6,6 +6,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.1";
 type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+  };
+
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -54,9 +65,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [probeRes, snapRes] = await Promise.all([
+    const [probeRes, snapRes, variantsRes] = await Promise.all([
       supabase.rpc("probe_matters_insert", { p_client_id: clientId }),
       supabase.rpc("__snapshot_matters_rls"),
+      supabase.rpc("probe_matters_ownerid_variants", { p_client_id: clientId }),
     ]);
 
     return new Response(
@@ -65,6 +77,8 @@ Deno.serve(async (req) => {
           ok: true,
           probe: probeRes.data as Json,
           probe_error: probeRes.error,
+          ownerid_variants: variantsRes.data as Json,
+          ownerid_variants_error: variantsRes.error,
           snapshot: snapRes.data as Json,
           snapshot_error: snapRes.error,
         },
@@ -76,13 +90,14 @@ Deno.serve(async (req) => {
         headers: {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
+          ...corsHeaders,
         },
       }
     );
   } catch (e) {
     return new Response(
       JSON.stringify({ ok: false, error: String(e) }, null, 2),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 });

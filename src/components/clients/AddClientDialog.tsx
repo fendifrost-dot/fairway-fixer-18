@@ -177,9 +177,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   };
 
   /**
-   * ATOMIC SERVER-SIDE TRANSACTION: clients + matters via RPC
-   * Uses database function to ensure both succeed or neither commits.
-   * NO entity_cases, overlays, tasks, deadlines, or violations are created here.
+   * DEBUG RPC: instrumented client+matter creation
+   * Returns full context (caller_uid, attempted_matter_owner_id, error info) for diagnostics.
    */
   const createClientAndMatter = async (
     clientName: string,
@@ -199,8 +198,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return null;
     }
 
-    // Call the atomic RPC function
-    const { data, error } = await supabase.rpc('create_client_and_matter', {
+    // Call the DEBUG RPC function (temporary instrumentation)
+    const { data, error } = await supabase.rpc('debug_create_client_and_matter', {
       _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
       _matter_type: matterType,
       _intake_raw_text: rawIntakeText || '',
@@ -208,19 +207,38 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       _client_notes: noteText || null,
     });
 
+    // Build debug payload for technical details
+    const debugPayload = JSON.stringify(
+      { rpc_response: data, rpc_error: error, whoami: who.text },
+      null,
+      2
+    );
+
     if (error) {
-      throw { stage: 'transaction', ...error };
+      throw { stage: 'rpc_call', debugPayload, ...error };
     }
 
     if (!data || data.length === 0) {
-      throw { stage: 'transaction', message: 'No data returned from server' };
+      throw { stage: 'rpc_call', debugPayload, message: 'No data returned from server' };
     }
 
-    // RPC returns array with one row containing client_id and matter_id
+    // Check if the RPC itself caught an error
     const result = data[0];
+    if (result.error_code) {
+      throw {
+        stage: 'rpc_insert',
+        debugPayload,
+        code: result.error_code,
+        message: result.error_message,
+        error_stage: result.error_stage,
+      };
+    }
+
+    // Success: return client + matter IDs
     return {
-      client: { id: result.client_id },
-      matter: { id: result.matter_id },
+      client: { id: result.inserted_client_id },
+      matter: { id: result.inserted_matter_id },
+      debugPayload,
     };
   };
 
@@ -251,18 +269,28 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const anyErr = error as any;
       const stage = anyErr?.stage;
       const friendly =
-        stage === 'transaction'
-          ? 'Nothing saved: create transaction failed.'
-          : stage === 'client'
-            ? 'Nothing saved: client creation failed.'
-            : stage === 'rollback'
-              ? 'Client saved but matter failed (and cleanup failed).'
-              : 'Nothing saved: matter creation failed.';
+        stage === 'rpc_call'
+          ? 'Nothing saved: RPC call failed.'
+          : stage === 'rpc_insert'
+            ? 'Nothing saved: RPC insert failed (RLS or constraint).'
+            : stage === 'transaction'
+              ? 'Nothing saved: create transaction failed.'
+              : stage === 'client'
+                ? 'Nothing saved: client creation failed.'
+                : stage === 'rollback'
+                  ? 'Client saved but matter failed (and cleanup failed).'
+                  : 'Nothing saved: matter creation failed.';
 
+      // Include debugPayload if available
+      const debugPayload = anyErr?.debugPayload ?? '';
       const technical = [
+        'DEBUG RPC PAYLOAD:',
+        debugPayload,
+        '---',
+        'ERROR DETAILS:',
         buildTechnicalError(error),
         '---',
-        'WHOAMI (preflight)',
+        'WHOAMI (preflight):',
         who.text ?? lastWhoamiSnapshot,
       ]
         .filter(Boolean)
@@ -307,18 +335,28 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const anyErr = error as any;
       const stage = anyErr?.stage;
       const friendly =
-        stage === 'transaction'
-          ? 'Nothing saved: create transaction failed.'
-          : stage === 'client'
-            ? 'Nothing saved: client creation failed.'
-            : stage === 'rollback'
-              ? 'Client saved but matter failed (and cleanup failed).'
-              : 'Nothing saved: matter creation failed.';
+        stage === 'rpc_call'
+          ? 'Nothing saved: RPC call failed.'
+          : stage === 'rpc_insert'
+            ? 'Nothing saved: RPC insert failed (RLS or constraint).'
+            : stage === 'transaction'
+              ? 'Nothing saved: create transaction failed.'
+              : stage === 'client'
+                ? 'Nothing saved: client creation failed.'
+                : stage === 'rollback'
+                  ? 'Client saved but matter failed (and cleanup failed).'
+                  : 'Nothing saved: matter creation failed.';
 
+      // Include debugPayload if available
+      const debugPayload = anyErr?.debugPayload ?? '';
       const technical = [
+        'DEBUG RPC PAYLOAD:',
+        debugPayload,
+        '---',
+        'ERROR DETAILS:',
         buildTechnicalError(error),
         '---',
-        'WHOAMI (preflight)',
+        'WHOAMI (preflight):',
         who.text ?? lastWhoamiSnapshot,
       ]
         .filter(Boolean)

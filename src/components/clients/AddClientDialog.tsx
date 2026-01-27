@@ -119,8 +119,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   };
 
   /**
-   * TWO-STEP WRITE ONLY: clients + matters
-   * Atomic safety via rollback: if matter insert fails, delete the newly created client.
+   * ATOMIC SERVER-SIDE TRANSACTION: clients + matters via RPC
+   * Uses database function to ensure both succeed or neither commits.
    * NO entity_cases, overlays, tasks, deadlines, or violations are created here.
    */
   const createClientAndMatter = async (
@@ -134,63 +134,29 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return null;
     }
 
-    let createdClientId: string | null = null;
+    // Call the atomic RPC function
+    const { data, error } = await supabase.rpc('create_client_and_matter', {
+      _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
+      _matter_type: matterType,
+      _intake_raw_text: rawIntakeText || '',
+      _intake_source: source,
+      _client_notes: noteText || null,
+    });
 
-    try {
-      // Step 1: Create Client
-      const { data: client, error: clientError } = await supabase
-        .from('clients')
-        .insert({
-          legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
-          owner_id: user.id,
-          status: 'Active',
-          notes: noteText || null,
-        })
-        .select()
-        .single();
-
-      if (clientError) throw { stage: 'client', ...clientError };
-      createdClientId = client.id;
-
-      // Step 2: Create Matter (linked to client)
-      const { data: matter, error: matterError } = await supabase
-        .from('matters')
-        .insert({
-          client_id: client.id,
-          title: clientName ? `${clientName} - ${matterType} Matter` : `New ${matterType} Matter`,
-          matter_type: matterType,
-          jurisdiction: 'Federal (FCRA)',
-          primary_state: 'DisputePreparation',
-          intake_raw_text: rawIntakeText,
-          intake_source: source,
-          intake_created_at: rawIntakeText ? new Date().toISOString() : null,
-        })
-        .select()
-        .single();
-
-      if (matterError) throw { stage: 'matter', ...matterError };
-
-      // SUCCESS: Return both records
-      return { client, matter };
-    } catch (error) {
-      // ROLLBACK: If matter failed after client creation, delete the orphaned client
-      if (createdClientId) {
-        const { error: rollbackError } = await supabase
-          .from('clients')
-          .delete()
-          .eq('id', createdClientId);
-
-        if (rollbackError) {
-          throw {
-            stage: 'rollback',
-            message: 'Matter creation failed and client rollback also failed',
-            rollback: rollbackError,
-            original: error,
-          };
-        }
-      }
-      throw error;
+    if (error) {
+      throw { stage: 'transaction', ...error };
     }
+
+    if (!data || data.length === 0) {
+      throw { stage: 'transaction', message: 'No data returned from server' };
+    }
+
+    // RPC returns array with one row containing client_id and matter_id
+    const result = data[0];
+    return {
+      client: { id: result.client_id },
+      matter: { id: result.matter_id },
+    };
   };
 
   const handlePasteSubmit = async () => {

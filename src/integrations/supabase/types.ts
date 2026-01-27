@@ -564,6 +564,19 @@ export type Database = {
         Returns: boolean
       }
       can_access_matter: { Args: { _matter_id: string }; Returns: boolean }
+      create_client_and_matter: {
+        Args: {
+          _client_notes?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+        }
+        Returns: {
+          client_id: string
+          matter_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

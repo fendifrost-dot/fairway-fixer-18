@@ -47,6 +47,10 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const [submitError, setSubmitError] = useState<null | { friendly: string; technical?: string }>(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
 
+  // Diagnostics
+  const [whoamiText, setWhoamiText] = useState<string>('(not run yet)');
+  const [whoamiStatus, setWhoamiStatus] = useState<'unknown' | 'authenticated' | 'unauthenticated' | 'error'>('unknown');
+
   // Paste intake state
   const [intakeText, setIntakeText] = useState('');
 
@@ -118,6 +122,31 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     }
   };
 
+  const runWhoami = async () => {
+    try {
+      const { data, error } = await supabase.rpc('whoami');
+      if (error) {
+        setWhoamiStatus('error');
+        setWhoamiText(`whoami() error:\n${JSON.stringify(error, null, 2)}`);
+        return { ok: false, uid: null as string | null, role: null as string | null };
+      }
+
+      const row = Array.isArray(data) ? data[0] : data;
+      const uid = row?.uid ?? null;
+      const role = row?.role ?? null;
+      const text = JSON.stringify(row, null, 2);
+      setWhoamiText(text);
+
+      const ok = Boolean(uid) && role === 'authenticated';
+      setWhoamiStatus(ok ? 'authenticated' : 'unauthenticated');
+      return { ok, uid, role };
+    } catch (e) {
+      setWhoamiStatus('error');
+      setWhoamiText(`whoami() exception:\n${buildTechnicalError(e) ?? String(e)}`);
+      return { ok: false, uid: null as string | null, role: null as string | null };
+    }
+  };
+
   /**
    * ATOMIC SERVER-SIDE TRANSACTION: clients + matters via RPC
    * Uses database function to ensure both succeed or neither commits.
@@ -129,10 +158,15 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     source: string,
     noteText?: string
   ) => {
-    // C) HARD GUARD: Verify authenticated session exists before RPC call
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session || !session.user) {
-      toast.error('You must be logged in to create a client');
+    // C) HARD GUARD: Verify runtime auth via whoami() before attempting create
+    const who = await runWhoami();
+    if (!who.ok) {
+      const friendly = 'Not authenticated — cannot create matter.';
+      setSubmitError({
+        friendly,
+        technical: `WHOAMI (preflight)\n${whoamiText}`,
+      });
+      toast.error('Not authenticated');
       return null;
     }
 
@@ -166,6 +200,9 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setSubmitError(null);
     setShowErrorDetails(false);
 
+    // Always collect auth diagnostics for the technical details panel
+    await runWhoami();
+
     try {
       const parsedName = intakeText.trim() ? parseNameFromIntake(intakeText) : null;
       const result = await createClientAndMatter(
@@ -185,13 +222,24 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const anyErr = error as any;
       const stage = anyErr?.stage;
       const friendly =
-        stage === 'client'
-          ? 'Nothing saved: client creation failed.'
-          : stage === 'rollback'
-            ? 'Client saved but matter failed (and cleanup failed).'
-            : 'Nothing saved: matter creation failed.';
+        stage === 'transaction'
+          ? 'Nothing saved: create transaction failed.'
+          : stage === 'client'
+            ? 'Nothing saved: client creation failed.'
+            : stage === 'rollback'
+              ? 'Client saved but matter failed (and cleanup failed).'
+              : 'Nothing saved: matter creation failed.';
 
-      setSubmitError({ friendly, technical: buildTechnicalError(error) });
+      const technical = [
+        buildTechnicalError(error),
+        '---',
+        'WHOAMI (preflight)',
+        whoamiText,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      setSubmitError({ friendly, technical });
       toast.error('Creation failed');
     } finally {
       setIsSubmitting(false);
@@ -207,6 +255,9 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setIsSubmitting(true);
     setSubmitError(null);
     setShowErrorDetails(false);
+
+    // Always collect auth diagnostics for the technical details panel
+    await runWhoami();
 
     try {
       const result = await createClientAndMatter(
@@ -227,13 +278,24 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const anyErr = error as any;
       const stage = anyErr?.stage;
       const friendly =
-        stage === 'client'
-          ? 'Nothing saved: client creation failed.'
-          : stage === 'rollback'
-            ? 'Client saved but matter failed (and cleanup failed).'
-            : 'Nothing saved: matter creation failed.';
+        stage === 'transaction'
+          ? 'Nothing saved: create transaction failed.'
+          : stage === 'client'
+            ? 'Nothing saved: client creation failed.'
+            : stage === 'rollback'
+              ? 'Client saved but matter failed (and cleanup failed).'
+              : 'Nothing saved: matter creation failed.';
 
-      setSubmitError({ friendly, technical: buildTechnicalError(error) });
+      const technical = [
+        buildTechnicalError(error),
+        '---',
+        'WHOAMI (preflight)',
+        whoamiText,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      setSubmitError({ friendly, technical });
       toast.error('Creation failed');
     } finally {
       setIsSubmitting(false);
@@ -337,6 +399,33 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
               </p>
             </div>
 
+            <Alert className="mt-2">
+              <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Status: <span className="font-mono">{whoamiStatus}</span>
+                </p>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm">Show whoami output</Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    <Textarea
+                      readOnly
+                      value={whoamiText}
+                      className="min-h-[120px] font-mono text-xs bg-muted"
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button type="button" variant="outline" size="sm" onClick={runWhoami} disabled={isSubmitting}>
+                        Refresh whoami
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </AlertDescription>
+            </Alert>
+
             <ErrorDisplay />
 
             <Button 
@@ -396,6 +485,33 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
             </div>
 
             <ErrorDisplay />
+
+            <Alert className="mt-2">
+              <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Status: <span className="font-mono">{whoamiStatus}</span>
+                </p>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm">Show whoami output</Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    <Textarea
+                      readOnly
+                      value={whoamiText}
+                      className="min-h-[120px] font-mono text-xs bg-muted"
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                    />
+                    <div className="flex gap-2 mt-2">
+                      <Button type="button" variant="outline" size="sm" onClick={runWhoami} disabled={isSubmitting}>
+                        Refresh whoami
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </AlertDescription>
+            </Alert>
 
             <Button 
               onClick={handleManualSubmit} 

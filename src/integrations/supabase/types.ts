@@ -225,6 +225,7 @@ export type Database = {
           matter_type: Database["public"]["Enums"]["matter_type"]
           opened_at: string
           overall_reliability_rating: number | null
+          owner_id: string
           primary_state: Database["public"]["Enums"]["matter_state"]
           title: string
           updated_at: string
@@ -242,6 +243,7 @@ export type Database = {
           matter_type?: Database["public"]["Enums"]["matter_type"]
           opened_at?: string
           overall_reliability_rating?: number | null
+          owner_id?: string
           primary_state?: Database["public"]["Enums"]["matter_state"]
           title: string
           updated_at?: string
@@ -259,6 +261,7 @@ export type Database = {
           matter_type?: Database["public"]["Enums"]["matter_type"]
           opened_at?: string
           overall_reliability_rating?: number | null
+          owner_id?: string
           primary_state?: Database["public"]["Enums"]["matter_state"]
           title?: string
           updated_at?: string

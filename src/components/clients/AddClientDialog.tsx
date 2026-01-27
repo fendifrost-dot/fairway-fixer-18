@@ -129,8 +129,10 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     source: string,
     noteText?: string
   ) => {
-    if (!user) {
-      toast.error('You must be logged in');
+    // C) HARD GUARD: Verify authenticated session exists before RPC call
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || !session.user) {
+      toast.error('You must be logged in to create a client');
       return null;
     }
 

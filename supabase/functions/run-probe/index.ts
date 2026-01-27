@@ -65,10 +65,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const [probeRes, snapRes, variantsRes] = await Promise.all([
+    const [probeRes, snapRes, variantsRes, claimsRes] = await Promise.all([
       supabase.rpc("probe_matters_insert", { p_client_id: clientId }),
       supabase.rpc("__snapshot_matters_rls"),
       supabase.rpc("probe_matters_ownerid_variants", { p_client_id: clientId }),
+      supabase.rpc("prove_request_claims"),
     ]);
 
     return new Response(
@@ -79,6 +80,8 @@ Deno.serve(async (req) => {
           probe_error: probeRes.error,
           ownerid_variants: variantsRes.data as Json,
           ownerid_variants_error: variantsRes.error,
+          request_claims: claimsRes.data as Json,
+          request_claims_error: claimsRes.error,
           snapshot: snapRes.data as Json,
           snapshot_error: snapRes.error,
         },

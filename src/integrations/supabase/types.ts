@@ -580,6 +580,27 @@ export type Database = {
           matter_id: string
         }[]
       }
+      debug_create_client_and_matter: {
+        Args: {
+          _client_notes?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+        }
+        Returns: {
+          attempted_matter_owner_id: string
+          caller_role: string
+          caller_uid: string
+          db_user: string
+          error_code: string
+          error_message: string
+          error_stage: string
+          inserted_client_id: string
+          inserted_client_owner_id: string
+          inserted_matter_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -589,6 +589,15 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_owner_of_client: { Args: { _client_id: string }; Returns: boolean }
+      whoami: {
+        Args: never
+        Returns: {
+          db_user: string
+          jwt: Json
+          role: string
+          uid: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "staff"

@@ -176,6 +176,26 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     }
   };
 
+  // Temporary test function to diagnose RLS
+  const runRlsTest = async () => {
+    try {
+      const { data, error } = await supabase.rpc('test_matters_insert_rls');
+      if (error) {
+        toast.error('RLS test failed');
+        console.log('RLS Test Error:', JSON.stringify(error, null, 2));
+        setWhoamiText(prev => prev + '\n\n--- RLS TEST RESULT ---\n' + JSON.stringify(error, null, 2));
+      } else {
+        toast.success('RLS test passed!');
+        console.log('RLS Test Success:', JSON.stringify(data, null, 2));
+        setWhoamiText(prev => prev + '\n\n--- RLS TEST RESULT ---\n' + JSON.stringify(data, null, 2));
+      }
+    } catch (e) {
+      toast.error('RLS test exception');
+      console.log('RLS Test Exception:', e);
+      setWhoamiText(prev => prev + '\n\n--- RLS TEST EXCEPTION ---\n' + String(e));
+    }
+  };
+
   /**
    * DEBUG RPC: instrumented client+matter creation
    * Returns full context (caller_uid, attempted_matter_owner_id, error info) for diagnostics.
@@ -493,6 +513,16 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                       className="min-h-[120px] font-mono text-xs bg-muted"
                       onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                     />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="mt-2"
+                      onClick={runRlsTest}
+                      disabled={isSubmitting || whoamiStatus !== 'authenticated'}
+                    >
+                      Run RLS Test (debug)
+                    </Button>
                   </CollapsibleContent>
                 </Collapsible>
               </AlertDescription>

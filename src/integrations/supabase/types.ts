@@ -610,6 +610,14 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_owner_of_client: { Args: { _client_id: string }; Returns: boolean }
+      test_matters_insert_rls: {
+        Args: never
+        Returns: {
+          auth_role_value: string
+          auth_uid_value: string
+          step: string
+        }[]
+      }
       whoami: {
         Args: never
         Returns: {

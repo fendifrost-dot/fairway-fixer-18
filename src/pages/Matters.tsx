@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { StateBadge, OverlayBadge, EntityBadge } from '@/components/ui/StatusBadge';
-import { mockMatters, mockClients, mockEntityCases, mockDeadlines, mockViolations } from '@/data/mockData';
+import { useMattersWithRelations } from '@/hooks/useMatters';
+import { AddClientDialog } from '@/components/clients/AddClientDialog';
 import { 
   FolderOpen, 
   Search, 
@@ -13,7 +14,8 @@ import {
   AlertTriangle, 
   Clock, 
   Building2,
-  Filter
+  Filter,
+  Loader2
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -24,41 +26,78 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MatterState } from '@/types/database';
 
 export default function Matters() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<string>('all');
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  
+  const { data: matters, isLoading, refetch } = useMattersWithRelations();
 
-  const filteredMatters = mockMatters.filter(matter => {
+  const filteredMatters = matters?.filter(matter => {
     const matchesSearch = matter.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesState = stateFilter === 'all' || matter.primaryState === stateFilter;
+    const matchesState = stateFilter === 'all' || matter.primary_state === stateFilter;
     return matchesSearch && matchesState;
-  });
+  }) ?? [];
 
-  const getClientName = (clientId: string) => {
-    const client = mockClients.find(c => c.id === clientId);
-    return client?.preferredName || client?.legalName || 'Unknown';
-  };
+  const uniqueStates = [...new Set(matters?.map(m => m.primary_state) ?? [])];
 
-  const getMatterEntityCases = (matterId: string) => {
-    return mockEntityCases.filter(e => e.matterId === matterId);
-  };
+  // Empty state component
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="rounded-full bg-accent/10 p-6 mb-6">
+        <FolderOpen className="h-12 w-12 text-accent" />
+      </div>
+      <h2 className="text-xl font-semibold mb-2">No matters yet</h2>
+      <p className="text-muted-foreground text-center max-w-md mb-6">
+        Add your first client to create matters and activate the workflow engine.
+      </p>
+      <Button 
+        onClick={() => setAddClientOpen(true)}
+        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        size="lg"
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Add Client
+      </Button>
+    </div>
+  );
 
-  const getMatterDeadlines = (matterId: string) => {
-    return mockDeadlines.filter(d => d.matterId === matterId && d.status !== 'Closed');
-  };
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
 
-  const getMatterViolations = (matterId: string) => {
-    return mockViolations.filter(v => v.matterId === matterId);
-  };
-
-  const getNextDeadline = (matterId: string) => {
-    const deadlines = getMatterDeadlines(matterId);
-    if (deadlines.length === 0) return null;
-    return deadlines.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
-  };
-
-  const uniqueStates = [...new Set(mockMatters.map(m => m.primaryState))];
+  // Empty state
+  if (!matters || matters.length === 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <FolderOpen className="h-8 w-8 text-accent" />
+              Matters
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Credit repair and consulting cases
+            </p>
+          </div>
+        </div>
+        <EmptyState />
+        <AddClientDialog 
+          open={addClientOpen} 
+          onOpenChange={setAddClientOpen}
+          onSuccess={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -73,9 +112,12 @@ export default function Matters() {
             Credit repair and consulting cases
           </p>
         </div>
-        <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+        <Button 
+          onClick={() => setAddClientOpen(true)}
+          className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
           <Plus className="h-4 w-4 mr-2" />
-          New Matter
+          Add Client
         </Button>
       </div>
 
@@ -107,10 +149,16 @@ export default function Matters() {
       {/* Matters List */}
       <div className="space-y-4">
         {filteredMatters.map((matter) => {
-          const entityCases = getMatterEntityCases(matter.id);
-          const violations = getMatterViolations(matter.id);
-          const nextDeadline = getNextDeadline(matter.id);
-          const daysUntilDeadline = nextDeadline ? differenceInDays(nextDeadline.dueDate, new Date()) : null;
+          const entityCases = matter.entity_cases ?? [];
+          const violations = matter.violations ?? [];
+          const activeDeadlines = matter.deadlines?.filter(d => d.status !== 'Closed') ?? [];
+          const nextDeadline = activeDeadlines.sort((a, b) => 
+            new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+          )[0];
+          const daysUntilDeadline = nextDeadline 
+            ? differenceInDays(new Date(nextDeadline.due_date), new Date()) 
+            : null;
+          const activeOverlays = matter.overlays?.filter(o => o.is_active) ?? [];
 
           return (
             <Link key={matter.id} to={`/matters/${matter.id}`}>
@@ -124,13 +172,13 @@ export default function Matters() {
                           <h3 className="font-semibold text-lg truncate group-hover:text-accent transition-colors">
                             {matter.title}
                           </h3>
-                          <StateBadge state={matter.primaryState} />
-                          {matter.overlays.filter(o => o.isActive).map((overlay) => (
-                            <OverlayBadge key={overlay.id} overlay={overlay.overlayType} size="sm" />
+                          <StateBadge state={matter.primary_state as MatterState} />
+                          {activeOverlays.map((overlay) => (
+                            <OverlayBadge key={overlay.id} overlay={overlay.overlay_type as any} size="sm" />
                           ))}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>{getClientName(matter.clientId)}</span>
+                          <span>{matter.client?.preferred_name || matter.client?.legal_name || 'Unknown'}</span>
                           {matter.jurisdiction && (
                             <>
                               <span>•</span>
@@ -140,7 +188,7 @@ export default function Matters() {
                           <span>•</span>
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
-                            Opened {format(matter.openedAt, 'MMM d, yyyy')}
+                            Opened {format(new Date(matter.opened_at), 'MMM d, yyyy')}
                           </span>
                         </div>
                       </div>
@@ -151,17 +199,17 @@ export default function Matters() {
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           {entityCases.map((entity) => (
                             <div key={entity.id} className="flex items-center gap-1.5">
-                              <EntityBadge type={entity.entityType} size="sm" />
-                              <span className="text-xs text-muted-foreground">{entity.entityName}</span>
+                              <EntityBadge type={entity.entity_type} size="sm" />
+                              <span className="text-xs text-muted-foreground">{entity.entity_name}</span>
                             </div>
                           ))}
                         </div>
                       )}
 
                       {/* Escalation Strategy */}
-                      {matter.escalationStrategy && (
+                      {matter.escalation_strategy && (
                         <p className="text-xs text-muted-foreground italic">
-                          Strategy: {matter.escalationStrategy}
+                          Strategy: {matter.escalation_strategy}
                         </p>
                       )}
                     </div>
@@ -215,12 +263,18 @@ export default function Matters() {
         })}
       </div>
 
-      {filteredMatters.length === 0 && (
+      {filteredMatters.length === 0 && searchQuery && (
         <div className="text-center py-12">
           <FolderOpen className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
           <p className="text-muted-foreground">No matters found matching your criteria.</p>
         </div>
       )}
+
+      <AddClientDialog 
+        open={addClientOpen} 
+        onOpenChange={setAddClientOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

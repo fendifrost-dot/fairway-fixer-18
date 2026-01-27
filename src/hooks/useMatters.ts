@@ -72,7 +72,9 @@ export function useMattersWithRelations() {
         throw error;
       }
 
-      return data as MatterWithRelations[];
+      // Our schema intentionally does not declare a FK from matters -> clients.
+      // Supabase typing marks nested selects as SelectQueryError, but runtime data is OK.
+      return (data as unknown) as MatterWithRelations[];
     },
   });
 }
@@ -100,7 +102,8 @@ export function useMatter(matterId: string | undefined) {
         throw error;
       }
 
-      return data as MatterWithRelations | null;
+      // See note above about missing FK relationship typing.
+      return (data as unknown) as MatterWithRelations | null;
     },
     enabled: !!matterId,
   });

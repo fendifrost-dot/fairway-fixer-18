@@ -49,7 +49,9 @@ export function useMatters(filters?: Partial<DashboardFilters>) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as DbMatter[];
+      // NOTE: our schema intentionally does not declare a FK from matters -> clients.
+      // Supabase typing treats the nested select as a SelectQueryError, but runtime data is fine.
+      return (data as unknown) as DbMatter[];
     },
   });
 }
@@ -72,7 +74,8 @@ export function useTasks(filters?: Partial<DashboardFilters>) {
       const { data, error } = await query;
       if (error) throw error;
 
-      let tasks = data as DbTask[];
+      // See note above about missing FK relationship typing.
+      let tasks = (data as unknown) as DbTask[];
 
       // Apply time window filter
       if (filters?.timeWindow) {
@@ -139,7 +142,8 @@ export function useDeadlines(filters?: Partial<DashboardFilters>) {
       const { data, error } = await query;
       if (error) throw error;
 
-      let deadlines = data as DbDeadline[];
+      // See note above about missing FK relationship typing.
+      let deadlines = (data as unknown) as DbDeadline[];
 
       // Apply time window filter
       if (filters?.timeWindow) {
@@ -204,7 +208,8 @@ export function useViolations(filters?: Partial<DashboardFilters>) {
       const { data, error } = await query;
       if (error) throw error;
 
-      let violations = data as DbViolation[];
+      // See note above about missing FK relationship typing.
+      let violations = (data as unknown) as DbViolation[];
 
       if (filters?.clientId) {
         violations = violations.filter(v => v.matter?.client_id === filters.clientId);

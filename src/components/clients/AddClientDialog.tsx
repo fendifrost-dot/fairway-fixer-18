@@ -198,7 +198,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
 
   /**
    * DEBUG RPC: instrumented client+matter creation
-   * Returns full context (caller_uid, attempted_matter_owner_id, error info) for diagnostics.
+   * Now returns jsonb with full diagnostics including visibility assertion and detailed error info.
    */
   const createClientAndMatter = async (
     clientName: string,
@@ -206,7 +206,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     source: string,
     noteText?: string
   ) => {
-    // C) HARD GUARD: Verify runtime auth via whoami() before attempting create
+    // Preflight auth check
     const who = await runWhoami();
     if (!who.ok) {
       const friendly = 'Not authenticated — cannot create matter.';
@@ -218,7 +218,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return null;
     }
 
-    // Call the DEBUG RPC function (temporary instrumentation)
+    // Call the patched debug RPC (now returns jsonb)
     const { data, error } = await supabase.rpc('debug_create_client_and_matter', {
       _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
       _matter_type: matterType,
@@ -227,34 +227,62 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       _client_notes: noteText || null,
     });
 
-    // Build debug payload for technical details
-    const debugPayload = JSON.stringify(
-      { rpc_response: data, rpc_error: error, whoami: who.text },
-      null,
-      2
-    );
+    const debugPayload = JSON.stringify({ rpc_response: data, rpc_error: error, whoami: who.text }, null, 2);
 
     if (error) {
       throw { stage: 'rpc_call', debugPayload, ...error };
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       throw { stage: 'rpc_call', debugPayload, message: 'No data returned from server' };
     }
 
-    // Check if the RPC itself caught an error
-    const result = data[0];
+    // The RPC now returns a single jsonb object, not an array
+    const result = data as {
+      caller_uid: string;
+      inserted_client_id: string | null;
+      inserted_client_owner_id?: string;
+      client_visible_after_insert: boolean;
+      inserted_matter_id?: string | null;
+      attempted_matter_client_id?: string;
+      attempted_matter_owner_id?: string;
+      error_code?: string;
+      error_message?: string;
+      error_detail?: string;
+      error_hint?: string;
+      error_table?: string;
+      error_column?: string;
+      error_constraint?: string;
+      error_stage?: string;
+      success?: boolean;
+    };
+
+    // Check if the RPC caught an error
     if (result.error_code) {
       throw {
-        stage: 'rpc_insert',
+        stage: result.error_stage || 'rpc_insert',
         debugPayload,
         code: result.error_code,
         message: result.error_message,
-        error_stage: result.error_stage,
+        detail: result.error_detail,
+        hint: result.error_hint,
+        table: result.error_table,
+        column: result.error_column,
+        constraint: result.error_constraint,
+        client_visible: result.client_visible_after_insert,
       };
     }
 
-    // Success: return client + matter IDs
+    // Check visibility assertion
+    if (!result.client_visible_after_insert) {
+      throw {
+        stage: 'client_visibility_check',
+        debugPayload,
+        message: 'Client row not visible after INSERT',
+      };
+    }
+
+    // Success
     return {
       client: { id: result.inserted_client_id },
       matter: { id: result.inserted_matter_id },

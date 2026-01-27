@@ -562,6 +562,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      __snapshot_matters_rls: { Args: never; Returns: Json }
       can_access_entity_case: {
         Args: { _entity_case_id: string }
         Returns: boolean

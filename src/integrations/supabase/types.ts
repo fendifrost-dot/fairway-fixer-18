@@ -604,6 +604,7 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_owner_of_client: { Args: { _client_id: string }; Returns: boolean }
+      probe_matters_insert: { Args: { p_client_id: string }; Returns: Json }
       test_matters_insert_rls: {
         Args: never
         Returns: {

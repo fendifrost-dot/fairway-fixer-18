@@ -26,7 +26,9 @@ export default function MatterDetail() {
         .maybeSingle();
       
       if (error) throw error;
-      return data as DbMatter | null;
+      // Our schema intentionally does not declare a FK from matters -> clients.
+      // Supabase typing marks nested selects as SelectQueryError, but runtime data is OK.
+      return (data as unknown) as DbMatter | null;
     },
     enabled: !!matterId,
   });

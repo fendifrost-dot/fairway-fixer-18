@@ -10,7 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   Select,
   SelectContent,
@@ -19,14 +24,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ClipboardPaste, UserPlus, Loader2 } from 'lucide-react';
+import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type MatterType = Database['public']['Enums']['matter_type'];
-type EntityType = Database['public']['Enums']['entity_type'];
 
 interface AddClientDialogProps {
   open: boolean;
@@ -34,27 +38,14 @@ interface AddClientDialogProps {
   onSuccess?: () => void;
 }
 
-// Standard CRAs - always created
-const STANDARD_CRAS = [
-  { name: 'Experian', type: 'CRA' as EntityType },
-  { name: 'TransUnion', type: 'CRA' as EntityType },
-  { name: 'Equifax', type: 'CRA' as EntityType },
-];
-
-// Optional entities - OFF by default
-const OPTIONAL_ENTITIES = [
-  { key: 'innovis', name: 'Innovis', type: 'CRA' as EntityType },
-  { key: 'lexisnexis', name: 'LexisNexis', type: 'DataBroker' as EntityType },
-  { key: 'corelogic', name: 'CoreLogic Teletrack', type: 'DataBroker' as EntityType },
-  { key: 'sagestream', name: 'SageStream', type: 'CRA' as EntityType },
-];
-
 export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDialogProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'paste' | 'manual'>('paste');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<null | { friendly: string; technical?: string }>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   // Paste intake state
   const [intakeText, setIntakeText] = useState('');
@@ -64,25 +55,9 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const [matterType, setMatterType] = useState<MatterType>('Credit');
   const [issueNote, setIssueNote] = useState('');
 
-  // Optional entities (all OFF by default)
-  const [optionalEntities, setOptionalEntities] = useState<Record<string, boolean>>({
-    innovis: false,
-    lexisnexis: false,
-    corelogic: false,
-    sagestream: false,
-  });
-
-  // Overlay suggestions (OFF by default, soft suggestion only)
-  const [overlays, setOverlays] = useState({
-    identityTheft: false,
-    mixedFile: false,
-  });
-  const [overlaysDetected, setOverlaysDetected] = useState(false);
-
   // Auto-focus textarea when dialog opens in paste mode
   useEffect(() => {
     if (open && mode === 'paste') {
-      // Small delay to ensure dialog is rendered
       const timer = setTimeout(() => {
         textareaRef.current?.focus();
       }, 100);
@@ -95,20 +70,15 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setLegalName('');
     setMatterType('Credit');
     setIssueNote('');
-    setOptionalEntities({
-      innovis: false,
-      lexisnexis: false,
-      corelogic: false,
-      sagestream: false,
-    });
-    setOverlays({ identityTheft: false, mixedFile: false });
-    setOverlaysDetected(false);
     setMode('paste');
+    setSubmitError(null);
+    setShowErrorDetails(false);
   };
 
   // Best-effort name parsing (never blocks creation)
   const parseNameFromIntake = (text: string): string | null => {
     const patterns = [
+      /primary\s+legal\s+name[^:\n]*:\s*([^\n,]+)/i,
       /(?:client|name|legal name|full name|consumer)\s*[:\-]\s*([^\n,]+)/i,
       /^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)/m,
     ];
@@ -116,45 +86,62 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     for (const pattern of patterns) {
       const match = text.match(pattern);
       if (match && match[1] && match[1].trim().length > 2) {
-        return match[1].trim().substring(0, 100);
+        const candidate = match[1].trim().substring(0, 100);
+        // Skip if it looks like identifier data rather than a name
+        if (/\b(dob|ssn|social\s*security|last\s*four|identifier|specific\s*identifiers)\b/i.test(candidate)) {
+          continue;
+        }
+        return candidate;
       }
     }
     return null;
   };
 
-  // Best-effort overlay detection (soft suggestion only)
-  const detectOverlays = (text: string) => {
-    const lowerText = text.toLowerCase();
-    const hasIdentityTheft = /identity\s*theft|id\s*theft|ftc\s*report|fraud\s*alert|fraudulent\s*account|stolen\s*identity/i.test(lowerText);
-    const hasMixedFile = /mixed\s*file|wrong\s*person|another\s*consumer|shares?\s*name|mistaken\s*identity|not\s*my\s*account/i.test(lowerText);
-    
-    return { identityTheft: hasIdentityTheft, mixedFile: hasMixedFile };
-  };
-
-  const handleIntakeTextChange = (text: string) => {
-    setIntakeText(text);
-    // Best-effort overlay detection (non-blocking, soft suggestion)
-    if (text.length > 50) {
-      const detected = detectOverlays(text);
-      if (detected.identityTheft || detected.mixedFile) {
-        setOverlaysDetected(true);
-        setOverlays(detected);
+  const buildTechnicalError = (error: unknown): string | undefined => {
+    if (!error) return undefined;
+    try {
+      if (typeof error === 'object') {
+        const anyErr = error as any;
+        const safe = {
+          message: anyErr?.message,
+          code: anyErr?.code,
+          details: anyErr?.details,
+          hint: anyErr?.hint,
+          stage: anyErr?.stage,
+          rollback: anyErr?.rollback,
+        };
+        return JSON.stringify(safe, null, 2);
       }
+      return String(error);
+    } catch {
+      return String(error);
     }
   };
 
-  const createClientAndMatter = async (clientName: string, rawIntakeText: string | null, source: string, noteText?: string) => {
+  /**
+   * TWO-STEP WRITE ONLY: clients + matters
+   * Atomic safety via rollback: if matter insert fails, delete the newly created client.
+   * NO entity_cases, overlays, tasks, deadlines, or violations are created here.
+   */
+  const createClientAndMatter = async (
+    clientName: string,
+    rawIntakeText: string | null,
+    source: string,
+    noteText?: string
+  ) => {
     if (!user) {
       toast.error('You must be logged in');
       return null;
     }
 
+    let createdClientId: string | null = null;
+
     try {
-      // 1. Create Client (always succeeds, name can be edited later)
+      // Step 1: Create Client
       const { data: client, error: clientError } = await supabase
         .from('clients')
         .insert({
-          legal_name: clientName || 'New Client',
+          legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
           owner_id: user.id,
           status: 'Active',
           notes: noteText || null,
@@ -162,14 +149,15 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         .select()
         .single();
 
-      if (clientError) throw clientError;
+      if (clientError) throw { stage: 'client', ...clientError };
+      createdClientId = client.id;
 
-      // 2. Create Matter with intake fields (defaults: Credit, Federal FCRA, Dispute Preparation)
+      // Step 2: Create Matter (linked to client)
       const { data: matter, error: matterError } = await supabase
         .from('matters')
         .insert({
           client_id: client.id,
-          title: clientName ? `${clientName} - Credit Matter` : 'New Credit Matter',
+          title: clientName ? `${clientName} - ${matterType} Matter` : `New ${matterType} Matter`,
           matter_type: matterType,
           jurisdiction: 'Federal (FCRA)',
           primary_state: 'DisputePreparation',
@@ -180,54 +168,36 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         .select()
         .single();
 
-      if (matterError) throw matterError;
+      if (matterError) throw { stage: 'matter', ...matterError };
 
-      // 3. Create Entity Cases (standard + optional)
-      const entitiesToCreate = [
-        ...STANDARD_CRAS,
-        ...OPTIONAL_ENTITIES.filter(e => optionalEntities[e.key]),
-      ];
-
-      const entityCasesData = entitiesToCreate.map(entity => ({
-        matter_id: matter.id,
-        entity_name: entity.name,
-        entity_type: entity.type,
-        state: 'DisputePreparation' as const,
-      }));
-
-      await supabase.from('entity_cases').insert(entityCasesData);
-
-      // 4. Create Overlays if user confirmed
-      const overlaysToCreate = [];
-      if (overlays.identityTheft) {
-        overlaysToCreate.push({
-          matter_id: matter.id,
-          overlay_type: 'IdentityTheftDocumented' as const,
-          is_active: true,
-        });
-      }
-      if (overlays.mixedFile) {
-        overlaysToCreate.push({
-          matter_id: matter.id,
-          overlay_type: 'MixedFileConfirmed' as const,
-          is_active: true,
-        });
-      }
-
-      if (overlaysToCreate.length > 0) {
-        await supabase.from('overlays').insert(overlaysToCreate);
-      }
-
+      // SUCCESS: Return both records
       return { client, matter };
     } catch (error) {
-      console.error('Creation error:', error);
+      // ROLLBACK: If matter failed after client creation, delete the orphaned client
+      if (createdClientId) {
+        const { error: rollbackError } = await supabase
+          .from('clients')
+          .delete()
+          .eq('id', createdClientId);
+
+        if (rollbackError) {
+          throw {
+            stage: 'rollback',
+            message: 'Matter creation failed and client rollback also failed',
+            rollback: rollbackError,
+            original: error,
+          };
+        }
+      }
       throw error;
     }
   };
 
   const handlePasteSubmit = async () => {
-    // Never reject - if empty, still allow (user can paste nothing and fix later)
     setIsSubmitting(true);
+    setSubmitError(null);
+    setShowErrorDetails(false);
+
     try {
       const parsedName = intakeText.trim() ? parseNameFromIntake(intakeText) : null;
       const result = await createClientAndMatter(
@@ -241,11 +211,20 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        // Navigate to matter detail (preferred per directive)
         navigate(`/matters/${result.matter.id}`);
       }
     } catch (error) {
-      toast.error('Creation failed. Please try again.');
+      const anyErr = error as any;
+      const stage = anyErr?.stage;
+      const friendly =
+        stage === 'client'
+          ? 'Nothing saved: client creation failed.'
+          : stage === 'rollback'
+            ? 'Client saved but matter failed (and cleanup failed).'
+            : 'Nothing saved: matter creation failed.';
+
+      setSubmitError({ friendly, technical: buildTechnicalError(error) });
+      toast.error('Creation failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -258,8 +237,16 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     }
 
     setIsSubmitting(true);
+    setSubmitError(null);
+    setShowErrorDetails(false);
+
     try {
-      const result = await createClientAndMatter(legalName.trim(), null, 'Manual', issueNote.trim() || undefined);
+      const result = await createClientAndMatter(
+        legalName.trim(),
+        null,
+        'Manual',
+        issueNote.trim() || undefined
+      );
 
       if (result) {
         toast.success('Client created');
@@ -269,7 +256,17 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         navigate(`/matters/${result.matter.id}`);
       }
     } catch (error) {
-      toast.error('Creation failed. Please try again.');
+      const anyErr = error as any;
+      const stage = anyErr?.stage;
+      const friendly =
+        stage === 'client'
+          ? 'Nothing saved: client creation failed.'
+          : stage === 'rollback'
+            ? 'Client saved but matter failed (and cleanup failed).'
+            : 'Nothing saved: matter creation failed.';
+
+      setSubmitError({ friendly, technical: buildTechnicalError(error) });
+      toast.error('Creation failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -285,6 +282,38 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         handleManualSubmit();
       }
     }
+  };
+
+  const ErrorDisplay = () => {
+    if (!submitError) return null;
+    return (
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Couldn't create client</AlertTitle>
+        <AlertDescription className="space-y-2">
+          <p>{submitError.friendly}</p>
+          {submitError.technical && (
+            <Collapsible open={showErrorDetails} onOpenChange={setShowErrorDetails}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" className="mt-2">
+                  <ChevronDown className={`h-4 w-4 mr-1 transition-transform ${showErrorDetails ? 'rotate-180' : ''}`} />
+                  {showErrorDetails ? 'Hide technical details' : 'Show technical details'}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <Textarea
+                  readOnly
+                  value={submitError.technical}
+                  className="min-h-[120px] font-mono text-xs bg-muted"
+                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Click to select, then copy</p>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
   };
 
   return (
@@ -312,7 +341,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
 
           {/* ===== PASTE INTAKE MODE (PRIMARY) ===== */}
           <TabsContent value="paste" className="space-y-4 mt-4">
-            {/* DOMINANT TEXTAREA */}
             <div className="space-y-2">
               <Label htmlFor="intake-text" className="text-sm font-medium">
                 Paste client intake from ChatGPT or structured notes
@@ -333,7 +361,7 @@ Disputed Accounts:
 
 Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                 value={intakeText}
-                onChange={(e) => handleIntakeTextChange(e.target.value)}
+                onChange={(e) => setIntakeText(e.target.value)}
                 className="min-h-[280px] font-mono text-sm leading-relaxed resize-none"
               />
               <p className="text-xs text-muted-foreground">
@@ -341,60 +369,7 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
               </p>
             </div>
 
-            {/* Overlay Suggestions (soft, non-blocking) */}
-            {overlaysDetected && (
-              <div className="rounded-md border border-accent/30 bg-accent/5 p-3 space-y-2">
-                <p className="text-xs font-medium text-accent">Suggested Overlays (detected from intake)</p>
-                <div className="flex flex-wrap gap-4">
-                  {overlays.identityTheft && (
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="id-theft"
-                        checked={overlays.identityTheft}
-                        onCheckedChange={(checked) => 
-                          setOverlays(prev => ({ ...prev, identityTheft: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="id-theft" className="text-xs cursor-pointer">Identity Theft</Label>
-                    </div>
-                  )}
-                  {overlays.mixedFile && (
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="mixed-file"
-                        checked={overlays.mixedFile}
-                        onCheckedChange={(checked) => 
-                          setOverlays(prev => ({ ...prev, mixedFile: !!checked }))
-                        }
-                      />
-                      <Label htmlFor="mixed-file" className="text-xs cursor-pointer">Mixed File</Label>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Optional Entities (compact, collapsed feel) */}
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Auto-included:</span> Experian, TransUnion, Equifax
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {OPTIONAL_ENTITIES.map(entity => (
-                  <div key={entity.key} className="flex items-center gap-1.5">
-                    <Checkbox
-                      id={entity.key}
-                      checked={optionalEntities[entity.key]}
-                      onCheckedChange={(checked) => 
-                        setOptionalEntities(prev => ({ ...prev, [entity.key]: !!checked }))
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <Label htmlFor={entity.key} className="text-xs text-muted-foreground cursor-pointer">{entity.name}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ErrorDisplay />
 
             <Button 
               onClick={handlePasteSubmit} 
@@ -452,27 +427,7 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
               />
             </div>
 
-            {/* Optional entities for manual mode */}
-            <div className="space-y-2 pt-2 border-t border-border/50">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Auto-included:</span> Experian, TransUnion, Equifax
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {OPTIONAL_ENTITIES.map(entity => (
-                  <div key={entity.key} className="flex items-center gap-1.5">
-                    <Checkbox
-                      id={`manual-${entity.key}`}
-                      checked={optionalEntities[entity.key]}
-                      onCheckedChange={(checked) => 
-                        setOptionalEntities(prev => ({ ...prev, [entity.key]: !!checked }))
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <Label htmlFor={`manual-${entity.key}`} className="text-xs text-muted-foreground cursor-pointer">{entity.name}</Label>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ErrorDisplay />
 
             <Button 
               onClick={handleManualSubmit} 

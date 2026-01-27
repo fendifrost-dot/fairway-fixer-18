@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StateBadge, EntityBadge, PriorityBadge } from '@/components/ui/StatusBadge';
-import { DbMatter, DbEntityCase, DbTask, DbDeadline, DbViolation, DbAction, DbResponse, DEADLINE_LABELS } from '@/types/database';
+import { InitializeCaseStructure } from '@/components/matters/InitializeCaseStructure';
+import { DbMatter, DbEntityCase, DbTask, DbDeadline, DbViolation, DbAction, DbResponse, DbOverlay, DEADLINE_LABELS } from '@/types/database';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ArrowLeft, FileText, Clock, AlertTriangle, Scale, Loader2, User, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -120,6 +121,20 @@ export default function MatterDetail() {
     enabled: !!matterId,
   });
 
+  const { data: overlays = [] } = useQuery({
+    queryKey: ['matterOverlays', matterId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('overlays')
+        .select('*')
+        .eq('matter_id', matterId);
+      
+      if (error) throw error;
+      return data as DbOverlay[];
+    },
+    enabled: !!matterId,
+  });
+
   if (matterLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -211,37 +226,46 @@ export default function MatterDetail() {
         </CardContent>
       </Card>
 
+      {/* Initialize Case Structure (post-intake) */}
+      <InitializeCaseStructure
+        matterId={matterId!}
+        existingEntityNames={entityCases.map(e => e.entity_name)}
+        existingOverlayTypes={overlays.map(o => o.overlay_type)}
+      />
+
       {/* Entity Cases */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Scale className="h-5 w-5" />
-            Entity Cases
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {entityCases.map(entity => (
-              <Link
-                key={entity.id}
-                to={`/matters/${matterId}/entities/${entity.id}`}
-                className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <EntityBadge type={entity.entity_type} />
-                  <StateBadge state={entity.state} size="sm" />
-                </div>
-                <p className="font-medium">{entity.entity_name}</p>
-                {entity.last_action_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Last action: {format(parseISO(entity.last_action_at), 'MMM d')}
-                  </p>
-                )}
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {entityCases.length > 0 && (
+        <Card className="card-elevated">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Scale className="h-5 w-5" />
+              Entity Cases
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {entityCases.map(entity => (
+                <Link
+                  key={entity.id}
+                  to={`/matters/${matterId}/entities/${entity.id}`}
+                  className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <EntityBadge type={entity.entity_type} />
+                    <StateBadge state={entity.state} size="sm" />
+                  </div>
+                  <p className="font-medium">{entity.entity_name}</p>
+                  {entity.last_action_at && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Last action: {format(parseISO(entity.last_action_at), 'MMM d')}
+                    </p>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs for Tasks, Deadlines, Actions, Responses, Violations */}
       <Tabs defaultValue="tasks">

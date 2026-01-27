@@ -50,6 +50,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   // Diagnostics
   const [whoamiText, setWhoamiText] = useState<string>('(not run yet)');
   const [whoamiStatus, setWhoamiStatus] = useState<'unknown' | 'authenticated' | 'unauthenticated' | 'error'>('unknown');
+  const [whoamiLoading, setWhoamiLoading] = useState(false);
+  const [lastWhoamiSnapshot, setLastWhoamiSnapshot] = useState<string>('(not run yet)');
 
   // Paste intake state
   const [intakeText, setIntakeText] = useState('');
@@ -68,6 +70,23 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return () => clearTimeout(timer);
     }
   }, [open, mode]);
+
+  // REQUIRED: auto-run WHOAMI every time the modal opens
+  useEffect(() => {
+    if (!open) {
+      setWhoamiStatus('unknown');
+      setWhoamiText('(not run yet)');
+      setLastWhoamiSnapshot('(not run yet)');
+      setWhoamiLoading(false);
+      return;
+    }
+
+    setWhoamiStatus('unknown');
+    setWhoamiText('(running...)');
+    setWhoamiLoading(true);
+    void runWhoami().finally(() => setWhoamiLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const resetForm = () => {
     setIntakeText('');
@@ -123,12 +142,17 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   };
 
   const runWhoami = async () => {
+    setWhoamiLoading(true);
     try {
       const { data, error } = await supabase.rpc('whoami');
       if (error) {
-        setWhoamiStatus('error');
-        setWhoamiText(`whoami() error:\n${JSON.stringify(error, null, 2)}`);
-        return { ok: false, uid: null as string | null, role: null as string | null };
+        // If user is not authenticated, this can legitimately fail due to EXECUTE privilege.
+        // Treat as unauthenticated for gating purposes.
+        const text = `whoami() error:\n${JSON.stringify(error, null, 2)}`;
+        setWhoamiStatus('unauthenticated');
+        setWhoamiText(text);
+        setLastWhoamiSnapshot(text);
+        return { ok: false, uid: null as string | null, role: null as string | null, text };
       }
 
       const row = Array.isArray(data) ? data[0] : data;
@@ -136,14 +160,19 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const role = row?.role ?? null;
       const text = JSON.stringify(row, null, 2);
       setWhoamiText(text);
+      setLastWhoamiSnapshot(text);
 
       const ok = Boolean(uid) && role === 'authenticated';
       setWhoamiStatus(ok ? 'authenticated' : 'unauthenticated');
-      return { ok, uid, role };
+      return { ok, uid, role, text };
     } catch (e) {
+      const text = `whoami() exception:\n${buildTechnicalError(e) ?? String(e)}`;
       setWhoamiStatus('error');
-      setWhoamiText(`whoami() exception:\n${buildTechnicalError(e) ?? String(e)}`);
-      return { ok: false, uid: null as string | null, role: null as string | null };
+      setWhoamiText(text);
+      setLastWhoamiSnapshot(text);
+      return { ok: false, uid: null as string | null, role: null as string | null, text };
+    } finally {
+      setWhoamiLoading(false);
     }
   };
 
@@ -164,7 +193,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const friendly = 'Not authenticated — cannot create matter.';
       setSubmitError({
         friendly,
-        technical: `WHOAMI (preflight)\n${whoamiText}`,
+        technical: `WHOAMI (preflight)\n${who.text ?? lastWhoamiSnapshot}`,
       });
       toast.error('Not authenticated');
       return null;
@@ -201,7 +230,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setShowErrorDetails(false);
 
     // Always collect auth diagnostics for the technical details panel
-    await runWhoami();
+    const who = await runWhoami();
 
     try {
       const parsedName = intakeText.trim() ? parseNameFromIntake(intakeText) : null;
@@ -234,7 +263,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         buildTechnicalError(error),
         '---',
         'WHOAMI (preflight)',
-        whoamiText,
+        who.text ?? lastWhoamiSnapshot,
       ]
         .filter(Boolean)
         .join('\n');
@@ -257,7 +286,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setShowErrorDetails(false);
 
     // Always collect auth diagnostics for the technical details panel
-    await runWhoami();
+    const who = await runWhoami();
 
     try {
       const result = await createClientAndMatter(
@@ -290,7 +319,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         buildTechnicalError(error),
         '---',
         'WHOAMI (preflight)',
-        whoamiText,
+        who.text ?? lastWhoamiSnapshot,
       ]
         .filter(Boolean)
         .join('\n');
@@ -405,9 +434,19 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                 <p className="text-xs text-muted-foreground">
                   Status: <span className="font-mono">{whoamiStatus}</span>
                 </p>
+                {(whoamiStatus !== 'authenticated' || whoamiLoading) && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
+                    <AlertDescription>
+                      {whoamiLoading
+                        ? 'Checking authentication…'
+                        : 'Please log in, then reopen this dialog.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Collapsible>
                   <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">Show whoami output</Button>
+                    <Button variant="outline" size="sm">Technical details (whoami)</Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="pt-2">
                     <Textarea
@@ -416,11 +455,6 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                       className="min-h-[120px] font-mono text-xs bg-muted"
                       onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                     />
-                    <div className="flex gap-2 mt-2">
-                      <Button type="button" variant="outline" size="sm" onClick={runWhoami} disabled={isSubmitting}>
-                        Refresh whoami
-                      </Button>
-                    </div>
                   </CollapsibleContent>
                 </Collapsible>
               </AlertDescription>
@@ -431,7 +465,7 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
             <Button 
               onClick={handlePasteSubmit} 
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
-              disabled={isSubmitting}
+              disabled={isSubmitting || whoamiStatus !== 'authenticated' || whoamiLoading}
             >
               {isSubmitting ? (
                 <>
@@ -492,9 +526,19 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                 <p className="text-xs text-muted-foreground">
                   Status: <span className="font-mono">{whoamiStatus}</span>
                 </p>
+                {(whoamiStatus !== 'authenticated' || whoamiLoading) && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
+                    <AlertDescription>
+                      {whoamiLoading
+                        ? 'Checking authentication…'
+                        : 'Please log in, then reopen this dialog.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Collapsible>
                   <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">Show whoami output</Button>
+                    <Button variant="outline" size="sm">Technical details (whoami)</Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="pt-2">
                     <Textarea
@@ -503,11 +547,6 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                       className="min-h-[120px] font-mono text-xs bg-muted"
                       onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                     />
-                    <div className="flex gap-2 mt-2">
-                      <Button type="button" variant="outline" size="sm" onClick={runWhoami} disabled={isSubmitting}>
-                        Refresh whoami
-                      </Button>
-                    </div>
                   </CollapsibleContent>
                 </Collapsible>
               </AlertDescription>
@@ -516,7 +555,7 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
             <Button 
               onClick={handleManualSubmit} 
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
-              disabled={isSubmitting || !legalName.trim()}
+              disabled={isSubmitting || !legalName.trim() || whoamiStatus !== 'authenticated' || whoamiLoading}
             >
               {isSubmitting ? (
                 <>

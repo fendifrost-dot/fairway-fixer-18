@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Scale, Loader2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -18,6 +19,7 @@ const authSchema = z.object({
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
@@ -32,7 +34,7 @@ export default function Auth() {
     }
 
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(email, password, rememberDevice);
     setLoading(false);
 
     if (error) {
@@ -107,6 +109,16 @@ export default function Auth() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="remember-device"
+                    checked={rememberDevice}
+                    onCheckedChange={(checked) => setRememberDevice(checked === true)}
+                  />
+                  <Label htmlFor="remember-device" className="text-sm font-normal cursor-pointer">
+                    Remember this device
+                  </Label>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -598,6 +598,7 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: Json
       }
+      prove_request_claims: { Args: never; Returns: Json }
       test_matters_insert_rls: {
         Args: never
         Returns: {

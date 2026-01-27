@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -35,14 +34,14 @@ interface AddClientDialogProps {
   onSuccess?: () => void;
 }
 
-// Standard CRAs that are always created
+// Standard CRAs - always created
 const STANDARD_CRAS = [
   { name: 'Experian', type: 'CRA' as EntityType },
   { name: 'TransUnion', type: 'CRA' as EntityType },
   { name: 'Equifax', type: 'CRA' as EntityType },
 ];
 
-// Optional entities user can toggle
+// Optional entities - OFF by default
 const OPTIONAL_ENTITIES = [
   { key: 'innovis', name: 'Innovis', type: 'CRA' as EntityType },
   { key: 'lexisnexis', name: 'LexisNexis', type: 'DataBroker' as EntityType },
@@ -53,6 +52,7 @@ const OPTIONAL_ENTITIES = [
 export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDialogProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'paste' | 'manual'>('paste');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,7 +64,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const [matterType, setMatterType] = useState<MatterType>('Credit');
   const [issueNote, setIssueNote] = useState('');
 
-  // Optional entities toggles (all unchecked by default)
+  // Optional entities (all OFF by default)
   const [optionalEntities, setOptionalEntities] = useState<Record<string, boolean>>({
     innovis: false,
     lexisnexis: false,
@@ -72,11 +72,23 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     sagestream: false,
   });
 
-  // Overlay suggestions (off by default, can be toggled)
+  // Overlay suggestions (OFF by default, soft suggestion only)
   const [overlays, setOverlays] = useState({
     identityTheft: false,
     mixedFile: false,
   });
+  const [overlaysDetected, setOverlaysDetected] = useState(false);
+
+  // Auto-focus textarea when dialog opens in paste mode
+  useEffect(() => {
+    if (open && mode === 'paste') {
+      // Small delay to ensure dialog is rendered
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [open, mode]);
 
   const resetForm = () => {
     setIntakeText('');
@@ -90,164 +102,150 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       sagestream: false,
     });
     setOverlays({ identityTheft: false, mixedFile: false });
+    setOverlaysDetected(false);
+    setMode('paste');
   };
 
-  // Best-effort parsing for legal name from intake text
+  // Best-effort name parsing (never blocks creation)
   const parseNameFromIntake = (text: string): string | null => {
-    // Look for common patterns like "Client: Name" or "Name: John Doe"
     const patterns = [
-      /(?:client|name|legal name|full name)\s*[:\-]\s*([^\n,]+)/i,
-      /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/m, // Capitalized name at start of line
+      /(?:client|name|legal name|full name|consumer)\s*[:\-]\s*([^\n,]+)/i,
+      /^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)/m,
     ];
     
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match && match[1]) {
-        return match[1].trim();
+      if (match && match[1] && match[1].trim().length > 2) {
+        return match[1].trim().substring(0, 100);
       }
     }
     return null;
   };
 
-  // Best-effort overlay detection
+  // Best-effort overlay detection (soft suggestion only)
   const detectOverlays = (text: string) => {
     const lowerText = text.toLowerCase();
-    const hasIdentityTheft = /identity\s*theft|id\s*theft|ftc\s*report|fraud\s*alert|fraudulent\s*account/i.test(lowerText);
-    const hasMixedFile = /mixed\s*file|wrong\s*person|another\s*consumer|shares?\s*name|mistaken\s*identity/i.test(lowerText);
+    const hasIdentityTheft = /identity\s*theft|id\s*theft|ftc\s*report|fraud\s*alert|fraudulent\s*account|stolen\s*identity/i.test(lowerText);
+    const hasMixedFile = /mixed\s*file|wrong\s*person|another\s*consumer|shares?\s*name|mistaken\s*identity|not\s*my\s*account/i.test(lowerText);
     
     return { identityTheft: hasIdentityTheft, mixedFile: hasMixedFile };
   };
 
   const handleIntakeTextChange = (text: string) => {
     setIntakeText(text);
-    // Best-effort overlay detection (non-blocking)
-    const detected = detectOverlays(text);
-    setOverlays(detected);
+    // Best-effort overlay detection (non-blocking, soft suggestion)
+    if (text.length > 50) {
+      const detected = detectOverlays(text);
+      if (detected.identityTheft || detected.mixedFile) {
+        setOverlaysDetected(true);
+        setOverlays(detected);
+      }
+    }
   };
 
-  const createClientAndMatter = async (clientName: string, rawIntakeText: string | null, source: string) => {
+  const createClientAndMatter = async (clientName: string, rawIntakeText: string | null, source: string, noteText?: string) => {
     if (!user) {
-      toast.error('You must be logged in to add clients');
+      toast.error('You must be logged in');
       return null;
     }
 
-    // 1. Create Client
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .insert({
-        legal_name: clientName || 'New Client',
-        owner_id: user.id,
-        status: 'Active',
-        notes: issueNote || null,
-      })
-      .select()
-      .single();
+    try {
+      // 1. Create Client (always succeeds, name can be edited later)
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .insert({
+          legal_name: clientName || 'New Client',
+          owner_id: user.id,
+          status: 'Active',
+          notes: noteText || null,
+        })
+        .select()
+        .single();
 
-    if (clientError) {
-      console.error('Client creation error:', clientError);
-      throw new Error(`Failed to create client: ${clientError.message}`);
-    }
+      if (clientError) throw clientError;
 
-    // 2. Create Matter with intake fields
-    const { data: matter, error: matterError } = await supabase
-      .from('matters')
-      .insert({
-        client_id: client.id,
-        title: clientName ? `${clientName} - ${matterType} Matter` : `New ${matterType} Matter`,
-        matter_type: matterType,
-        jurisdiction: 'Federal (FCRA)',
-        primary_state: 'DisputePreparation',
-        intake_raw_text: rawIntakeText,
-        intake_source: source,
-        intake_created_at: rawIntakeText ? new Date().toISOString() : null,
-      })
-      .select()
-      .single();
+      // 2. Create Matter with intake fields (defaults: Credit, Federal FCRA, Dispute Preparation)
+      const { data: matter, error: matterError } = await supabase
+        .from('matters')
+        .insert({
+          client_id: client.id,
+          title: clientName ? `${clientName} - Credit Matter` : 'New Credit Matter',
+          matter_type: matterType,
+          jurisdiction: 'Federal (FCRA)',
+          primary_state: 'DisputePreparation',
+          intake_raw_text: rawIntakeText,
+          intake_source: source,
+          intake_created_at: rawIntakeText ? new Date().toISOString() : null,
+        })
+        .select()
+        .single();
 
-    if (matterError) {
-      console.error('Matter creation error:', matterError);
-      throw new Error(`Failed to create matter: ${matterError.message}`);
-    }
+      if (matterError) throw matterError;
 
-    // 3. Create Entity Cases (standard CRAs + optional entities)
-    const entitiesToCreate = [
-      ...STANDARD_CRAS,
-      ...OPTIONAL_ENTITIES.filter(e => optionalEntities[e.key]),
-    ];
+      // 3. Create Entity Cases (standard + optional)
+      const entitiesToCreate = [
+        ...STANDARD_CRAS,
+        ...OPTIONAL_ENTITIES.filter(e => optionalEntities[e.key]),
+      ];
 
-    const entityCasesData = entitiesToCreate.map(entity => ({
-      matter_id: matter.id,
-      entity_name: entity.name,
-      entity_type: entity.type,
-      state: 'DisputePreparation' as const,
-    }));
-
-    if (entityCasesData.length > 0) {
-      const { error: entityError } = await supabase
-        .from('entity_cases')
-        .insert(entityCasesData);
-
-      if (entityError) {
-        console.error('Entity case creation error:', entityError);
-        // Non-blocking - log but continue
-      }
-    }
-
-    // 4. Create Overlays if toggled on
-    const overlaysToCreate = [];
-    if (overlays.identityTheft) {
-      overlaysToCreate.push({
+      const entityCasesData = entitiesToCreate.map(entity => ({
         matter_id: matter.id,
-        overlay_type: 'IdentityTheftDocumented' as const,
-        is_active: true,
-      });
-    }
-    if (overlays.mixedFile) {
-      overlaysToCreate.push({
-        matter_id: matter.id,
-        overlay_type: 'MixedFileConfirmed' as const,
-        is_active: true,
-      });
-    }
+        entity_name: entity.name,
+        entity_type: entity.type,
+        state: 'DisputePreparation' as const,
+      }));
 
-    if (overlaysToCreate.length > 0) {
-      const { error: overlayError } = await supabase
-        .from('overlays')
-        .insert(overlaysToCreate);
+      await supabase.from('entity_cases').insert(entityCasesData);
 
-      if (overlayError) {
-        console.error('Overlay creation error:', overlayError);
-        // Non-blocking - log but continue
+      // 4. Create Overlays if user confirmed
+      const overlaysToCreate = [];
+      if (overlays.identityTheft) {
+        overlaysToCreate.push({
+          matter_id: matter.id,
+          overlay_type: 'IdentityTheftDocumented' as const,
+          is_active: true,
+        });
       }
-    }
+      if (overlays.mixedFile) {
+        overlaysToCreate.push({
+          matter_id: matter.id,
+          overlay_type: 'MixedFileConfirmed' as const,
+          is_active: true,
+        });
+      }
 
-    return { client, matter };
+      if (overlaysToCreate.length > 0) {
+        await supabase.from('overlays').insert(overlaysToCreate);
+      }
+
+      return { client, matter };
+    } catch (error) {
+      console.error('Creation error:', error);
+      throw error;
+    }
   };
 
   const handlePasteSubmit = async () => {
-    if (!intakeText.trim()) {
-      toast.error('Please paste intake text');
-      return;
-    }
-
+    // Never reject - if empty, still allow (user can paste nothing and fix later)
     setIsSubmitting(true);
     try {
-      const parsedName = parseNameFromIntake(intakeText);
+      const parsedName = intakeText.trim() ? parseNameFromIntake(intakeText) : null;
       const result = await createClientAndMatter(
         parsedName || 'New Client',
-        intakeText,
+        intakeText.trim() || null,
         'Narrative / ChatGPT'
       );
 
       if (result) {
-        toast.success('Client and matter created successfully');
+        toast.success('Client created');
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        navigate(`/clients/${result.client.id}`);
+        // Navigate to matter detail (preferred per directive)
+        navigate(`/matters/${result.matter.id}`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create client');
+      toast.error('Creation failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -261,118 +259,138 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
 
     setIsSubmitting(true);
     try {
-      const result = await createClientAndMatter(legalName, null, 'Manual');
+      const result = await createClientAndMatter(legalName.trim(), null, 'Manual', issueNote.trim() || undefined);
 
       if (result) {
-        toast.success('Client and matter created successfully');
+        toast.success('Client created');
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        navigate(`/clients/${result.client.id}`);
+        navigate(`/matters/${result.matter.id}`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create client');
+      toast.error('Creation failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Handle keyboard shortcut: Cmd/Ctrl + Enter to submit
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (mode === 'paste') {
+        handlePasteSubmit();
+      } else {
+        handleManualSubmit();
+      }
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) resetForm();
+      onOpenChange(isOpen);
+    }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-card" onKeyDown={handleKeyDown}>
+        <DialogHeader className="pb-2">
           <DialogTitle className="text-xl">Add Client</DialogTitle>
-          <DialogDescription>
-            Create a new client to activate the workflow engine.
-          </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(v) => setMode(v as 'paste' | 'manual')} className="mt-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="paste" className="flex items-center gap-2">
-              <ClipboardPaste className="h-4 w-4" />
+        <Tabs value={mode} onValueChange={(v) => setMode(v as 'paste' | 'manual')} className="mt-2">
+          <TabsList className="grid w-full grid-cols-2 h-9">
+            <TabsTrigger value="paste" className="flex items-center gap-1.5 text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+              <ClipboardPaste className="h-3.5 w-3.5" />
               Paste Intake
+              <span className="text-[10px] opacity-70">(Recommended)</span>
             </TabsTrigger>
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              Quick Manual Add
+            <TabsTrigger value="manual" className="flex items-center gap-1.5 text-sm text-muted-foreground data-[state=active]:text-foreground">
+              <UserPlus className="h-3.5 w-3.5" />
+              Quick Manual
             </TabsTrigger>
           </TabsList>
 
-          {/* Paste Intake Mode */}
+          {/* ===== PASTE INTAKE MODE (PRIMARY) ===== */}
           <TabsContent value="paste" className="space-y-4 mt-4">
+            {/* DOMINANT TEXTAREA */}
             <div className="space-y-2">
-              <Label htmlFor="intake-text">
-                Paste Client Intake (from ChatGPT or structured notes)
+              <Label htmlFor="intake-text" className="text-sm font-medium">
+                Paste client intake from ChatGPT or structured notes
               </Label>
               <Textarea
+                ref={textareaRef}
                 id="intake-text"
-                placeholder="Paste structured narrative intake. The system will configure the case automatically.
+                placeholder="Paste structured narrative intake here...
 
 Example:
 Client: John Smith
-Issue: Identity theft - fraudulent accounts appearing on credit reports
-Bureaus: All three - Experian, TransUnion, Equifax
+Issue: Identity theft — fraudulent accounts on all three bureaus
 FTC Report: Filed 01/15/2025
 Disputed Accounts:
-- Capital One - $5,000 (not mine)
-- Chase - $12,000 (not mine)
-..."
+- Capital One ($5,000) — not mine
+- Chase ($12,000) — not mine
+- Wells Fargo ($3,200) — not mine
+
+Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
                 value={intakeText}
                 onChange={(e) => handleIntakeTextChange(e.target.value)}
-                className="min-h-[200px] font-mono text-sm"
+                className="min-h-[280px] font-mono text-sm leading-relaxed resize-none"
               />
               <p className="text-xs text-muted-foreground">
-                Paste structured narrative intake. The system will configure the case automatically.
+                Paste structured narrative intake. This will be stored verbatim and used to initialize the case.
               </p>
             </div>
 
-            {/* Overlay Detection Suggestions */}
-            {intakeText && (overlays.identityTheft || overlays.mixedFile) && (
+            {/* Overlay Suggestions (soft, non-blocking) */}
+            {overlaysDetected && (
               <div className="rounded-md border border-accent/30 bg-accent/5 p-3 space-y-2">
-                <p className="text-sm font-medium text-accent">Detected Overlays (toggle as needed)</p>
+                <p className="text-xs font-medium text-accent">Suggested Overlays (detected from intake)</p>
                 <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="id-theft"
-                      checked={overlays.identityTheft}
-                      onCheckedChange={(checked) => 
-                        setOverlays(prev => ({ ...prev, identityTheft: !!checked }))
-                      }
-                    />
-                    <Label htmlFor="id-theft" className="text-sm">Identity Theft Documented</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="mixed-file"
-                      checked={overlays.mixedFile}
-                      onCheckedChange={(checked) => 
-                        setOverlays(prev => ({ ...prev, mixedFile: !!checked }))
-                      }
-                    />
-                    <Label htmlFor="mixed-file" className="text-sm">Mixed File Confirmed</Label>
-                  </div>
+                  {overlays.identityTheft && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="id-theft"
+                        checked={overlays.identityTheft}
+                        onCheckedChange={(checked) => 
+                          setOverlays(prev => ({ ...prev, identityTheft: !!checked }))
+                        }
+                      />
+                      <Label htmlFor="id-theft" className="text-xs cursor-pointer">Identity Theft</Label>
+                    </div>
+                  )}
+                  {overlays.mixedFile && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="mixed-file"
+                        checked={overlays.mixedFile}
+                        onCheckedChange={(checked) => 
+                          setOverlays(prev => ({ ...prev, mixedFile: !!checked }))
+                        }
+                      />
+                      <Label htmlFor="mixed-file" className="text-xs cursor-pointer">Mixed File</Label>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Optional Entities */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Additional Entities (optional)</p>
-              <p className="text-xs text-muted-foreground mb-2">
-                Experian, TransUnion, and Equifax are added automatically.
+            {/* Optional Entities (compact, collapsed feel) */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Auto-included:</span> Experian, TransUnion, Equifax
               </p>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {OPTIONAL_ENTITIES.map(entity => (
-                  <div key={entity.key} className="flex items-center gap-2">
+                  <div key={entity.key} className="flex items-center gap-1.5">
                     <Checkbox
                       id={entity.key}
                       checked={optionalEntities[entity.key]}
                       onCheckedChange={(checked) => 
                         setOptionalEntities(prev => ({ ...prev, [entity.key]: !!checked }))
                       }
+                      className="h-3.5 w-3.5"
                     />
-                    <Label htmlFor={entity.key} className="text-sm">{entity.name}</Label>
+                    <Label htmlFor={entity.key} className="text-xs text-muted-foreground cursor-pointer">{entity.name}</Label>
                   </div>
                 ))}
               </div>
@@ -380,8 +398,8 @@ Disputed Accounts:
 
             <Button 
               onClick={handlePasteSubmit} 
-              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-              disabled={isSubmitting || !intakeText.trim()}
+              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
@@ -389,12 +407,15 @@ Disputed Accounts:
                   Creating...
                 </>
               ) : (
-                'Create Client & Matter'
+                'Create Client'
               )}
             </Button>
+            <p className="text-[10px] text-center text-muted-foreground">
+              Press ⌘+Enter to submit
+            </p>
           </TabsContent>
 
-          {/* Quick Manual Add Mode */}
+          {/* ===== QUICK MANUAL ADD MODE (FALLBACK) ===== */}
           <TabsContent value="manual" className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label htmlFor="legal-name">Legal Name *</Label>
@@ -403,16 +424,17 @@ Disputed Accounts:
                 placeholder="Full legal name"
                 value={legalName}
                 onChange={(e) => setLegalName(e.target.value)}
+                autoFocus={mode === 'manual'}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="matter-type">Matter Type</Label>
               <Select value={matterType} onValueChange={(v) => setMatterType(v as MatterType)}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-background">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-popover z-50">
                   <SelectItem value="Credit">Credit</SelectItem>
                   <SelectItem value="Consulting">Consulting</SelectItem>
                   <SelectItem value="Both">Both</SelectItem>
@@ -421,7 +443,7 @@ Disputed Accounts:
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="issue-note">Issue Note (optional)</Label>
+              <Label htmlFor="issue-note">Note (optional)</Label>
               <Input
                 id="issue-note"
                 placeholder="One-line issue description"
@@ -430,58 +452,31 @@ Disputed Accounts:
               />
             </div>
 
-            {/* Optional Entities for manual mode too */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Additional Entities (optional)</p>
-              <p className="text-xs text-muted-foreground mb-2">
-                Experian, TransUnion, and Equifax are added automatically.
+            {/* Optional entities for manual mode */}
+            <div className="space-y-2 pt-2 border-t border-border/50">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Auto-included:</span> Experian, TransUnion, Equifax
               </p>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
                 {OPTIONAL_ENTITIES.map(entity => (
-                  <div key={entity.key} className="flex items-center gap-2">
+                  <div key={entity.key} className="flex items-center gap-1.5">
                     <Checkbox
                       id={`manual-${entity.key}`}
                       checked={optionalEntities[entity.key]}
                       onCheckedChange={(checked) => 
                         setOptionalEntities(prev => ({ ...prev, [entity.key]: !!checked }))
                       }
+                      className="h-3.5 w-3.5"
                     />
-                    <Label htmlFor={`manual-${entity.key}`} className="text-sm">{entity.name}</Label>
+                    <Label htmlFor={`manual-${entity.key}`} className="text-xs text-muted-foreground cursor-pointer">{entity.name}</Label>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Overlay toggles for manual mode */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Overlays (optional)</p>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="manual-id-theft"
-                    checked={overlays.identityTheft}
-                    onCheckedChange={(checked) => 
-                      setOverlays(prev => ({ ...prev, identityTheft: !!checked }))
-                    }
-                  />
-                  <Label htmlFor="manual-id-theft" className="text-sm">Identity Theft Documented</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="manual-mixed-file"
-                    checked={overlays.mixedFile}
-                    onCheckedChange={(checked) => 
-                      setOverlays(prev => ({ ...prev, mixedFile: !!checked }))
-                    }
-                  />
-                  <Label htmlFor="manual-mixed-file" className="text-sm">Mixed File Confirmed</Label>
-                </div>
-              </div>
-            </div>
-
             <Button 
               onClick={handleManualSubmit} 
-              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+              className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
               disabled={isSubmitting || !legalName.trim()}
             >
               {isSubmitting ? (
@@ -490,9 +485,12 @@ Disputed Accounts:
                   Creating...
                 </>
               ) : (
-                'Create Client & Matter'
+                'Create Client'
               )}
             </Button>
+            <p className="text-[10px] text-center text-muted-foreground">
+              Press ⌘+Enter to submit
+            </p>
           </TabsContent>
         </Tabs>
       </DialogContent>

@@ -266,15 +266,7 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "matters_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       overlays: {
         Row: {
@@ -568,6 +560,7 @@ export type Database = {
         Returns: boolean
       }
       can_access_matter: { Args: { _matter_id: string }; Returns: boolean }
+      client_exists: { Args: { _id: string }; Returns: boolean }
       create_client_and_matter: {
         Args: {
           _client_notes?: string

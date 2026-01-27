@@ -218,6 +218,9 @@ export type Database = {
           created_at: string
           escalation_strategy: string | null
           id: string
+          intake_created_at: string | null
+          intake_raw_text: string | null
+          intake_source: string | null
           jurisdiction: string | null
           matter_type: Database["public"]["Enums"]["matter_type"]
           opened_at: string
@@ -232,6 +235,9 @@ export type Database = {
           created_at?: string
           escalation_strategy?: string | null
           id?: string
+          intake_created_at?: string | null
+          intake_raw_text?: string | null
+          intake_source?: string | null
           jurisdiction?: string | null
           matter_type?: Database["public"]["Enums"]["matter_type"]
           opened_at?: string
@@ -246,6 +252,9 @@ export type Database = {
           created_at?: string
           escalation_strategy?: string | null
           id?: string
+          intake_created_at?: string | null
+          intake_raw_text?: string | null
+          intake_source?: string | null
           jurisdiction?: string | null
           matter_type?: Database["public"]["Enums"]["matter_type"]
           opened_at?: string

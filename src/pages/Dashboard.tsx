@@ -9,12 +9,13 @@ import { ViolationAlerts } from '@/components/dashboard/ViolationAlerts';
 import { ConsultingDashboard } from '@/components/dashboard/ConsultingDashboard';
 import { GlobalFilterBar } from '@/components/dashboard/GlobalFilterBar';
 import { DailyChecklist } from '@/components/dashboard/DailyChecklist';
-import { IntakeWizard } from '@/components/intake/IntakeWizard';
 import { LogActionDialog } from '@/components/logging/LogActionDialog';
 import { LogResponseDialog } from '@/components/logging/LogResponseDialog';
 import { BatchLoggingDialog } from '@/components/logging/BatchLoggingDialog';
+import { AddClientDialog } from '@/components/clients/AddClientDialog';
 import { DashboardFilters, MatterState } from '@/types/database';
-import { Scale, Briefcase, Plus, FileText, MessageSquare, ListChecks, Layers } from 'lucide-react';
+import { useClients } from '@/hooks/useClients';
+import { Scale, Briefcase, Plus, FileText, MessageSquare, ListChecks, Layers, Users, Loader2 } from 'lucide-react';
 
 const ACTIVE_STATES: MatterState[] = [
   'DisputeActive', 'PartialCompliance', 'ViolationConfirmed', 'ReinsertionDetected',
@@ -29,14 +30,70 @@ export default function Dashboard() {
     timeWindow: 'today',
   });
   
-  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [logActionOpen, setLogActionOpen] = useState(false);
   const [logResponseOpen, setLogResponseOpen] = useState(false);
   const [batchMode, setBatchMode] = useState<'action' | 'response' | null>(null);
   const [showChecklist, setShowChecklist] = useState(false);
 
+  const { data: clients, isLoading: clientsLoading, refetch: refetchClients } = useClients();
+
   // Legacy state filter for existing components
   const stateFilter = filters.states.length === 1 ? filters.states[0] : null;
+
+  const hasNoClients = !clientsLoading && (!clients || clients.length === 0);
+
+  // Empty state component
+  const EmptyDashboard = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="rounded-full bg-accent/10 p-6 mb-6">
+        <Users className="h-12 w-12 text-accent" />
+      </div>
+      <h2 className="text-xl font-semibold mb-2">No clients yet</h2>
+      <p className="text-muted-foreground text-center max-w-md mb-6">
+        Add your first client to activate the workflow engine.
+      </p>
+      <Button 
+        onClick={() => setAddClientOpen(true)}
+        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        size="lg"
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Add Client
+      </Button>
+    </div>
+  );
+
+  // Loading state
+  if (clientsLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  // Empty state - no clients at all
+  if (hasNoClients) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Command Console</h1>
+            <p className="text-muted-foreground mt-1">Statutory compliance and case management</p>
+          </div>
+        </div>
+
+        <EmptyDashboard />
+
+        <AddClientDialog 
+          open={addClientOpen} 
+          onOpenChange={setAddClientOpen}
+          onSuccess={() => refetchClients()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -63,9 +120,9 @@ export default function Dashboard() {
             <Layers className="h-4 w-4 mr-1" />
             Batch
           </Button>
-          <Button size="sm" onClick={() => setIntakeOpen(true)}>
+          <Button size="sm" onClick={() => setAddClientOpen(true)}>
             <Plus className="h-4 w-4 mr-1" />
-            New Intake
+            Add Client
           </Button>
         </div>
       </div>
@@ -109,7 +166,11 @@ export default function Dashboard() {
       </Tabs>
 
       {/* Dialogs */}
-      <IntakeWizard open={intakeOpen} onOpenChange={setIntakeOpen} />
+      <AddClientDialog 
+        open={addClientOpen} 
+        onOpenChange={setAddClientOpen}
+        onSuccess={() => refetchClients()}
+      />
       <LogActionDialog open={logActionOpen} onOpenChange={setLogActionOpen} />
       <LogResponseDialog open={logResponseOpen} onOpenChange={setLogResponseOpen} />
       <BatchLoggingDialog 

@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { mockClients, mockMatters } from '@/data/mockData';
-import { Users, Search, Plus, Mail, Phone, MoreVertical, FolderOpen } from 'lucide-react';
+import { useClients } from '@/hooks/useClients';
+import { AddClientDialog } from '@/components/clients/AddClientDialog';
+import { Users, Search, Plus, Mail, Phone, MoreVertical, FolderOpen, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -14,16 +16,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function Clients() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const { data: clients, isLoading, refetch } = useClients();
 
-  const filteredClients = mockClients.filter(client =>
-    client.legalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const getClientMatterCount = (clientId: string) => {
-    return mockMatters.filter(m => m.clientId === clientId).length;
-  };
+  const filteredClients = clients?.filter(client =>
+    client.legal_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (client.email && client.email.toLowerCase().includes(searchQuery.toLowerCase()))
+  ) ?? [];
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -38,6 +39,64 @@ export default function Clients() {
     }
   };
 
+  // Empty state component
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="rounded-full bg-accent/10 p-6 mb-6">
+        <Users className="h-12 w-12 text-accent" />
+      </div>
+      <h2 className="text-xl font-semibold mb-2">No clients yet</h2>
+      <p className="text-muted-foreground text-center max-w-md mb-6">
+        Add your first client to activate the workflow engine.
+      </p>
+      <Button 
+        onClick={() => setAddClientOpen(true)}
+        className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        size="lg"
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Add Client
+      </Button>
+    </div>
+  );
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  // Empty state - no clients at all
+  if (!clients || clients.length === 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <Users className="h-8 w-8 text-accent" />
+              Clients
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Manage client information and associated matters
+            </p>
+          </div>
+        </div>
+
+        <EmptyState />
+
+        <AddClientDialog 
+          open={addClientOpen} 
+          onOpenChange={setAddClientOpen}
+          onSuccess={() => refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -51,7 +110,10 @@ export default function Clients() {
             Manage client information and associated matters
           </p>
         </div>
-        <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+        <Button 
+          onClick={() => setAddClientOpen(true)}
+          className="bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Client
         </Button>
@@ -75,12 +137,15 @@ export default function Clients() {
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div className="space-y-1 min-w-0 flex-1">
-                  <CardTitle className="text-lg font-semibold truncate group-hover:text-accent transition-colors">
-                    {client.preferredName || client.legalName}
+                  <CardTitle 
+                    className="text-lg font-semibold truncate group-hover:text-accent transition-colors cursor-pointer"
+                    onClick={() => navigate(`/clients/${client.id}`)}
+                  >
+                    {client.preferred_name || client.legal_name}
                   </CardTitle>
-                  {client.preferredName && (
+                  {client.preferred_name && (
                     <p className="text-xs text-muted-foreground truncate">
-                      {client.legalName}
+                      {client.legal_name}
                     </p>
                   )}
                 </div>
@@ -91,8 +156,10 @@ export default function Clients() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => navigate(`/clients/${client.id}`)}>
+                      View Details
+                    </DropdownMenuItem>
                     <DropdownMenuItem>Edit Client</DropdownMenuItem>
-                    <DropdownMenuItem>View Matters</DropdownMenuItem>
                     <DropdownMenuItem>Add Note</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -107,15 +174,17 @@ export default function Clients() {
                   {client.status}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Since {format(client.createdAt, 'MMM yyyy')}
+                  Since {format(new Date(client.created_at), 'MMM yyyy')}
                 </span>
               </div>
 
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="h-3.5 w-3.5" />
-                  <span className="truncate">{client.email}</span>
-                </div>
+                {client.email && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" />
+                    <span className="truncate">{client.email}</span>
+                  </div>
+                )}
                 {client.phone && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Phone className="h-3.5 w-3.5" />
@@ -127,9 +196,14 @@ export default function Clients() {
               <div className="pt-2 border-t flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <FolderOpen className="h-4 w-4" />
-                  <span>{getClientMatterCount(client.id)} matter{getClientMatterCount(client.id) !== 1 ? 's' : ''}</span>
+                  <span>{client.matter_count} matter{client.matter_count !== 1 ? 's' : ''}</span>
                 </div>
-                <Button variant="ghost" size="sm" className="text-accent hover:text-accent/80 h-7">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-accent hover:text-accent/80 h-7"
+                  onClick={() => navigate(`/clients/${client.id}`)}
+                >
                   View Details
                 </Button>
               </div>
@@ -144,12 +218,19 @@ export default function Clients() {
         ))}
       </div>
 
-      {filteredClients.length === 0 && (
+      {/* No search results */}
+      {filteredClients.length === 0 && searchQuery && (
         <div className="text-center py-12">
           <Users className="h-12 w-12 text-muted-foreground/50 mx-auto mb-4" />
           <p className="text-muted-foreground">No clients found matching your search.</p>
         </div>
       )}
+
+      <AddClientDialog 
+        open={addClientOpen} 
+        onOpenChange={setAddClientOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

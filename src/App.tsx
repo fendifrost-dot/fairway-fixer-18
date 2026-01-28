@@ -10,11 +10,8 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Clients from "./pages/Clients";
 import ClientDetail from "./pages/ClientDetail";
-import Matters from "./pages/Matters";
-import MatterDetail from "./pages/MatterDetail";
-import Tasks from "./pages/Tasks";
-import Deadlines from "./pages/Deadlines";
-import Violations from "./pages/Violations";
+import Cases from "./pages/Cases";
+import CaseSummary from "./pages/CaseSummary";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -44,11 +41,8 @@ const AppRoutes = () => {
       <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
       <Route path="/clients" element={<ProtectedRoute><AppLayout><Clients /></AppLayout></ProtectedRoute>} />
       <Route path="/clients/:clientId" element={<ProtectedRoute><AppLayout><ClientDetail /></AppLayout></ProtectedRoute>} />
-      <Route path="/matters" element={<ProtectedRoute><AppLayout><Matters /></AppLayout></ProtectedRoute>} />
-      <Route path="/matters/:matterId" element={<ProtectedRoute><AppLayout><MatterDetail /></AppLayout></ProtectedRoute>} />
-      <Route path="/tasks" element={<ProtectedRoute><AppLayout><Tasks /></AppLayout></ProtectedRoute>} />
-      <Route path="/deadlines" element={<ProtectedRoute><AppLayout><Deadlines /></AppLayout></ProtectedRoute>} />
-      <Route path="/violations" element={<ProtectedRoute><AppLayout><Violations /></AppLayout></ProtectedRoute>} />
+      <Route path="/cases" element={<ProtectedRoute><AppLayout><Cases /></AppLayout></ProtectedRoute>} />
+      <Route path="/cases/:caseId" element={<ProtectedRoute><AppLayout><CaseSummary /></AppLayout></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

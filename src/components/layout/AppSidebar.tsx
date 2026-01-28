@@ -17,10 +17,7 @@ import { useState } from 'react';
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/clients', icon: Users, label: 'Clients' },
-  { path: '/matters', icon: FolderOpen, label: 'Matters' },
-  { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
-  { path: '/deadlines', icon: Clock, label: 'Deadlines' },
-  { path: '/violations', icon: AlertTriangle, label: 'Violations' },
+  { path: '/cases', icon: FolderOpen, label: 'Cases' },
 ];
 
 const bottomNavItems = [

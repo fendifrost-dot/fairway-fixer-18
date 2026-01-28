@@ -74,6 +74,57 @@ export type Database = {
           },
         ]
       }
+      case_actions: {
+        Row: {
+          case_id: string
+          category: Database["public"]["Enums"]["action_category"]
+          created_at: string
+          details: string | null
+          due_date: string | null
+          event_date: string
+          id: string
+          priority: Database["public"]["Enums"]["action_priority"] | null
+          related_account: string | null
+          related_account_masked: string | null
+          related_entity: string | null
+          status: Database["public"]["Enums"]["action_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          category: Database["public"]["Enums"]["action_category"]
+          created_at?: string
+          details?: string | null
+          due_date?: string | null
+          event_date?: string
+          id?: string
+          priority?: Database["public"]["Enums"]["action_priority"] | null
+          related_account?: string | null
+          related_account_masked?: string | null
+          related_entity?: string | null
+          status?: Database["public"]["Enums"]["action_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          category?: Database["public"]["Enums"]["action_category"]
+          created_at?: string
+          details?: string | null
+          due_date?: string | null
+          event_date?: string
+          id?: string
+          priority?: Database["public"]["Enums"]["action_priority"] | null
+          related_account?: string | null
+          related_account_masked?: string | null
+          related_entity?: string | null
+          status?: Database["public"]["Enums"]["action_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           created_at: string
@@ -555,6 +606,7 @@ export type Database = {
     }
     Functions: {
       __snapshot_matters_rls: { Args: never; Returns: Json }
+      can_access_case: { Args: { _case_id: string }; Returns: boolean }
       can_access_entity_case: {
         Args: { _entity_case_id: string }
         Returns: boolean
@@ -619,6 +671,9 @@ export type Database = {
       }
     }
     Enums: {
+      action_category: "Completed" | "Response" | "ToDo"
+      action_priority: "Low" | "Medium" | "High"
+      action_status: "Done" | "Open"
       app_role: "admin" | "staff"
       client_status: "Active" | "Inactive" | "Pending"
       date_confidence: "Exact" | "Inferred" | "Unknown"
@@ -801,6 +856,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_category: ["Completed", "Response", "ToDo"],
+      action_priority: ["Low", "Medium", "High"],
+      action_status: ["Done", "Open"],
       app_role: ["admin", "staff"],
       client_status: ["Active", "Inactive", "Pending"],
       date_confidence: ["Exact", "Inferred", "Unknown"],

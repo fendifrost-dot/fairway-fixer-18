@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StateBadge } from '@/components/ui/StatusBadge';
-import { DbClient, DbMatter, STATE_LABELS } from '@/types/database';
+import { DbClient, DbMatter } from '@/types/database';
 import { format, parseISO } from 'date-fns';
 import { ArrowLeft, User, Mail, Phone, FileText, Plus, Loader2 } from 'lucide-react';
 
@@ -28,8 +28,8 @@ export default function ClientDetail() {
     enabled: !!clientId,
   });
 
-  const { data: matters = [], isLoading: mattersLoading } = useQuery({
-    queryKey: ['clientMatters', clientId],
+  const { data: cases = [], isLoading: casesLoading } = useQuery({
+    queryKey: ['clientCases', clientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('matters')
@@ -121,8 +121,8 @@ export default function ClientDetail() {
               <p className="text-sm">{format(parseISO(client.created_at), 'MMM d, yyyy')}</p>
             </div>
             <div>
-              <span className="text-xs text-muted-foreground">Matters</span>
-              <p className="text-sm font-semibold">{matters.length}</p>
+              <span className="text-xs text-muted-foreground">Cases</span>
+              <p className="text-sm font-semibold">{cases.length}</p>
             </div>
           </div>
           {client.notes && (
@@ -133,26 +133,26 @@ export default function ClientDetail() {
         </CardContent>
       </Card>
 
-      {/* Matters */}
+      {/* Cases */}
       <Card className="card-elevated">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Matters
+            Cases
           </CardTitle>
           <Button size="sm">
             <Plus className="h-4 w-4 mr-1" />
-            New Matter
+            New Case
           </Button>
         </CardHeader>
         <CardContent>
-          {mattersLoading ? (
+          {casesLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : matters.length === 0 ? (
+          ) : cases.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No matters for this client
+              No cases for this client
             </div>
           ) : (
             <Table>
@@ -166,28 +166,28 @@ export default function ClientDetail() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {matters.map(matter => (
-                  <TableRow key={matter.id}>
+                {cases.map(caseItem => (
+                  <TableRow key={caseItem.id}>
                     <TableCell>
                       <Link 
-                        to={`/matters/${matter.id}`}
+                        to={`/cases/${caseItem.id}`}
                         className="font-medium hover:text-accent transition-colors"
                       >
-                        {matter.title}
+                        {caseItem.title}
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{matter.matter_type}</Badge>
+                      <Badge variant="outline">{caseItem.matter_type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <StateBadge state={matter.primary_state} size="sm" />
+                      <StateBadge state={caseItem.primary_state} size="sm" />
                     </TableCell>
                     <TableCell>
-                      {format(parseISO(matter.opened_at), 'MMM d, yyyy')}
+                      {format(parseISO(caseItem.opened_at), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="sm">
-                        <Link to={`/matters/${matter.id}`}>View</Link>
+                        <Link to={`/cases/${caseItem.id}`}>View</Link>
                       </Button>
                     </TableCell>
                   </TableRow>

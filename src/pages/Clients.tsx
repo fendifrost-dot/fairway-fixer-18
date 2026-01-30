@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/hooks/useClients';
 import { AddClientDialog } from '@/components/clients/AddClientDialog';
-import { Users, Search, Plus, Mail, Phone, MoreVertical, FolderOpen, Loader2 } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -193,11 +193,7 @@ export default function Clients() {
                 )}
               </div>
 
-              <div className="pt-2 border-t flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <FolderOpen className="h-4 w-4" />
-                  <span>{client.matter_count} matter{client.matter_count !== 1 ? 's' : ''}</span>
-                </div>
+              <div className="pt-2 border-t flex items-center justify-end">
                 <Button 
                   variant="ghost" 
                   size="sm" 

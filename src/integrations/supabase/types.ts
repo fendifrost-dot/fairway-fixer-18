@@ -319,6 +319,44 @@ export type Database = {
         }
         Relationships: []
       }
+      operator_tasks: {
+        Row: {
+          client_id: string
+          created_at: string
+          due_date: string | null
+          id: string
+          priority: Database["public"]["Enums"]["simple_priority"]
+          status: Database["public"]["Enums"]["simple_status"]
+          title: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["simple_priority"]
+          status?: Database["public"]["Enums"]["simple_status"]
+          title: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["simple_priority"]
+          status?: Database["public"]["Enums"]["simple_status"]
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       overlays: {
         Row: {
           activated_at: string
@@ -525,6 +563,53 @@ export type Database = {
           },
         ]
       }
+      timeline_events: {
+        Row: {
+          category: Database["public"]["Enums"]["event_category"]
+          client_id: string
+          created_at: string
+          details: string | null
+          event_date: string
+          id: string
+          related_accounts: Json | null
+          source: Database["public"]["Enums"]["event_source"] | null
+          summary: string
+          title: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["event_category"]
+          client_id: string
+          created_at?: string
+          details?: string | null
+          event_date: string
+          id?: string
+          related_accounts?: Json | null
+          source?: Database["public"]["Enums"]["event_source"] | null
+          summary: string
+          title: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["event_category"]
+          client_id?: string
+          created_at?: string
+          details?: string | null
+          event_date?: string
+          id?: string
+          related_accounts?: Json | null
+          source?: Database["public"]["Enums"]["event_source"] | null
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timeline_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -607,6 +692,7 @@ export type Database = {
     Functions: {
       __snapshot_matters_rls: { Args: never; Returns: Json }
       can_access_case: { Args: { _case_id: string }; Returns: boolean }
+      can_access_client: { Args: { _client_id: string }; Returns: boolean }
       can_access_entity_case: {
         Args: { _entity_case_id: string }
         Returns: boolean
@@ -687,6 +773,22 @@ export type Database = {
         | "CFPB_60"
         | "FollowUp"
       entity_type: "CRA" | "Furnisher" | "DataBroker" | "Agency"
+      event_category: "Action" | "Response" | "Outcome" | "Note"
+      event_source:
+        | "Experian"
+        | "TransUnion"
+        | "Equifax"
+        | "LexisNexis"
+        | "CoreLogic"
+        | "Innovis"
+        | "Sagestream"
+        | "ChexSystems"
+        | "EWS"
+        | "NCTUE"
+        | "CFPB"
+        | "BBB"
+        | "AG"
+        | "Other"
       evidence_type:
         | "Report"
         | "Portal"
@@ -721,6 +823,8 @@ export type Database = {
         | "MOVProvided"
         | "AuthBlocked"
         | "Other"
+      simple_priority: "Low" | "Medium" | "High"
+      simple_status: "Open" | "Done"
       task_priority: "P0" | "P1" | "P2" | "P3"
       task_status: "Pending" | "InProgress" | "Done" | "Blocked"
       violation_trigger:
@@ -873,6 +977,23 @@ export const Constants = {
         "FollowUp",
       ],
       entity_type: ["CRA", "Furnisher", "DataBroker", "Agency"],
+      event_category: ["Action", "Response", "Outcome", "Note"],
+      event_source: [
+        "Experian",
+        "TransUnion",
+        "Equifax",
+        "LexisNexis",
+        "CoreLogic",
+        "Innovis",
+        "Sagestream",
+        "ChexSystems",
+        "EWS",
+        "NCTUE",
+        "CFPB",
+        "BBB",
+        "AG",
+        "Other",
+      ],
       evidence_type: ["Report", "Portal", "Mail", "ClientStatement", "Unknown"],
       matter_state: [
         "Intake",
@@ -905,6 +1026,8 @@ export const Constants = {
         "AuthBlocked",
         "Other",
       ],
+      simple_priority: ["Low", "Medium", "High"],
+      simple_status: ["Open", "Done"],
       task_priority: ["P0", "P1", "P2", "P3"],
       task_status: ["Pending", "InProgress", "Done", "Blocked"],
       violation_trigger: [

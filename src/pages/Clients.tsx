@@ -81,7 +81,7 @@ export default function Clients() {
               Clients
             </h1>
             <p className="text-muted-foreground mt-1">
-              Manage client information and associated matters
+              Credit file operator console
             </p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export default function Clients() {
             Clients
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage client information and associated matters
+            Credit file operator console
           </p>
         </div>
         <Button 

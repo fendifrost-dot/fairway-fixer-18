@@ -311,7 +311,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        navigate(`/cases/${result.matter.id}`);
+        // Navigate to client page (the main operator console)
+        navigate(`/clients/${result.client.id}`);
       }
     } catch (error) {
       const anyErr = error as any;
@@ -377,7 +378,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        navigate(`/cases/${result.matter.id}`);
+        // Navigate to client page (the main operator console)
+        navigate(`/clients/${result.client.id}`);
       }
     } catch (error) {
       const anyErr = error as any;

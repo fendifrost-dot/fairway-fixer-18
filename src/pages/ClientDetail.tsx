@@ -1,14 +1,18 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { StateBadge } from '@/components/ui/StatusBadge';
-import { DbClient, DbMatter } from '@/types/database';
-import { format, parseISO } from 'date-fns';
-import { ArrowLeft, User, Mail, Phone, FileText, Plus, Loader2 } from 'lucide-react';
+import { DbClient } from '@/types/database';
+import { ArrowLeft, Loader2, FileDown } from 'lucide-react';
+import { ClientHeader } from '@/components/operator/ClientHeader';
+import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
+import { Timeline } from '@/components/operator/Timeline';
+import { Recommendations } from '@/components/operator/Recommendations';
+import { TaskList } from '@/components/operator/TaskList';
+import { useTimelineEvents } from '@/hooks/useTimelineEvents';
+import { useOperatorTasks } from '@/hooks/useOperatorTasks';
+import { generateRecommendations } from '@/lib/recommendationEngine';
+import { downloadPDF } from '@/lib/pdfExport';
 
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
@@ -28,20 +32,10 @@ export default function ClientDetail() {
     enabled: !!clientId,
   });
 
-  const { data: cases = [], isLoading: casesLoading } = useQuery({
-    queryKey: ['clientCases', clientId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('matters')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as DbMatter[];
-    },
-    enabled: !!clientId,
-  });
+  const { data: events = [], isLoading: eventsLoading } = useTimelineEvents(clientId);
+  const { data: tasks = [], isLoading: tasksLoading } = useOperatorTasks(clientId);
+  
+  const recommendations = generateRecommendations(events);
 
   if (clientLoading) {
     return (
@@ -62,141 +56,46 @@ export default function ClientDetail() {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active': return 'bg-[hsl(var(--state-resolved))] text-white';
-      case 'Inactive': return 'bg-muted text-muted-foreground';
-      case 'Pending': return 'bg-[hsl(var(--state-active))] text-white';
-      default: return 'bg-secondary';
-    }
+  const handleGeneratePDF = () => {
+    downloadPDF(client, events, tasks);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+      {/* Navigation */}
+      <div className="flex items-center justify-between">
         <Button asChild variant="ghost" size="sm">
           <Link to="/clients">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Link>
         </Button>
+        
+        <Button onClick={handleGeneratePDF} variant="outline" size="sm">
+          <FileDown className="h-4 w-4 mr-1" />
+          Generate Client Status Report (PDF)
+        </Button>
       </div>
 
-      {/* Client Info Card */}
-      <Card className="card-elevated">
-        <CardHeader className="flex flex-row items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-accent/10 flex items-center justify-center">
-              <User className="h-8 w-8 text-accent" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">{client.preferred_name || client.legal_name}</CardTitle>
-              {client.preferred_name && (
-                <p className="text-muted-foreground">{client.legal_name}</p>
-              )}
-              <Badge className={getStatusColor(client.status)}>{client.status}</Badge>
-            </div>
-          </div>
-          <Button variant="outline" size="sm">
-            Edit Client
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {client.email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{client.email}</span>
-              </div>
-            )}
-            {client.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{client.phone}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-xs text-muted-foreground">Created</span>
-              <p className="text-sm">{format(parseISO(client.created_at), 'MMM d, yyyy')}</p>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground">Cases</span>
-              <p className="text-sm font-semibold">{cases.length}</p>
-            </div>
-          </div>
-          {client.notes && (
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">{client.notes}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Client Header */}
+      <ClientHeader client={client} />
 
-      {/* Cases */}
-      <Card className="card-elevated">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Cases
-          </CardTitle>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1" />
-            New Case
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {casesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : cases.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No cases for this client
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>Opened</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cases.map(caseItem => (
-                  <TableRow key={caseItem.id}>
-                    <TableCell>
-                      <Link 
-                        to={`/cases/${caseItem.id}`}
-                        className="font-medium hover:text-accent transition-colors"
-                      >
-                        {caseItem.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{caseItem.matter_type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <StateBadge state={caseItem.primary_state} size="sm" />
-                    </TableCell>
-                    <TableCell>
-                      {format(parseISO(caseItem.opened_at), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="sm">
-                        <Link to={`/cases/${caseItem.id}`}>View</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      {/* ChatGPT Import */}
+      <ChatGPTImport clientId={clientId!} />
+
+      {/* Main Content Grid */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Timeline - takes 2 columns */}
+        <div className="lg:col-span-2">
+          <Timeline events={events} clientId={clientId!} />
+        </div>
+        
+        {/* Right sidebar - Recommendations and Tasks */}
+        <div className="space-y-6">
+          <Recommendations recommendations={recommendations} clientId={clientId!} />
+          <TaskList tasks={tasks} clientId={clientId!} />
+        </div>
+      </div>
     </div>
   );
 }

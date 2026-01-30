@@ -1,45 +1,50 @@
 import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { ReinsertionAlert } from '@/components/dashboard/ReinsertionAlert';
-import { StatePressureStrip } from '@/components/dashboard/StatePressureStrip';
-import { TimeCriticalActions } from '@/components/dashboard/TimeCriticalActions';
-import { MetricsSummary } from '@/components/dashboard/MetricsSummary';
-import { ViolationAlerts } from '@/components/dashboard/ViolationAlerts';
-import { ConsultingDashboard } from '@/components/dashboard/ConsultingDashboard';
-import { GlobalFilterBar } from '@/components/dashboard/GlobalFilterBar';
-import { DailyChecklist } from '@/components/dashboard/DailyChecklist';
-import { LogActionDialog } from '@/components/logging/LogActionDialog';
-import { LogResponseDialog } from '@/components/logging/LogResponseDialog';
-import { BatchLoggingDialog } from '@/components/logging/BatchLoggingDialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AddClientDialog } from '@/components/clients/AddClientDialog';
-import { DashboardFilters, MatterState } from '@/types/database';
 import { useClients } from '@/hooks/useClients';
-import { Scale, Briefcase, Plus, FileText, MessageSquare, ListChecks, Layers, Users, Loader2 } from 'lucide-react';
-
-const ACTIVE_STATES: MatterState[] = [
-  'DisputeActive', 'PartialCompliance', 'ViolationConfirmed', 'ReinsertionDetected',
-  'RegulatoryReview', 'FurnisherLiabilityTrack', 'EscalationEligible', 'LitigationReady',
-];
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Plus, Users, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { format, parseISO, isToday, isPast } from 'date-fns';
 
 export default function Dashboard() {
-  const [filters, setFilters] = useState<DashboardFilters>({
-    scope: 'all',
-    matterType: 'Credit',
-    states: ACTIVE_STATES,
-    timeWindow: 'today',
+  const navigate = useNavigate();
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  
+  const { data: clients, isLoading: clientsLoading, refetch: refetchClients } = useClients();
+  
+  // Get recent tasks across all clients
+  const { data: recentTasks = [] } = useQuery({
+    queryKey: ['recent-operator-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('operator_tasks')
+        .select('*, client:clients(legal_name, preferred_name)')
+        .eq('status', 'Open')
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(10);
+      
+      if (error) throw error;
+      return data || [];
+    },
   });
   
-  const [addClientOpen, setAddClientOpen] = useState(false);
-  const [logActionOpen, setLogActionOpen] = useState(false);
-  const [logResponseOpen, setLogResponseOpen] = useState(false);
-  const [batchMode, setBatchMode] = useState<'action' | 'response' | null>(null);
-  const [showChecklist, setShowChecklist] = useState(false);
-
-  const { data: clients, isLoading: clientsLoading, refetch: refetchClients } = useClients();
-
-  // Legacy state filter for existing components
-  const stateFilter = filters.states.length === 1 ? filters.states[0] : null;
+  // Get recent timeline events across all clients
+  const { data: recentEvents = [] } = useQuery({
+    queryKey: ['recent-timeline-events'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('timeline_events')
+        .select('*, client:clients(legal_name, preferred_name)')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const hasNoClients = !clientsLoading && (!clients || clients.length === 0);
 
@@ -51,7 +56,7 @@ export default function Dashboard() {
       </div>
       <h2 className="text-xl font-semibold mb-2">No clients yet</h2>
       <p className="text-muted-foreground text-center max-w-md mb-6">
-        Add your first client to activate the workflow engine.
+        Add your first client to start tracking their credit file.
       </p>
       <Button 
         onClick={() => setAddClientOpen(true)}
@@ -79,8 +84,8 @@ export default function Dashboard() {
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Command Console</h1>
-            <p className="text-muted-foreground mt-1">Statutory compliance and case management</p>
+            <h1 className="text-3xl font-bold tracking-tight">Credit File Operator Console</h1>
+            <p className="text-muted-foreground mt-1">Track and manage client credit files</p>
           </div>
         </div>
 
@@ -95,88 +100,157 @@ export default function Dashboard() {
     );
   }
 
+  const getDueDateStyle = (dueDate: string | null) => {
+    if (!dueDate) return 'text-muted-foreground';
+    const date = parseISO(dueDate);
+    if (isPast(date) && !isToday(date)) return 'text-red-600 font-medium';
+    if (isToday(date)) return 'text-amber-600 font-medium';
+    return 'text-muted-foreground';
+  };
+
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* Header with action buttons */}
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Command Console</h1>
-          <p className="text-muted-foreground mt-1">Statutory compliance and case management</p>
+          <h1 className="text-3xl font-bold tracking-tight">Credit File Operator Console</h1>
+          <p className="text-muted-foreground mt-1">Track and manage client credit files</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowChecklist(!showChecklist)}>
-            <ListChecks className="h-4 w-4 mr-1" />
-            {showChecklist ? 'Hide Checklist' : 'Daily Checklist'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setLogActionOpen(true)}>
-            <FileText className="h-4 w-4 mr-1" />
-            Log Action
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setLogResponseOpen(true)}>
-            <MessageSquare className="h-4 w-4 mr-1" />
-            Log Response
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setBatchMode('action')}>
-            <Layers className="h-4 w-4 mr-1" />
-            Batch
-          </Button>
-          <Button size="sm" onClick={() => setAddClientOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add Client
-          </Button>
-        </div>
+        <Button onClick={() => setAddClientOpen(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add Client
+        </Button>
       </div>
 
-      {/* Global Filter Bar */}
-      <GlobalFilterBar filters={filters} onFiltersChange={setFilters} />
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate('/clients')}>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{clients?.length || 0}</p>
+                <p className="text-sm text-muted-foreground">Total Clients</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="h-6 w-6 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{recentTasks.length}</p>
+                <p className="text-sm text-muted-foreground">Open Tasks</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{recentEvents.length}</p>
+                <p className="text-sm text-muted-foreground">Recent Events</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Tabs for Credit vs Consulting */}
-      <Tabs defaultValue="credit" className="space-y-4">
-        <TabsList className="bg-secondary">
-          <TabsTrigger value="credit" className="flex items-center gap-2 data-[state=active]:bg-card">
-            <Scale className="h-4 w-4" />
-            Credit Compliance
-          </TabsTrigger>
-          <TabsTrigger value="consulting" className="flex items-center gap-2 data-[state=active]:bg-card">
-            <Briefcase className="h-4 w-4" />
-            Consulting
-          </TabsTrigger>
-        </TabsList>
+      {/* Main Content Grid */}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {/* Open Tasks */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Open Tasks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No open tasks. Great work!
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentTasks.map((task: any) => (
+                  <div 
+                    key={task.id} 
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/clients/${task.client_id}`)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{task.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {task.client?.preferred_name || task.client?.legal_name || 'Unknown Client'}
+                      </p>
+                    </div>
+                    {task.due_date && (
+                      <span className={`text-xs ${getDueDateStyle(task.due_date)}`}>
+                        {format(parseISO(task.due_date), 'MMM d')}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        <TabsContent value="credit" className="space-y-4 mt-0">
-          <ReinsertionAlert />
-          <StatePressureStrip 
-            activeFilter={stateFilter} 
-            onFilterChange={(state) => setFilters({ ...filters, states: state ? [state] : ACTIVE_STATES })} 
-            filters={filters}
-          />
-          {showChecklist && <DailyChecklist filters={filters} />}
-          <TimeCriticalActions stateFilter={stateFilter} filters={filters} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ViolationAlerts filters={filters} />
-          </div>
-          <div className="pt-4 border-t">
-            <MetricsSummary />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="consulting" className="mt-0">
-          <ConsultingDashboard />
-        </TabsContent>
-      </Tabs>
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Recent Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {recentEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No recent activity. Import some updates!
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentEvents.map((event: any) => (
+                  <div 
+                    key={event.id} 
+                    className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/clients/${event.client_id}`)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{event.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {event.client?.preferred_name || event.client?.legal_name || 'Unknown Client'} • {event.category}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {format(parseISO(event.event_date), 'MMM d')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Dialogs */}
       <AddClientDialog 
         open={addClientOpen} 
         onOpenChange={setAddClientOpen}
         onSuccess={() => refetchClients()}
-      />
-      <LogActionDialog open={logActionOpen} onOpenChange={setLogActionOpen} />
-      <LogResponseDialog open={logResponseOpen} onOpenChange={setLogResponseOpen} />
-      <BatchLoggingDialog 
-        open={batchMode !== null} 
-        onOpenChange={(open) => !open && setBatchMode(null)} 
-        mode={batchMode || 'action'} 
       />
     </div>
   );

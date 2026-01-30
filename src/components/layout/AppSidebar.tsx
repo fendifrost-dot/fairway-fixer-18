@@ -17,7 +17,6 @@ import { useState } from 'react';
 const navItems = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/clients', icon: Users, label: 'Clients' },
-  { path: '/cases', icon: FolderOpen, label: 'Cases' },
 ];
 
 const bottomNavItems = [

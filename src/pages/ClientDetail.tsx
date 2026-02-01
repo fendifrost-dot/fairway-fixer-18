@@ -7,7 +7,7 @@ import { DbClient } from '@/types/database';
 import { ArrowLeft, Loader2, FileDown } from 'lucide-react';
 import { ClientHeader } from '@/components/operator/ClientHeader';
 import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
-import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline';
+import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline/index';
 import { NotesSection } from '@/components/operator/NotesSection';
 import { DraftsSection } from '@/components/operator/DraftsSection';
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents';

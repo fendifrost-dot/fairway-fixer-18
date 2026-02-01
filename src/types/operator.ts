@@ -2,11 +2,12 @@
 
 export type EventCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
 
+// Fixed 11-source enum - matches DB and parser exactly
 export type EventSource = 
   | 'Experian' | 'TransUnion' | 'Equifax' 
-  | 'LexisNexis' | 'CoreLogic' | 'Innovis' | 'Sagestream'
-  | 'ChexSystems' | 'EWS' | 'NCTUE'
-  | 'CFPB' | 'BBB' | 'AG' | 'Other';
+  | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
+  | 'CFPB' | 'BBB' | 'AG'
+  | 'Other';
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';
 export type SimpleStatus = 'Open' | 'Done';
@@ -54,17 +55,73 @@ export interface ParsedImport {
   tasks: Omit<OperatorTask, 'id' | 'created_at'>[];
 }
 
-// Source categories for grouping
+// ============================================================================
+// FIXED SOURCE STRUCTURE - 11 sources in 3 categories
+// ============================================================================
+
+// Credit Bureaus (core 3)
 export const CRA_SOURCES: EventSource[] = ['Experian', 'TransUnion', 'Equifax'];
-export const DATA_BROKER_SOURCES: EventSource[] = ['LexisNexis', 'CoreLogic', 'Innovis', 'Sagestream', 'ChexSystems', 'EWS', 'NCTUE'];
+
+// Data Brokers (4 sources)
+export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic'];
+
+// Regulatory (4 sources)  
 export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG'];
 
-export const ALL_SOURCES: EventSource[] = [
+// Fixed accordion structure - ALWAYS rendered
+export const SOURCE_ACCORDION_STRUCTURE = [
+  {
+    group: 'Credit Bureaus',
+    sources: CRA_SOURCES,
+  },
+  {
+    group: 'Data Brokers',
+    sources: DATA_BROKER_SOURCES,
+  },
+  {
+    group: 'Regulatory',
+    sources: REGULATORY_SOURCES,
+  },
+] as const;
+
+// All valid evidence sources (excludes 'Other' for placement)
+export const ALL_EVIDENCE_SOURCES: EventSource[] = [
   ...CRA_SOURCES,
   ...DATA_BROKER_SOURCES,
   ...REGULATORY_SOURCES,
-  'Other'
 ];
+
+// All sources including Other
+export const ALL_SOURCES: EventSource[] = [...ALL_EVIDENCE_SOURCES, 'Other'];
 
 export const EVENT_CATEGORIES: EventCategory[] = ['Action', 'Response', 'Outcome', 'Note'];
 export const PRIORITIES: SimplePriority[] = ['Low', 'Medium', 'High'];
+
+// Source display names for UI
+export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
+  Experian: 'Experian',
+  TransUnion: 'TransUnion',
+  Equifax: 'Equifax',
+  Innovis: 'Innovis',
+  LexisNexis: 'LexisNexis',
+  Sagestream: 'SageStream',
+  CoreLogic: 'CoreLogic',
+  CFPB: 'CFPB',
+  BBB: 'BBB',
+  AG: 'Attorney General',
+  Other: 'Other',
+};
+
+// ============================================================================
+// SOURCE CORRECTION AUDIT TYPES
+// ============================================================================
+
+export interface SourceCorrection {
+  id: string;
+  event_id: string;
+  from_source: EventSource;
+  to_source: EventSource;
+  corrected_by: string;
+  corrected_at: string;
+  notes: string | null;
+}

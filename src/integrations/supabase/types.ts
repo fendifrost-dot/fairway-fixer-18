@@ -606,9 +606,12 @@ export type Database = {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
           created_at: string
+          date_is_unknown: boolean
           details: string | null
-          event_date: string
+          event_date: string | null
+          event_kind: string
           id: string
+          raw_line: string
           related_accounts: Json | null
           source: Database["public"]["Enums"]["event_source"] | null
           summary: string
@@ -618,9 +621,12 @@ export type Database = {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
           created_at?: string
+          date_is_unknown?: boolean
           details?: string | null
-          event_date: string
+          event_date?: string | null
+          event_kind?: string
           id?: string
+          raw_line?: string
           related_accounts?: Json | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary: string
@@ -630,9 +636,12 @@ export type Database = {
           category?: Database["public"]["Enums"]["event_category"]
           client_id?: string
           created_at?: string
+          date_is_unknown?: boolean
           details?: string | null
-          event_date?: string
+          event_date?: string | null
+          event_kind?: string
           id?: string
+          raw_line?: string
           related_accounts?: Json | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary?: string

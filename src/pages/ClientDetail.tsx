@@ -6,12 +6,13 @@ import { DbClient } from '@/types/database';
 import { ArrowLeft, Loader2, FileDown } from 'lucide-react';
 import { ClientHeader } from '@/components/operator/ClientHeader';
 import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
-import { Timeline } from '@/components/operator/Timeline';
+import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline';
+import { NotesSection } from '@/components/operator/NotesSection';
+import { DraftsSection } from '@/components/operator/DraftsSection';
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
 import { downloadPDF } from '@/lib/pdfExport';
-
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
 
@@ -81,14 +82,16 @@ export default function ClientDetail() {
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Timeline - takes 2 columns */}
-        <div className="lg:col-span-2">
-          <Timeline events={events} clientId={clientId!} />
+        {/* Left Column - Evidence Timeline + Notes */}
+        <div className="lg:col-span-2 space-y-6">
+          <EvidenceTimeline events={events} clientId={clientId!} />
+          <NotesSection events={events} clientId={clientId!} />
         </div>
         
-        {/* Right sidebar - Scheduled Events */}
+        {/* Right sidebar - Scheduled Events + Drafts */}
         <div className="space-y-6">
           <ScheduledEvents tasks={tasks} clientId={clientId!} />
+          <DraftsSection clientId={clientId!} />
         </div>
       </div>
     </div>

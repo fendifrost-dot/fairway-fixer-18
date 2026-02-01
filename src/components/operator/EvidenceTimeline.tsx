@@ -149,11 +149,17 @@ function SourceSection({ source, events, clientId, displayName }: { source: Even
         </div>
       </AccordionTrigger>
       <AccordionContent className="pb-3">
-        <div className="space-y-3 pt-2">
-          {events.map(event => (
-            <EvidenceItem key={event.id} event={event} clientId={clientId} />
-          ))}
-        </div>
+        {events.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">
+            No evidence for {label} yet
+          </p>
+        ) : (
+          <div className="space-y-3 pt-2">
+            {events.map(event => (
+              <EvidenceItem key={event.id} event={event} clientId={clientId} />
+            ))}
+          </div>
+        )}
       </AccordionContent>
     </AccordionItem>
   );
@@ -263,31 +269,34 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {isEmpty ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No evidence logged yet. Paste a ChatGPT update to import actions, responses, and outcomes.
-          </p>
-        ) : showAllEvents ? (
-  
-          <ChronologicalView events={evidenceEvents} clientId={clientId} />
+        {showAllEvents ? (
+          isEmpty ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No evidence logged yet. Paste a ChatGPT update to import actions, responses, and outcomes.
+            </p>
+          ) : (
+            <ChronologicalView events={evidenceEvents} clientId={clientId} />
+          )
         ) : (
           <div className="space-y-4">
-            {activeSourcesByGroup.map(({ group, icon: GroupIcon, sources }) => (
+            {sourceGroups.map(({ label: group, icon: GroupIcon, sources }) => (
               <div key={group}>
                 <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
                   <GroupIcon className="h-4 w-4" />
                   <span>{group}</span>
                 </div>
                 <Accordion type="multiple" className="w-full">
-                  {sources.map(source => (
-                    <SourceSection
-                      key={source}
-                      source={source === 'Unassigned' ? 'Other' : source}
-                      events={source === 'Unassigned' ? eventsBySource['Other'] || [] : eventsBySource[source] || []}
-                      clientId={clientId}
-                      displayName={source === 'Unassigned' ? 'Unassigned' : undefined}
-                    />
-                  ))}
+                  {sources.map(source => {
+                    const sourceEvents = eventsBySource[source] || [];
+                    return (
+                      <SourceSection
+                        key={source}
+                        source={source}
+                        events={sourceEvents}
+                        clientId={clientId}
+                      />
+                    );
+                  })}
                 </Accordion>
               </div>
             ))}

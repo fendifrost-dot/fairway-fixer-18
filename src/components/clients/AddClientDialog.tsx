@@ -28,7 +28,7 @@ import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { parseChatGPTUpdate } from '@/lib/chatgptParser';
+import { parseUpdate } from '@/lib/parser';
 import { Json } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -313,21 +313,46 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         
         // Parse the intake text and create timeline events + tasks
         if (intakeText.trim()) {
-          const parsed = parseChatGPTUpdate(intakeText, clientId);
+          const parsed = parseUpdate(intakeText, clientId);
+          
+          // Map timeline events to database format
+          type DbEventCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
+          type DbEventSource = 'Experian' | 'TransUnion' | 'Equifax' | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic' | 'CFPB' | 'BBB' | 'AG' | 'Other' | 'ChexSystems' | 'EWS' | 'NCTUE';
+          type DbPriority = 'Low' | 'Medium' | 'High';
+          type DbStatus = 'Open' | 'Done';
+          
+          const SOURCE_MAP: Record<string, DbEventSource> = {
+            experian: 'Experian',
+            transunion: 'TransUnion',
+            equifax: 'Equifax',
+            innovis: 'Innovis',
+            lexisnexis: 'LexisNexis',
+            sagestream: 'Sagestream',
+            corelogic: 'CoreLogic',
+            cfpb: 'CFPB',
+            bbb: 'BBB',
+            ag: 'AG',
+          };
+          
+          const CATEGORY_MAP: Record<string, DbEventCategory> = {
+            action: 'Action',
+            response: 'Response',
+            outcome: 'Outcome',
+          };
           
           // Insert timeline events
-          if (parsed.events.length > 0) {
+          if (parsed.timeline_events.length > 0) {
             const { error: eventsError } = await supabase
               .from('timeline_events')
-              .insert(parsed.events.map(e => ({
-                client_id: e.client_id,
-                event_date: e.event_date,
-                category: e.category,
-                source: e.source,
-                title: e.title,
-                summary: e.summary,
-                details: e.details,
-                related_accounts: e.related_accounts as unknown as Json,
+              .insert(parsed.timeline_events.map(e => ({
+                client_id: clientId,
+                event_date: e.event_date || new Date().toISOString().split('T')[0],
+                category: (CATEGORY_MAP[e.event_kind] || 'Action') as DbEventCategory,
+                source: (SOURCE_MAP[e.source] || 'Other') as DbEventSource,
+                title: e.action_type || e.status_verb || e.event_kind,
+                summary: e.description,
+                details: e.account_ref,
+                related_accounts: e.account_ref ? [{ name: e.account_ref }] as unknown as Json : null,
               })));
             
             if (eventsError) {
@@ -336,15 +361,21 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           }
           
           // Insert operator tasks
-          if (parsed.tasks.length > 0) {
+          if (parsed.scheduled_events.length > 0) {
+            const PRIORITY_MAP: Record<string, DbPriority> = {
+              low: 'Low',
+              medium: 'Medium',
+              high: 'High',
+            };
+            
             const { error: tasksError } = await supabase
               .from('operator_tasks')
-              .insert(parsed.tasks.map(t => ({
-                client_id: t.client_id,
-                title: t.title,
+              .insert(parsed.scheduled_events.map(t => ({
+                client_id: clientId,
+                title: t.description,
                 due_date: t.due_date,
-                priority: t.priority,
-                status: t.status,
+                priority: (PRIORITY_MAP[t.priority] || 'Medium') as DbPriority,
+                status: 'Open' as DbStatus,
               })));
             
             if (tasksError) {
@@ -353,8 +384,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           }
           
           // Show parse results
-          const totalEvents = parsed.events.length;
-          const totalTasks = parsed.tasks.length;
+          const totalEvents = parsed.timeline_events.length;
+          const totalTasks = parsed.scheduled_events.length;
           if (totalEvents > 0 || totalTasks > 0) {
             toast.success(`Created client with ${totalEvents} events and ${totalTasks} tasks`);
           } else if (parsed.errors.length > 0) {

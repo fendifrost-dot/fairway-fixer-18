@@ -1,30 +1,33 @@
+/**
+ * ChatGPT Import Component
+ * 
+ * Uses the deterministic parser with full entity support.
+ * Displays import health with counts for all entity types.
+ */
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { parseChatGPTUpdate, getFormatExample, ParseCounts } from '@/lib/chatgptParser';
+import { parseUpdate, ParseResult } from '@/lib/parser';
+import { getFormatExample, getFormatSummary } from '@/lib/parser/formatExample';
 import { useBulkCreateTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useBulkCreateOperatorTasks } from '@/hooks/useOperatorTasks';
 import { ClipboardPaste, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { TimelineEventParsed, ScheduledEvent, UnresolvedItem, DraftItem, NoteFlag } from '@/types/parser';
+import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';
 
 interface ChatGPTImportProps {
   clientId: string;
+  onImportComplete?: (result: ParseResult) => void;
 }
 
-interface ImportResult {
-  events: number;
-  tasks: number;
-  errors: string[];
-  unroutedLines: string[];
-  counts: ParseCounts;
-}
-
-export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
+export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps) {
   const [input, setInput] = useState('');
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [result, setResult] = useState<ParseResult | null>(null);
   const [showFormat, setShowFormat] = useState(false);
   
   const createEvents = useBulkCreateTimelineEvents();
@@ -35,48 +38,52 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
   const handleImport = async () => {
     if (!input.trim()) return;
     
-    const parsed = parseChatGPTUpdate(input, clientId);
+    const parsed = parseUpdate(input, clientId);
     
-    // If nothing parsed at all, just show the error
-    if (parsed.events.length === 0 && parsed.tasks.length === 0 && parsed.unroutedLines.length === 0) {
-      setResult({
-        events: 0,
-        tasks: 0,
-        errors: parsed.errors,
-        unroutedLines: parsed.unroutedLines,
-        counts: parsed.counts,
-      });
+    // If nothing parsed at all, just show the result with errors
+    const totalParsed = 
+      parsed.timeline_events.length + 
+      parsed.unresolved_items.length +
+      parsed.scheduled_events.length +
+      parsed.draft_items.length +
+      parsed.notes_flags.filter(n => n.flag_type !== 'unrouted_warning').length;
+    
+    if (totalParsed === 0 && parsed.unrouted_lines.length === 0) {
+      setResult(parsed);
       return;
     }
     
     try {
+      // Convert parsed timeline events to database format
+      const dbEvents = parsed.timeline_events.map(e => mapTimelineEventToDb(e, clientId));
+      
+      // Convert scheduled events to tasks
+      const dbTasks = parsed.scheduled_events.map(e => mapScheduledEventToTask(e, clientId));
+      
       // Create events and tasks in parallel
       await Promise.all([
-        parsed.events.length > 0 ? createEvents.mutateAsync(parsed.events) : Promise.resolve(),
-        parsed.tasks.length > 0 ? createTasks.mutateAsync(parsed.tasks) : Promise.resolve(),
+        dbEvents.length > 0 ? createEvents.mutateAsync(dbEvents) : Promise.resolve(),
+        dbTasks.length > 0 ? createTasks.mutateAsync(dbTasks) : Promise.resolve(),
       ]);
       
-      setResult({
-        events: parsed.events.length,
-        tasks: parsed.tasks.length,
-        errors: parsed.errors,
-        unroutedLines: parsed.unroutedLines,
-        counts: parsed.counts,
-      });
+      setResult(parsed);
       
-      // Clear input on full success
-      if (parsed.errors.length === 0) {
+      // Notify parent of import completion (for unresolved items, drafts, notes)
+      onImportComplete?.(parsed);
+      
+      // Clear input on success with no unrouted lines
+      if (parsed.errors.length === 0 && parsed.unrouted_lines.length === 0) {
         setInput('');
-        toast.success(`Imported ${parsed.events.length} events and ${parsed.tasks.length} tasks`);
+        toast.success(`Imported ${parsed.timeline_events.length} events, ${parsed.scheduled_events.length} tasks`);
+      } else if (parsed.timeline_events.length > 0 || parsed.scheduled_events.length > 0) {
+        toast.warning(`Imported with warnings - check import health below`);
       }
     } catch (error) {
-      setResult({
-        events: 0,
-        tasks: 0,
-        errors: [(error as Error).message],
-        unroutedLines: parsed.unroutedLines,
-        counts: parsed.counts,
-      });
+      const errorResult: ParseResult = {
+        ...parsed,
+        errors: [...parsed.errors, (error as Error).message],
+      };
+      setResult(errorResult);
     }
   };
 
@@ -85,9 +92,11 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
     toast.success('Format copied to clipboard');
   };
   
-  const totalParsed = result ? result.events + result.tasks : 0;
+  const evidenceCount = result 
+    ? result.counts.actions + result.counts.responses + result.counts.outcomes 
+    : 0;
   const hasErrors = result && result.errors.length > 0;
-  const hasSuccess = result && totalParsed > 0;
+  const hasSuccess = result && (evidenceCount > 0 || result.counts.scheduled > 0);
   
   return (
     <Card>
@@ -117,48 +126,31 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
                 <span className="text-xs font-medium text-muted-foreground">Required Format (pipe-delimited)</span>
                 <Button variant="ghost" size="sm" onClick={handleCopyFormat} className="h-6 text-xs">
                   <Copy className="h-3 w-3 mr-1" />
-                  Copy
+                  Copy Example
                 </Button>
               </div>
-              <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/80 overflow-x-auto">
-{`Completed:
-DATE | ACTION_TYPE | ENTITY | DETAILS | PROOF
-
-Responses:
-DATE | ENTITY | RESPONSE_TYPE | DETAILS | ACCOUNT
-
-Outcomes:
-DATE | ENTITY | OUTCOME_TYPE | DETAILS | ACCOUNT
-
-ToDo:
-DUE_DATE | TASK | ENTITY | PRIORITY | DETAILS
-
-Notes:
-DATE | NOTE`}
+              <pre className="text-xs font-mono whitespace-pre-wrap text-foreground/80 overflow-x-auto max-h-[300px] overflow-y-auto">
+                {getFormatSummary()}
               </pre>
-              <p className="text-xs text-muted-foreground mt-2">
-                Dates: YYYY-MM-DD or MM/DD/YYYY
-              </p>
             </div>
           </CollapsibleContent>
         </Collapsible>
 
         <Textarea
-          placeholder={`Completed:
-2025-01-15 | Freeze Request | LexisNexis | Submitted online | Screenshot
-2025-01-20 | Dispute Letter | Experian | Account XYZ | Certified mail
+          placeholder={`COMPLETED ACTIONS:
+2025-01-15 | Experian | Dispute Letter | Account XYZ | Certified mail
 
-Responses:
+RESPONSES RECEIVED:
 2025-02-10 | Experian | Verified | No docs provided | Account (****1234)
 
-Outcomes:
-2025-02-15 | Innovis | Deleted | 2 accounts removed | -
+OUTCOMES OBSERVED:
+2025-02-15 | Equifax | Account Deleted | Removed from report | -
 
-ToDo:
-2025-02-20 | File CFPB Complaint | CFPB | High | Re: violation
+OPEN / UNRESOLVED ITEMS:
+Experian | Collection account | Disputed | ABC Collections | 2025-01-20
 
-Notes:
-2025-01-18 | Client confirmed ID theft report filed`}
+SUGGESTED NEXT ACTIONS:
+2025-02-25 | File CFPB Complaint | CFPB | High | Re: violation`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           className="min-h-[180px] font-mono text-sm"
@@ -185,7 +177,7 @@ Notes:
               {hasSuccess ? (
                 <span className="flex items-center gap-1 text-green-600">
                   <CheckCircle className="h-4 w-4" />
-                  {result.events} events, {result.tasks} tasks
+                  {evidenceCount} evidence, {result.counts.scheduled} tasks
                 </span>
               ) : hasErrors ? (
                 <span className="flex items-center gap-1 text-destructive">
@@ -198,46 +190,70 @@ Notes:
         </div>
 
         {/* Import Health Summary */}
-        {result && (result.events > 0 || result.tasks > 0 || result.counts.unrouted > 0) && (
+        {result && (
           <div className="p-3 bg-muted/50 rounded-md border">
             <div className="text-xs font-medium text-muted-foreground mb-2">Import Health</div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${(result.counts.completed + result.counts.responses + result.counts.outcomes) > 0 ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
-                <span>Evidence: {result.counts.completed + result.counts.responses + result.counts.outcomes}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${result.counts.notes > 0 ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
-                <span>Notes: {result.counts.notes}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${result.counts.todo > 0 ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
-                <span>Tasks: {result.counts.todo}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className={`w-2 h-2 rounded-full ${result.counts.unrouted > 0 ? 'bg-destructive' : 'bg-muted-foreground/30'}`} />
-                <span className={result.counts.unrouted > 0 ? 'text-destructive font-medium' : ''}>
-                  Unrouted: {result.counts.unrouted}
-                </span>
-              </div>
+              <HealthIndicator 
+                label="Evidence" 
+                count={evidenceCount} 
+                colorActive="bg-green-500" 
+              />
+              <HealthIndicator 
+                label="Unresolved" 
+                count={result.counts.unresolved} 
+                colorActive="bg-amber-500" 
+              />
+              <HealthIndicator 
+                label="Tasks" 
+                count={result.counts.scheduled} 
+                colorActive="bg-blue-500" 
+              />
+              <HealthIndicator 
+                label="Drafts" 
+                count={result.counts.drafts} 
+                colorActive="bg-purple-500" 
+              />
             </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mt-2">
+              <HealthIndicator 
+                label="Notes" 
+                count={result.counts.notes} 
+                colorActive="bg-slate-500" 
+              />
+              <HealthIndicator 
+                label="Unrouted" 
+                count={result.counts.unrouted} 
+                colorActive="bg-destructive"
+                isError={result.counts.unrouted > 0}
+              />
+            </div>
+            
+            {/* Breakdown of evidence types */}
+            {evidenceCount > 0 && (
+              <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                <span className="mr-3">Actions: {result.counts.actions}</span>
+                <span className="mr-3">Responses: {result.counts.responses}</span>
+                <span>Outcomes: {result.counts.outcomes}</span>
+              </div>
+            )}
           </div>
         )}
 
         {/* Unrouted lines warning */}
-        {result && result.unroutedLines.length > 0 && (
+        {result && result.unrouted_lines.length > 0 && (
           <Alert variant="default" className="mt-2 border-amber-200 bg-amber-50">
             <AlertCircle className="h-4 w-4 text-amber-600" />
             <AlertDescription>
               <div className="text-xs font-medium text-amber-800 mb-1">
-                Unrouted Lines (missing section headers)
+                Unrouted Lines (missing section headers or sources)
               </div>
               <ul className="list-disc pl-4 space-y-0.5 text-xs text-amber-700">
-                {result.unroutedLines.slice(0, 3).map((line, i) => (
+                {result.unrouted_lines.slice(0, 5).map((line, i) => (
                   <li key={i}>{line}</li>
                 ))}
-                {result.unroutedLines.length > 3 && (
-                  <li className="text-muted-foreground">...and {result.unroutedLines.length - 3} more</li>
+                {result.unrouted_lines.length > 5 && (
+                  <li className="text-muted-foreground">...and {result.unrouted_lines.length - 5} more</li>
                 )}
               </ul>
             </AlertDescription>
@@ -262,4 +278,91 @@ Notes:
       </CardContent>
     </Card>
   );
+}
+
+// Health indicator component
+function HealthIndicator({ 
+  label, 
+  count, 
+  colorActive,
+  isError = false 
+}: { 
+  label: string; 
+  count: number; 
+  colorActive: string;
+  isError?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <div className={`w-2 h-2 rounded-full ${count > 0 ? colorActive : 'bg-muted-foreground/30'}`} />
+      <span className={isError && count > 0 ? 'text-destructive font-medium' : ''}>
+        {label}: {count}
+      </span>
+    </div>
+  );
+}
+
+// Map parsed timeline event to database format
+type DbTimelineEvent = {
+  client_id: string;
+  event_date: string;
+  category: EventCategory;
+  source: EventSource | null;
+  title: string;
+  summary: string;
+  details: string | null;
+  related_accounts: RelatedAccount[] | null;
+};
+
+function mapTimelineEventToDb(event: TimelineEventParsed, clientId: string): DbTimelineEvent {
+  // Map event_kind to category
+  const categoryMap: Record<string, EventCategory> = {
+    action: 'Action',
+    response: 'Response',
+    outcome: 'Outcome',
+  };
+  
+  // Map normalized source to DB source enum
+  const sourceMap: Record<string, EventSource> = {
+    experian: 'Experian',
+    transunion: 'TransUnion',
+    equifax: 'Equifax',
+    innovis: 'Innovis',
+    lexisnexis: 'LexisNexis',
+    sagestream: 'Sagestream',
+    corelogic: 'CoreLogic',
+    cfpb: 'CFPB',
+    bbb: 'BBB',
+    ag: 'AG',
+  };
+  
+  const mappedSource = sourceMap[event.source] || 'Other';
+  
+  return {
+    client_id: clientId,
+    event_date: event.event_date || new Date().toISOString().split('T')[0],
+    category: categoryMap[event.event_kind] || 'Action',
+    source: mappedSource,
+    title: event.action_type || event.status_verb || event.event_kind,
+    summary: event.description,
+    details: event.account_ref || null,
+    related_accounts: event.account_ref ? [{ name: event.account_ref }] : null,
+  };
+}
+
+// Map scheduled event to task
+function mapScheduledEventToTask(event: ScheduledEvent, clientId: string) {
+  const priorityMap: Record<string, 'Low' | 'Medium' | 'High'> = {
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+  };
+  
+  return {
+    client_id: clientId,
+    title: event.description,
+    due_date: event.due_date,
+    priority: priorityMap[event.priority] || 'Medium',
+    status: 'Open' as const,
+  };
 }

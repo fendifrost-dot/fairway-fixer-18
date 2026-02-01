@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,11 +11,15 @@ import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline';
 import { NotesSection } from '@/components/operator/NotesSection';
 import { DraftsSection } from '@/components/operator/DraftsSection';
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents';
+import { UnresolvedStatePanel } from '@/components/operator/UnresolvedStatePanel';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
 import { downloadPDF } from '@/lib/pdfExport';
+import { ParseResult, UnresolvedItem } from '@/types/parser';
+
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
+  const [unresolvedItems, setUnresolvedItems] = useState<UnresolvedItem[]>([]);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ['client', clientId],
@@ -33,6 +38,13 @@ export default function ClientDetail() {
 
   const { data: events = [], isLoading: eventsLoading } = useTimelineEvents(clientId);
   const { data: tasks = [], isLoading: tasksLoading } = useOperatorTasks(clientId);
+
+  const handleImportComplete = (result: ParseResult) => {
+    // Accumulate unresolved items from imports
+    if (result.unresolved_items.length > 0) {
+      setUnresolvedItems(prev => [...prev, ...result.unresolved_items]);
+    }
+  };
 
   if (clientLoading) {
     return (
@@ -78,7 +90,7 @@ export default function ClientDetail() {
       <ClientHeader client={client} />
 
       {/* ChatGPT Import */}
-      <ChatGPTImport clientId={clientId!} />
+      <ChatGPTImport clientId={clientId!} onImportComplete={handleImportComplete} />
 
       {/* Main Content Grid */}
       <div className="grid lg:grid-cols-3 gap-6">
@@ -88,8 +100,11 @@ export default function ClientDetail() {
           <NotesSection events={events} clientId={clientId!} />
         </div>
         
-        {/* Right sidebar - Scheduled Events + Drafts */}
+        {/* Right sidebar - Unresolved State + Scheduled Events + Drafts */}
         <div className="space-y-6">
+          {unresolvedItems.length > 0 && (
+            <UnresolvedStatePanel items={unresolvedItems} />
+          )}
           <ScheduledEvents tasks={tasks} clientId={clientId!} />
           <DraftsSection clientId={clientId!} />
         </div>

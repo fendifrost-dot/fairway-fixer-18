@@ -64,14 +64,15 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
   };
   
   return (
-    <div className="flex gap-2 group">
-      {/* Drag handle */}
+    <div className="flex gap-2 group border-l-2 border-transparent hover:border-primary/30 pl-1">
+      {/* Drag handle - ALWAYS VISIBLE */}
       <div 
-        className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-100 transition-opacity"
+        className="flex-shrink-0 cursor-grab active:cursor-grabbing bg-muted/50 rounded px-0.5 hover:bg-muted"
         draggable
         onDragStart={handleDragStart}
+        title="Drag to move to different source"
       >
-        <GripVertical className="h-4 w-4 text-muted-foreground mt-1.5" />
+        <GripVertical className="h-5 w-5 text-muted-foreground" />
       </div>
       
       {/* Icon */}
@@ -95,11 +96,19 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
               <p className="font-medium mt-1 text-sm">{event.title}</p>
               <p className="text-sm text-muted-foreground">{event.summary}</p>
               
-              {/* Debug placement line */}
+              {/* Debug placement line - shows event_date, created_at, source, category */}
               {showDebug && (
-                <p className="text-[10px] font-mono text-muted-foreground/60 mt-1 bg-muted/30 px-1 rounded">
-                  [source={debug.source} | kind={debug.kind} | date={debug.date} | placed_in={debug.placedIn}]
-                </p>
+                <div className="text-[10px] font-mono bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-1 rounded mt-1 border border-yellow-300 dark:border-yellow-700">
+                  <div className="text-yellow-800 dark:text-yellow-200">
+                    <strong>event_date:</strong> {event.event_date || 'NULL'} | 
+                    <strong> created_at:</strong> {event.created_at} | 
+                    <strong> source:</strong> {event.source || 'NULL'} | 
+                    <strong> category:</strong> {event.category}
+                  </div>
+                  <div className="text-muted-foreground">
+                    placed_in: {debug.placedIn}
+                  </div>
+                </div>
               )}
             </div>
             

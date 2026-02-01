@@ -240,23 +240,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     return result;
   }, [eventsBySource]);
 
-  if (evidenceEvents.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Evidence Timeline
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No evidence logged yet. Paste a ChatGPT update to import actions, responses, and outcomes.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const isEmpty = evidenceEvents.length === 0;
   
   return (
     <Card>
@@ -274,12 +258,18 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
               id="view-toggle"
               checked={showAllEvents}
               onCheckedChange={setShowAllEvents}
+              disabled={isEmpty}
             />
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {showAllEvents ? (
+        {isEmpty ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No evidence logged yet. Paste a ChatGPT update to import actions, responses, and outcomes.
+          </p>
+        ) : showAllEvents ? (
+  
           <ChronologicalView events={evidenceEvents} clientId={clientId} />
         ) : (
           <div className="space-y-4">

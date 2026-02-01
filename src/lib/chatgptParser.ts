@@ -12,6 +12,7 @@ export interface ParseResult {
   events: Omit<TimelineEvent, 'id' | 'created_at'>[];
   tasks: Omit<OperatorTask, 'id' | 'created_at'>[];
   errors: string[];
+  unroutedLines: string[];
   counts: ParseCounts;
 }
 
@@ -21,6 +22,7 @@ export interface ParseCounts {
   outcomes: number;
   todo: number;
   notes: number;
+  unrouted: number;
 }
 
 function parseDate(dateStr: string): string | null {
@@ -114,33 +116,113 @@ function parseAccounts(text: string): RelatedAccount[] | null {
   return accounts.length > 0 ? accounts : null;
 }
 
-type SectionType = 'none' | 'completed' | 'responses' | 'outcomes' | 'todo' | 'notes';
+type SectionType = 'none' | 'completed' | 'responses' | 'outcomes' | 'todo' | 'notes' | 'drafts';
+
+// Header normalization patterns - explicit and deterministic
+const HEADER_PATTERNS: { section: SectionType; patterns: RegExp[] }[] = [
+  {
+    section: 'completed',
+    patterns: [
+      /^completed:?$/i,
+      /^completed\s*actions:?$/i,
+      /^completed\s*items:?$/i,
+      /^actions?\s*completed:?$/i,
+      /^sent\s*actions:?$/i,
+      /^actions?\s*sent:?$/i,
+      /^#*\s*completed\s*actions?:?$/i,
+    ],
+  },
+  {
+    section: 'responses',
+    patterns: [
+      /^responses?:?$/i,
+      /^responses?\s*received:?$/i,
+      /^received\s*responses?:?$/i,
+      /^observed\s*responses?:?$/i,
+      /^responses?\s*\/?\s*outcomes?:?$/i,
+      /^#*\s*responses?\s*received:?$/i,
+    ],
+  },
+  {
+    section: 'outcomes',
+    patterns: [
+      /^outcomes?:?$/i,
+      /^outcomes?\s*observed:?$/i,
+      /^observed\s*outcomes?:?$/i,
+      /^credit\s*file\s*outcomes?:?$/i,
+      /^results?:?$/i,
+      /^#*\s*outcomes?\s*observed:?$/i,
+    ],
+  },
+  {
+    section: 'todo',
+    patterns: [
+      /^to\s*-?\s*do:?$/i,
+      /^todo:?$/i,
+      /^pending:?$/i,
+      /^pending\s*tasks?:?$/i,
+      /^open\s*items?:?$/i,
+      /^open\s*\/?\s*unresolved\s*items?:?$/i,
+      /^action\s*items?:?$/i,
+      /^suggested\s*next\s*actions?:?$/i,
+      /^next\s*steps?:?$/i,
+      /^#*\s*open\s*\/?\s*unresolved:?$/i,
+      /^#*\s*suggested\s*next\s*actions?:?$/i,
+    ],
+  },
+  {
+    section: 'notes',
+    patterns: [
+      /^notes?:?$/i,
+      /^internal\s*notes?:?$/i,
+      /^client\s*notes?:?$/i,
+      /^flags?:?$/i,
+      /^missing\s*information\s*flags?:?$/i,
+      /^missing\s*info:?$/i,
+      /^#*\s*notes?:?$/i,
+      /^#*\s*missing\s*information:?$/i,
+    ],
+  },
+  {
+    section: 'drafts',
+    patterns: [
+      /^drafts?:?$/i,
+      /^drafts?\s*\(not\s*sent\):?$/i,
+      /^documents?\s*drafted:?$/i,
+      /^documents?\s*drafted\s*\(not\s*sent\):?$/i,
+      /^unsent\s*drafts?:?$/i,
+      /^#*\s*documents?\s*drafted:?$/i,
+    ],
+  },
+];
+
+// Headers to explicitly skip (meta sections that don't contain parseable data)
+const SKIP_HEADER_PATTERNS: RegExp[] = [
+  /^client\s*profile:?$/i,
+  /^#*\s*client\s*profile:?$/i,
+  /^client:?\s/i,
+  /^case\s*summary:?$/i,
+  /^overview:?$/i,
+];
 
 function detectSection(line: string): SectionType | null {
-  const lower = line.toLowerCase().trim();
+  const trimmed = line.trim();
   
-  // Original format headers
-  if (lower === 'completed:' || lower === 'completed') return 'completed';
-  if (lower.startsWith('completed:')) return 'completed';
+  // Check if this is a skip header (meta section)
+  for (const pattern of SKIP_HEADER_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return 'none'; // Return 'none' to indicate we should skip content until next valid header
+    }
+  }
   
-  if (lower === 'responses:' || lower === 'responses') return 'responses';
-  if (lower.startsWith('responses:')) return 'responses';
-  
-  if (lower === 'outcomes:' || lower === 'outcomes') return 'outcomes';
-  if (lower.startsWith('outcomes:')) return 'outcomes';
-  
-  if (lower === 'todo:' || lower === 'todo' || lower === 'to do:' || lower === 'to do' || lower === 'to-do:' || lower === 'to-do') return 'todo';
-  if (lower.startsWith('todo:') || lower.startsWith('to do:') || lower.startsWith('to-do:')) return 'todo';
-  
-  if (lower === 'notes:' || lower === 'notes') return 'notes';
-  if (lower.startsWith('notes:')) return 'notes';
-  
-  // Alternative format headers (COMPLETED ACTIONS, etc.)
-  if (lower.includes('completed actions') || lower.includes('completed items')) return 'completed';
-  if (lower.includes('response') && (lower.includes('received') || lower.includes('log'))) return 'responses';
-  if (lower.includes('outcome') || lower.includes('results')) return 'outcomes';
-  if (lower.includes('pending') || lower.includes('task') || lower.includes('action items')) return 'todo';
-  if (lower.includes('note') && !lower.includes('notification')) return 'notes';
+  // Check against all header patterns
+  for (const { section, patterns } of HEADER_PATTERNS) {
+    for (const pattern of patterns) {
+      if (pattern.test(trimmed)) {
+        return section;
+      }
+    }
+  }
   
   return null;
 }
@@ -330,12 +412,14 @@ export function parseChatGPTUpdate(input: string, clientId: string): ParseResult
     events: [],
     tasks: [],
     errors: [],
+    unroutedLines: [],
     counts: {
       completed: 0,
       responses: 0,
       outcomes: 0,
       todo: 0,
       notes: 0,
+      unrouted: 0,
     },
   };
   
@@ -346,6 +430,7 @@ export function parseChatGPTUpdate(input: string, clientId: string): ParseResult
   
   const lines = input.split('\n');
   let currentSection: SectionType = 'none';
+  let hasSeenAnySection = false;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -355,13 +440,28 @@ export function parseChatGPTUpdate(input: string, clientId: string): ParseResult
     
     // Check if this is a section header
     const detectedSection = detectSection(line);
-    if (detectedSection) {
+    if (detectedSection !== null) {
       currentSection = detectedSection;
+      if (detectedSection !== 'none') {
+        hasSeenAnySection = true;
+      }
       continue;
     }
     
-    // Skip if we haven't entered a section yet
-    if (currentSection === 'none') continue;
+    // If we haven't entered a valid section yet, route to unrouted bucket
+    if (currentSection === 'none') {
+      // Only add substantial lines to unrouted (skip short meta lines)
+      if (line.length > 5 && line.includes('|')) {
+        result.unroutedLines.push(`Line ${i + 1}: ${line.substring(0, 80)}${line.length > 80 ? '...' : ''}`);
+        result.counts.unrouted++;
+      }
+      continue;
+    }
+    
+    // Skip drafts section - these go to a separate bucket (not timeline or tasks)
+    if (currentSection === 'drafts') {
+      continue;
+    }
     
     // Remove bullet points or list markers
     const cleanLine = line.replace(/^[-*•]\s*/, '').replace(/^\d+\.\s*/, '').trim();
@@ -449,8 +549,13 @@ export function parseChatGPTUpdate(input: string, clientId: string): ParseResult
   }
   
   // Add error if nothing was parsed
-  if (result.events.length === 0 && result.tasks.length === 0) {
+  if (result.events.length === 0 && result.tasks.length === 0 && result.unroutedLines.length === 0) {
     result.errors.unshift('0 rows parsed — check headers and pipe format');
+  }
+  
+  // Add warning if there are unrouted lines
+  if (result.unroutedLines.length > 0) {
+    result.errors.push(`${result.unroutedLines.length} line(s) unrouted due to missing section headers`);
   }
   
   return result;

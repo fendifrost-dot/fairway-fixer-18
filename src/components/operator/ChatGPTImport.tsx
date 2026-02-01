@@ -18,6 +18,7 @@ interface ImportResult {
   events: number;
   tasks: number;
   errors: string[];
+  unroutedLines: string[];
   counts: ParseCounts;
 }
 
@@ -36,12 +37,13 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
     
     const parsed = parseChatGPTUpdate(input, clientId);
     
-    // If nothing parsed, just show the error
-    if (parsed.events.length === 0 && parsed.tasks.length === 0) {
+    // If nothing parsed at all, just show the error
+    if (parsed.events.length === 0 && parsed.tasks.length === 0 && parsed.unroutedLines.length === 0) {
       setResult({
         events: 0,
         tasks: 0,
         errors: parsed.errors,
+        unroutedLines: parsed.unroutedLines,
         counts: parsed.counts,
       });
       return;
@@ -58,6 +60,7 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
         events: parsed.events.length,
         tasks: parsed.tasks.length,
         errors: parsed.errors,
+        unroutedLines: parsed.unroutedLines,
         counts: parsed.counts,
       });
       
@@ -71,6 +74,7 @@ export function ChatGPTImport({ clientId }: ChatGPTImportProps) {
         events: 0,
         tasks: 0,
         errors: [(error as Error).message],
+        unroutedLines: parsed.unroutedLines,
         counts: parsed.counts,
       });
     }
@@ -193,15 +197,51 @@ Notes:
           )}
         </div>
 
-        {/* Detailed counts */}
-        {result && (result.events > 0 || result.tasks > 0) && (
-          <div className="text-xs text-muted-foreground flex flex-wrap gap-3 pt-1">
-            {result.counts.completed > 0 && <span>Completed: {result.counts.completed}</span>}
-            {result.counts.responses > 0 && <span>Responses: {result.counts.responses}</span>}
-            {result.counts.outcomes > 0 && <span>Outcomes: {result.counts.outcomes}</span>}
-            {result.counts.todo > 0 && <span>ToDo: {result.counts.todo}</span>}
-            {result.counts.notes > 0 && <span>Notes: {result.counts.notes}</span>}
+        {/* Import Health Summary */}
+        {result && (result.events > 0 || result.tasks > 0 || result.counts.unrouted > 0) && (
+          <div className="p-3 bg-muted/50 rounded-md border">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Import Health</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${(result.counts.completed + result.counts.responses + result.counts.outcomes) > 0 ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                <span>Evidence: {result.counts.completed + result.counts.responses + result.counts.outcomes}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${result.counts.notes > 0 ? 'bg-blue-500' : 'bg-muted-foreground/30'}`} />
+                <span>Notes: {result.counts.notes}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${result.counts.todo > 0 ? 'bg-amber-500' : 'bg-muted-foreground/30'}`} />
+                <span>Tasks: {result.counts.todo}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${result.counts.unrouted > 0 ? 'bg-destructive' : 'bg-muted-foreground/30'}`} />
+                <span className={result.counts.unrouted > 0 ? 'text-destructive font-medium' : ''}>
+                  Unrouted: {result.counts.unrouted}
+                </span>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Unrouted lines warning */}
+        {result && result.unroutedLines.length > 0 && (
+          <Alert variant="default" className="mt-2 border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription>
+              <div className="text-xs font-medium text-amber-800 mb-1">
+                Unrouted Lines (missing section headers)
+              </div>
+              <ul className="list-disc pl-4 space-y-0.5 text-xs text-amber-700">
+                {result.unroutedLines.slice(0, 3).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+                {result.unroutedLines.length > 3 && (
+                  <li className="text-muted-foreground">...and {result.unroutedLines.length - 3} more</li>
+                )}
+              </ul>
+            </AlertDescription>
+          </Alert>
         )}
         
         {result && result.errors.length > 0 && (

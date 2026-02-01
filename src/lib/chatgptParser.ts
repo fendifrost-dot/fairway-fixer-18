@@ -292,6 +292,7 @@ function parseToDoRow(parts: string[], clientId: string): Omit<OperatorTask, 'id
 
 /**
  * Parse Notes row: DATE | NOTE
+ * Now also attempts to extract source from note content
  */
 function parseNotesRow(parts: string[], clientId: string): Omit<TimelineEvent, 'id' | 'created_at'> | null {
   if (parts.length < 1) return null;
@@ -309,11 +310,14 @@ function parseNotesRow(parts: string[], clientId: string): Omit<TimelineEvent, '
   
   if (!noteContent) return null;
   
+  // Try to extract source from note content
+  const extractedSource = parseSource(noteContent);
+  
   return {
     client_id: clientId,
     event_date: dateStr,
     category: 'Note' as EventCategory,
-    source: null,
+    source: extractedSource,
     title: 'Note',
     summary: noteContent,
     details: null,

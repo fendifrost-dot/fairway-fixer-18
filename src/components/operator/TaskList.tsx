@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, parseISO, isPast, isToday } from 'date-fns';
-import { Calendar, ListTodo, Trash2 } from 'lucide-react';
+import { Calendar, ListTodo, Trash2, Download, ExternalLink } from 'lucide-react';
 import { useUpdateOperatorTask, useDeleteOperatorTask } from '@/hooks/useOperatorTasks';
-
+import { downloadICSFile, generateGoogleCalendarUrl } from '@/lib/icsExport';
+import { toast } from 'sonner';
 interface TaskListProps {
   tasks: OperatorTask[];
   clientId: string;
@@ -27,9 +29,26 @@ export function TaskList({ tasks, clientId }: TaskListProps) {
     });
   };
   
-  const handleAddToCalendar = (task: OperatorTask) => {
-    // Placeholder - just show an alert for now
-    alert(`Calendar integration coming soon!\n\nTask: ${task.title}\nDue: ${task.due_date || 'No due date'}`);
+  const handleDownloadICS = (task: OperatorTask) => {
+    const dueDate = task.due_date ? parseISO(task.due_date) : new Date();
+    downloadICSFile({
+      title: task.title,
+      description: `Priority: ${task.priority}\nStatus: ${task.status}`,
+      startDate: dueDate,
+      allDay: true,
+    });
+    toast.success('Calendar file downloaded');
+  };
+  
+  const handleOpenGoogleCalendar = (task: OperatorTask) => {
+    const dueDate = task.due_date ? parseISO(task.due_date) : new Date();
+    const url = generateGoogleCalendarUrl({
+      title: task.title,
+      description: `Priority: ${task.priority}\nStatus: ${task.status}`,
+      startDate: dueDate,
+      allDay: true,
+    });
+    window.open(url, '_blank');
   };
   
   const getPriorityColor = (priority: string) => {
@@ -88,15 +107,28 @@ export function TaskList({ tasks, clientId }: TaskListProps) {
                   <p className="text-sm font-medium">{task.title}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="h-7 px-2 text-xs"
-                    onClick={() => handleAddToCalendar(task)}
-                  >
-                    <Calendar className="h-3 w-3 mr-1" />
-                    Calendar
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="h-7 px-2 text-xs"
+                      >
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Calendar
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleOpenGoogleCalendar(task)}>
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Open in Google Calendar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDownloadICS(task)}>
+                        <Download className="h-3 w-3 mr-2" />
+                        Download .ics file
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     size="sm"
                     variant="ghost"

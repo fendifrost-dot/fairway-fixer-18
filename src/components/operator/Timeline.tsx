@@ -115,7 +115,7 @@ function TimelineItem({ event, clientId, compact = false }: { event: TimelineEve
   );
 }
 
-function SourceSection({ source, events, clientId }: { source: EventSource; events: TimelineEvent[]; clientId: string }) {
+function SourceSection({ source, events, clientId, displayName }: { source: EventSource; events: TimelineEvent[]; clientId: string; displayName?: string }) {
   // Count events by category for quick stats
   const stats = useMemo(() => {
     return {
@@ -125,12 +125,14 @@ function SourceSection({ source, events, clientId }: { source: EventSource; even
     };
   }, [events]);
 
+  const label = displayName || source;
+
   return (
-    <AccordionItem value={source} className="border rounded-lg mb-2 px-3">
+    <AccordionItem value={label} className="border rounded-lg mb-2 px-3">
       <AccordionTrigger className="hover:no-underline py-3">
         <div className="flex items-center justify-between w-full pr-2">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{source}</span>
+            <span className="font-medium">{label}</span>
             <Badge variant="secondary" className="text-xs">
               {events.length} event{events.length !== 1 ? 's' : ''}
             </Badge>
@@ -226,7 +228,7 @@ export function Timeline({ events, clientId }: TimelineProps) {
 
   // Get sources that have events, organized by group
   const activeSourcesByGroup = useMemo(() => {
-    const result: { group: string; icon: React.ComponentType<{ className?: string }>; sources: EventSource[] }[] = [];
+    const result: { group: string; icon: React.ComponentType<{ className?: string }>; sources: (EventSource | 'Unassigned')[] }[] = [];
     
     sourceGroups.forEach(group => {
       const activeSources = group.sources.filter(source => eventsBySource[source]?.length > 0);
@@ -235,9 +237,9 @@ export function Timeline({ events, clientId }: TimelineProps) {
       }
     });
 
-    // Add "Other" if present
+    // Add "Other" if present (includes null sources)
     if (eventsBySource['Other']?.length > 0) {
-      result.push({ group: 'Other', icon: Clock, sources: ['Other' as EventSource] });
+      result.push({ group: 'Unassigned Source', icon: Clock, sources: ['Unassigned' as EventSource] });
     }
 
     return result;
@@ -290,9 +292,10 @@ export function Timeline({ events, clientId }: TimelineProps) {
                   {sources.map(source => (
                     <SourceSection
                       key={source}
-                      source={source}
-                      events={eventsBySource[source] || []}
+                      source={source === 'Unassigned' ? 'Other' : source}
+                      events={source === 'Unassigned' ? eventsBySource['Other'] || [] : eventsBySource[source] || []}
                       clientId={clientId}
+                      displayName={source === 'Unassigned' ? 'Unassigned' : undefined}
                     />
                   ))}
                 </Accordion>

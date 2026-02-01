@@ -1,10 +1,13 @@
-import { TimelineEvent, EventCategory } from '@/types/operator';
+import { TimelineEvent, EventCategory, EventSource, ALL_SOURCES, CRA_SOURCES, DATA_BROKER_SOURCES, REGULATORY_SOURCES } from '@/types/operator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown, Clock, MessageSquare, CheckCircle2, FileText, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Clock, MessageSquare, CheckCircle2, FileText, Trash2, Building2, Shield, Database } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
 
@@ -20,7 +23,22 @@ const categoryConfig: Record<EventCategory, { icon: React.ComponentType<{ classN
   Note: { icon: Clock, color: 'text-gray-600', bgColor: 'bg-gray-100' },
 };
 
-function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: string }) {
+// Source grouping configuration
+const sourceGroups: { label: string; sources: EventSource[]; icon: React.ComponentType<{ className?: string }> }[] = [
+  { label: 'Credit Bureaus', sources: CRA_SOURCES, icon: Building2 },
+  { label: 'Data Brokers', sources: DATA_BROKER_SOURCES, icon: Database },
+  { label: 'Regulatory', sources: REGULATORY_SOURCES, icon: Shield },
+];
+
+function getSourceGroup(source: EventSource | null): string {
+  if (!source) return 'Other';
+  if (CRA_SOURCES.includes(source)) return 'Credit Bureaus';
+  if (DATA_BROKER_SOURCES.includes(source)) return 'Data Brokers';
+  if (REGULATORY_SOURCES.includes(source)) return 'Regulatory';
+  return 'Other';
+}
+
+function TimelineItem({ event, clientId, compact = false }: { event: TimelineEvent; clientId: string; compact?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const config = categoryConfig[event.category];
@@ -30,8 +48,8 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
   
   return (
     <div className="flex gap-3 group">
-      <div className={`flex-shrink-0 w-8 h-8 rounded-full ${config.bgColor} flex items-center justify-center`}>
-        <Icon className={`h-4 w-4 ${config.color}`} />
+      <div className={`flex-shrink-0 w-7 h-7 rounded-full ${config.bgColor} flex items-center justify-center`}>
+        <Icon className={`h-3.5 w-3.5 ${config.color}`} />
       </div>
       
       <div className="flex-1 min-w-0">
@@ -42,17 +60,12 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
                 <Badge variant="outline" className="text-xs">
                   {event.category}
                 </Badge>
-                {event.source && (
-                  <Badge variant="secondary" className="text-xs">
-                    {event.source}
-                  </Badge>
-                )}
                 <span className="text-xs text-muted-foreground">
                   {event.event_date ? format(parseISO(event.event_date), 'MMM d, yyyy') : 'Date Unknown'}
                 </span>
               </div>
-              <p className="font-medium mt-1">{event.title}</p>
-              <p className="text-sm text-muted-foreground">{event.summary}</p>
+              <p className="font-medium mt-1 text-sm">{event.title}</p>
+              {!compact && <p className="text-sm text-muted-foreground">{event.summary}</p>}
             </div>
             
             <div className="flex items-center gap-1">
@@ -76,6 +89,9 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
           
           {hasExpandableContent && (
             <CollapsibleContent className="mt-2 pl-2 border-l-2 border-muted">
+              {compact && event.summary && (
+                <p className="text-sm text-muted-foreground mb-2">{event.summary}</p>
+              )}
               {event.details && (
                 <p className="text-sm text-muted-foreground">{event.details}</p>
               )}
@@ -99,7 +115,57 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
   );
 }
 
-export function Timeline({ events, clientId }: TimelineProps) {
+function SourceSection({ source, events, clientId }: { source: EventSource; events: TimelineEvent[]; clientId: string }) {
+  // Count events by category for quick stats
+  const stats = useMemo(() => {
+    return {
+      actions: events.filter(e => e.category === 'Action').length,
+      responses: events.filter(e => e.category === 'Response').length,
+      outcomes: events.filter(e => e.category === 'Outcome').length,
+    };
+  }, [events]);
+
+  return (
+    <AccordionItem value={source} className="border rounded-lg mb-2 px-3">
+      <AccordionTrigger className="hover:no-underline py-3">
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{source}</span>
+            <Badge variant="secondary" className="text-xs">
+              {events.length} event{events.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {stats.actions > 0 && (
+              <Badge variant="outline" className="text-xs bg-green-50 border-green-200">
+                {stats.actions} action{stats.actions !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {stats.responses > 0 && (
+              <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200">
+                {stats.responses} response{stats.responses !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {stats.outcomes > 0 && (
+              <Badge variant="outline" className="text-xs bg-purple-50 border-purple-200">
+                {stats.outcomes} outcome{stats.outcomes !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="pb-3">
+        <div className="space-y-3 pt-2">
+          {events.map(event => (
+            <TimelineItem key={event.id} event={event} clientId={clientId} />
+          ))}
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+function AllEventsView({ events, clientId }: { events: TimelineEvent[]; clientId: string }) {
   // Group events by event_date (use "unknown" for null dates)
   const groupedEvents = events.reduce((acc, event) => {
     const date = event.event_date || 'unknown';
@@ -114,7 +180,69 @@ export function Timeline({ events, clientId }: TimelineProps) {
     if (b === 'unknown') return -1;
     return new Date(a).getTime() - new Date(b).getTime();
   });
-  
+
+  return (
+    <div className="space-y-6">
+      {sortedDates.map(date => (
+        <div key={date}>
+          <div className="text-xs font-medium text-muted-foreground mb-3 sticky top-0 bg-card py-1">
+            {date === 'unknown' ? 'Date Unknown' : format(parseISO(date), 'EEEE, MMMM d, yyyy')}
+          </div>
+          <div className="space-y-4">
+            {groupedEvents[date].map(event => (
+              <TimelineItem key={event.id} event={event} clientId={clientId} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Timeline({ events, clientId }: TimelineProps) {
+  const [showAllEvents, setShowAllEvents] = useState(false);
+
+  // Group events by source
+  const eventsBySource = useMemo(() => {
+    const grouped: Record<string, TimelineEvent[]> = {};
+    
+    events.forEach(event => {
+      const source = event.source || 'Other';
+      if (!grouped[source]) grouped[source] = [];
+      grouped[source].push(event);
+    });
+
+    // Sort events within each source by event_date (oldest first)
+    Object.keys(grouped).forEach(source => {
+      grouped[source].sort((a, b) => {
+        if (!a.event_date) return 1;
+        if (!b.event_date) return -1;
+        return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+      });
+    });
+
+    return grouped;
+  }, [events]);
+
+  // Get sources that have events, organized by group
+  const activeSourcesByGroup = useMemo(() => {
+    const result: { group: string; icon: React.ComponentType<{ className?: string }>; sources: EventSource[] }[] = [];
+    
+    sourceGroups.forEach(group => {
+      const activeSources = group.sources.filter(source => eventsBySource[source]?.length > 0);
+      if (activeSources.length > 0) {
+        result.push({ group: group.label, icon: group.icon, sources: activeSources });
+      }
+    });
+
+    // Add "Other" if present
+    if (eventsBySource['Other']?.length > 0) {
+      result.push({ group: 'Other', icon: Clock, sources: ['Other' as EventSource] });
+    }
+
+    return result;
+  }, [eventsBySource]);
+
   if (events.length === 0) {
     return (
       <Card>
@@ -132,22 +260,46 @@ export function Timeline({ events, clientId }: TimelineProps) {
   
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Timeline ({events.length} events)</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {sortedDates.map(date => (
-          <div key={date}>
-            <div className="text-xs font-medium text-muted-foreground mb-3 sticky top-0 bg-card">
-              {date === 'unknown' ? 'Date Unknown' : format(parseISO(date), 'EEEE, MMMM d, yyyy')}
-            </div>
-            <div className="space-y-4">
-              {groupedEvents[date].map(event => (
-                <TimelineItem key={event.id} event={event} clientId={clientId} />
-              ))}
-            </div>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Timeline ({events.length} events)</CardTitle>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="view-toggle" className="text-xs text-muted-foreground">
+              {showAllEvents ? 'Chronological' : 'By Source'}
+            </Label>
+            <Switch
+              id="view-toggle"
+              checked={showAllEvents}
+              onCheckedChange={setShowAllEvents}
+            />
           </div>
-        ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {showAllEvents ? (
+          <AllEventsView events={events} clientId={clientId} />
+        ) : (
+          <div className="space-y-4">
+            {activeSourcesByGroup.map(({ group, icon: GroupIcon, sources }) => (
+              <div key={group}>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+                  <GroupIcon className="h-4 w-4" />
+                  <span>{group}</span>
+                </div>
+                <Accordion type="multiple" className="w-full">
+                  {sources.map(source => (
+                    <SourceSection
+                      key={source}
+                      source={source}
+                      events={eventsBySource[source] || []}
+                      clientId={clientId}
+                    />
+                  ))}
+                </Accordion>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

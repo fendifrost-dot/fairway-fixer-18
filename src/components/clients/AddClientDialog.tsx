@@ -28,6 +28,8 @@ import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { parseChatGPTUpdate } from '@/lib/chatgptParser';
+import { Json } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
 type MatterType = Database['public']['Enums']['matter_type'];
@@ -306,13 +308,69 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         'Narrative / ChatGPT'
       );
 
-      if (result) {
-        toast.success('Client created');
+      if (result && result.client.id) {
+        const clientId = result.client.id;
+        
+        // Parse the intake text and create timeline events + tasks
+        if (intakeText.trim()) {
+          const parsed = parseChatGPTUpdate(intakeText, clientId);
+          
+          // Insert timeline events
+          if (parsed.events.length > 0) {
+            const { error: eventsError } = await supabase
+              .from('timeline_events')
+              .insert(parsed.events.map(e => ({
+                client_id: e.client_id,
+                event_date: e.event_date,
+                category: e.category,
+                source: e.source,
+                title: e.title,
+                summary: e.summary,
+                details: e.details,
+                related_accounts: e.related_accounts as unknown as Json,
+              })));
+            
+            if (eventsError) {
+              console.error('Failed to insert timeline events:', eventsError);
+            }
+          }
+          
+          // Insert operator tasks
+          if (parsed.tasks.length > 0) {
+            const { error: tasksError } = await supabase
+              .from('operator_tasks')
+              .insert(parsed.tasks.map(t => ({
+                client_id: t.client_id,
+                title: t.title,
+                due_date: t.due_date,
+                priority: t.priority,
+                status: t.status,
+              })));
+            
+            if (tasksError) {
+              console.error('Failed to insert operator tasks:', tasksError);
+            }
+          }
+          
+          // Show parse results
+          const totalEvents = parsed.events.length;
+          const totalTasks = parsed.tasks.length;
+          if (totalEvents > 0 || totalTasks > 0) {
+            toast.success(`Created client with ${totalEvents} events and ${totalTasks} tasks`);
+          } else if (parsed.errors.length > 0) {
+            toast.warning('Client created but no structured data was parsed. You can add events via ChatGPT Import on the client page.');
+          } else {
+            toast.success('Client created');
+          }
+        } else {
+          toast.success('Client created');
+        }
+        
         resetForm();
         onOpenChange(false);
         onSuccess?.();
         // Navigate to client page (the main operator console)
-        navigate(`/clients/${result.client.id}`);
+        navigate(`/clients/${clientId}`);
       }
     } catch (error) {
       const anyErr = error as any;

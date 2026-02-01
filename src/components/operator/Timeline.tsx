@@ -48,7 +48,7 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
                   </Badge>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  {format(parseISO(event.event_date), 'MMM d, yyyy')}
+                  {event.event_date ? format(parseISO(event.event_date), 'MMM d, yyyy') : 'Date Unknown'}
                 </span>
               </div>
               <p className="font-medium mt-1">{event.title}</p>
@@ -100,17 +100,20 @@ function TimelineItem({ event, clientId }: { event: TimelineEvent; clientId: str
 }
 
 export function Timeline({ events, clientId }: TimelineProps) {
-  // Group events by date
+  // Group events by event_date (use "unknown" for null dates)
   const groupedEvents = events.reduce((acc, event) => {
-    const date = event.event_date;
+    const date = event.event_date || 'unknown';
     if (!acc[date]) acc[date] = [];
     acc[date].push(event);
     return acc;
   }, {} as Record<string, TimelineEvent[]>);
   
-  const sortedDates = Object.keys(groupedEvents).sort((a, b) => 
-    new Date(b).getTime() - new Date(a).getTime()
-  );
+  // Sort dates oldest first, with "unknown" last
+  const sortedDates = Object.keys(groupedEvents).sort((a, b) => {
+    if (a === 'unknown') return 1;
+    if (b === 'unknown') return -1;
+    return new Date(a).getTime() - new Date(b).getTime();
+  });
   
   if (events.length === 0) {
     return (
@@ -136,7 +139,7 @@ export function Timeline({ events, clientId }: TimelineProps) {
         {sortedDates.map(date => (
           <div key={date}>
             <div className="text-xs font-medium text-muted-foreground mb-3 sticky top-0 bg-card">
-              {format(parseISO(date), 'EEEE, MMMM d, yyyy')}
+              {date === 'unknown' ? 'Date Unknown' : format(parseISO(date), 'EEEE, MMMM d, yyyy')}
             </div>
             <div className="space-y-4">
               {groupedEvents[date].map(event => (

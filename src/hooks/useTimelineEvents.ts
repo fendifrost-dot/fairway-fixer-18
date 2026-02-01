@@ -14,7 +14,8 @@ export function useTimelineEvents(clientId: string | undefined) {
         .from('timeline_events')
         .select('*')
         .eq('client_id', clientId)
-        .order('event_date', { ascending: false });
+        .order('event_date', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
       
       if (error) throw error;
       

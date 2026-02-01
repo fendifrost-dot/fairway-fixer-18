@@ -7,11 +7,9 @@ import { ArrowLeft, Loader2, FileDown } from 'lucide-react';
 import { ClientHeader } from '@/components/operator/ClientHeader';
 import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
 import { Timeline } from '@/components/operator/Timeline';
-import { Recommendations } from '@/components/operator/Recommendations';
-import { TaskList } from '@/components/operator/TaskList';
+import { ScheduledEvents } from '@/components/operator/ScheduledEvents';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
-import { generateRecommendations } from '@/lib/recommendationEngine';
 import { downloadPDF } from '@/lib/pdfExport';
 
 export default function ClientDetail() {
@@ -34,8 +32,6 @@ export default function ClientDetail() {
 
   const { data: events = [], isLoading: eventsLoading } = useTimelineEvents(clientId);
   const { data: tasks = [], isLoading: tasksLoading } = useOperatorTasks(clientId);
-  
-  const recommendations = generateRecommendations(events);
 
   if (clientLoading) {
     return (
@@ -90,10 +86,9 @@ export default function ClientDetail() {
           <Timeline events={events} clientId={clientId!} />
         </div>
         
-        {/* Right sidebar - Recommendations and Tasks */}
+        {/* Right sidebar - Scheduled Events */}
         <div className="space-y-6">
-          <Recommendations recommendations={recommendations} clientId={clientId!} />
-          <TaskList tasks={tasks} clientId={clientId!} />
+          <ScheduledEvents tasks={tasks} clientId={clientId!} />
         </div>
       </div>
     </div>

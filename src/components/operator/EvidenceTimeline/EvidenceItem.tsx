@@ -1,0 +1,148 @@
+/**
+ * Evidence Item Component
+ * 
+ * Single timeline event with debug placement info and drag handle.
+ */
+
+import { useState } from 'react';
+import { format, parseISO } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical } from 'lucide-react';
+import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
+import { TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
+import { EvidenceItemProps, EvidenceCategory, PlacementDebug } from './types';
+
+const categoryConfig: Record<EvidenceCategory, { 
+  icon: React.ComponentType<{ className?: string }>; 
+  color: string; 
+  bgColor: string; 
+  label: string 
+}> = {
+  Action: { icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100', label: 'Completed' },
+  Response: { icon: MessageSquare, color: 'text-blue-600', bgColor: 'bg-blue-100', label: 'Response' },
+  Outcome: { icon: FileText, color: 'text-purple-600', bgColor: 'bg-purple-100', label: 'Outcome' },
+};
+
+function getPlacementDebug(event: TimelineEvent): PlacementDebug {
+  const source = event.source || 'unassigned';
+  const kind = event.category.toLowerCase();
+  const date = event.event_date || 'unknown';
+  
+  // Determine which group this source belongs to
+  let groupName = 'Unknown';
+  const sourceUpper = event.source?.toUpperCase() || '';
+  if (['EXPERIAN', 'TRANSUNION', 'EQUIFAX'].includes(sourceUpper)) {
+    groupName = 'Credit Bureaus';
+  } else if (['INNOVIS', 'LEXISNEXIS', 'SAGESTREAM', 'CORELOGIC'].includes(sourceUpper)) {
+    groupName = 'Data Brokers';
+  } else if (['CFPB', 'BBB', 'AG'].includes(sourceUpper)) {
+    groupName = 'Regulatory';
+  }
+  
+  const placedIn = `${groupName} > ${SOURCE_DISPLAY_NAMES[event.source as EventSource] || event.source || 'None'}`;
+  
+  return { source, kind, date, placedIn };
+}
+
+export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }: EvidenceItemProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const deleteEvent = useDeleteTimelineEvent();
+  const config = categoryConfig[event.category as EvidenceCategory];
+  
+  if (!config) return null;
+  
+  const Icon = config.icon;
+  const hasExpandableContent = event.details || (event.related_accounts && event.related_accounts.length > 0);
+  const debug = getPlacementDebug(event);
+  
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/json', JSON.stringify(event));
+    e.dataTransfer.effectAllowed = 'move';
+    onDragStart?.(event);
+  };
+  
+  return (
+    <div className="flex gap-2 group">
+      {/* Drag handle */}
+      <div 
+        className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-100 transition-opacity"
+        draggable
+        onDragStart={handleDragStart}
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground mt-1.5" />
+      </div>
+      
+      {/* Icon */}
+      <div className={`flex-shrink-0 w-7 h-7 rounded-full ${config.bgColor} flex items-center justify-center`}>
+        <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+      </div>
+      
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">
+                  {config.label}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {event.event_date ? format(parseISO(event.event_date), 'MMM d, yyyy') : 'Date Unknown'}
+                </span>
+              </div>
+              <p className="font-medium mt-1 text-sm">{event.title}</p>
+              <p className="text-sm text-muted-foreground">{event.summary}</p>
+              
+              {/* Debug placement line */}
+              {showDebug && (
+                <p className="text-[10px] font-mono text-muted-foreground/60 mt-1 bg-muted/30 px-1 rounded">
+                  [source={debug.source} | kind={debug.kind} | date={debug.date} | placed_in={debug.placedIn}]
+                </p>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-1">
+              {hasExpandableContent && (
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                onClick={() => deleteEvent.mutate({ id: event.id, clientId })}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+          
+          {hasExpandableContent && (
+            <CollapsibleContent className="mt-2 pl-2 border-l-2 border-muted">
+              {event.details && (
+                <p className="text-sm text-muted-foreground">{event.details}</p>
+              )}
+              {event.related_accounts && event.related_accounts.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Related Accounts:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {event.related_accounts.map((acc, i) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        {acc.name}{acc.masked_number ? ` (${acc.masked_number})` : ''}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CollapsibleContent>
+          )}
+        </Collapsible>
+      </div>
+    </div>
+  );
+}

@@ -500,6 +500,44 @@ export type Database = {
         }
         Relationships: []
       }
+      source_corrections: {
+        Row: {
+          corrected_at: string
+          corrected_by: string
+          event_id: string
+          from_source: string
+          id: string
+          notes: string | null
+          to_source: string
+        }
+        Insert: {
+          corrected_at?: string
+          corrected_by: string
+          event_id: string
+          from_source: string
+          id?: string
+          notes?: string | null
+          to_source: string
+        }
+        Update: {
+          corrected_at?: string
+          corrected_by?: string
+          event_id?: string
+          from_source?: string
+          id?: string
+          notes?: string | null
+          to_source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_corrections_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "timeline_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           auto_generated: boolean

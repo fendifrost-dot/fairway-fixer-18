@@ -258,7 +258,6 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
               id="view-toggle"
               checked={showAllEvents}
               onCheckedChange={setShowAllEvents}
-              disabled={isEmpty}
             />
           </div>
         </div>

@@ -189,7 +189,8 @@ function parseCompletedRow(parts: string[], clientId: string): Omit<TimelineEven
 }
 
 /**
- * Parse Responses row: DATE | ENTITY | RESPONSE_TYPE | DETAILS | ACCOUNT
+ * Parse Responses row: DATE | ENTITY | RESPONSE_TYPE | DETAILS | ACCOUNT [| ACCOUNT_NUMBER]
+ * Supports both 5-column and 6-column formats
  */
 function parseResponsesRow(parts: string[], clientId: string): Omit<TimelineEvent, 'id' | 'created_at'> | null {
   if (parts.length < 2) return null;
@@ -200,7 +201,17 @@ function parseResponsesRow(parts: string[], clientId: string): Omit<TimelineEven
   const entity = parts[1]?.trim() || '';
   const responseType = parts[2]?.trim() || 'Response';
   const details = parts[3]?.trim() || '';
-  const accountStr = parts[4]?.trim() || '';
+  
+  // Handle both 5-column (account in col 5) and 6-column (account name in col 5, number in col 6) formats
+  let accountStr = '';
+  if (parts.length >= 6 && parts[5]?.trim() && parts[5].trim() !== 'N/A') {
+    // 6-column format: combine account name and number
+    const accountName = parts[4]?.trim() || '';
+    const accountNumber = parts[5]?.trim() || '';
+    accountStr = accountNumber ? `${accountName} (${accountNumber})` : accountName;
+  } else {
+    accountStr = parts[4]?.trim() || '';
+  }
   
   const source = parseSource(entity) || 'Other';
   
@@ -217,7 +228,8 @@ function parseResponsesRow(parts: string[], clientId: string): Omit<TimelineEven
 }
 
 /**
- * Parse Outcomes row: DATE | ENTITY | OUTCOME_TYPE | DETAILS | ACCOUNT
+ * Parse Outcomes row: DATE | ENTITY | OUTCOME_TYPE | DETAILS | ACCOUNT [| ACCOUNT_NUMBER]
+ * Supports both 5-column and 6-column formats
  */
 function parseOutcomesRow(parts: string[], clientId: string): Omit<TimelineEvent, 'id' | 'created_at'> | null {
   if (parts.length < 2) return null;
@@ -228,7 +240,16 @@ function parseOutcomesRow(parts: string[], clientId: string): Omit<TimelineEvent
   const entity = parts[1]?.trim() || '';
   const outcomeType = parts[2]?.trim() || 'Outcome';
   const details = parts[3]?.trim() || '';
-  const accountStr = parts[4]?.trim() || '';
+  
+  // Handle both 5-column and 6-column formats
+  let accountStr = '';
+  if (parts.length >= 6 && parts[5]?.trim() && parts[5].trim() !== 'N/A') {
+    const accountName = parts[4]?.trim() || '';
+    const accountNumber = parts[5]?.trim() || '';
+    accountStr = accountNumber ? `${accountName} (${accountNumber})` : accountName;
+  } else {
+    accountStr = parts[4]?.trim() || '';
+  }
   
   const source = parseSource(entity);
   

@@ -236,7 +236,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {format(parseISO(event.event_date), 'MMM d')}
+                      {event.event_date ? format(parseISO(event.event_date), 'MMM d') : 'Date unknown'}
                     </span>
                   </div>
                 ))}

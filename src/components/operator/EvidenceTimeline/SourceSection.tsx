@@ -44,6 +44,12 @@ export function SourceSection({
     notes: events.filter(e => e.category === 'Note').length,
   }), [events]);
 
+  const { nonNoteEvents, noteEvents } = useMemo(() => {
+    const noteEvents = sortedEvents.filter(e => e.category === 'Note');
+    const nonNoteEvents = sortedEvents.filter(e => e.category !== 'Note');
+    return { nonNoteEvents, noteEvents };
+  }, [sortedEvents]);
+
   const displayName = SOURCE_DISPLAY_NAMES[source] || source;
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -114,20 +120,61 @@ export function SourceSection({
         </div>
       </AccordionTrigger>
       <AccordionContent className="pb-3">
+        {/* Temporary forensic debug print INSIDE expanded content */}
+        {showDebug && (
+          <div className="mb-3 rounded-md border bg-muted/20 p-2 text-[10px] font-mono">
+            <div>
+              <strong>eventsForSource.length</strong>: {events.length}
+            </div>
+            <div>
+              <strong>notesForSource.length</strong>: {noteEvents.length}
+            </div>
+            <div className="mt-1 text-muted-foreground">
+              <strong>sample rows</strong>:
+              {' '}
+              {sortedEvents.slice(0, 2).map(e => (
+                `${e.id} (source=${e.source ?? 'NULL'}, category=${e.category}, event_kind=${e.event_kind ?? 'NULL'})`
+              )).join(' | ') || '—'}
+            </div>
+          </div>
+        )}
+
         {sortedEvents.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">
             No evidence for {displayName} yet
           </p>
         ) : (
-          <div className="space-y-3 pt-2">
-            {sortedEvents.map(event => (
-              <EvidenceItem 
-                key={event.id} 
-                event={event} 
-                clientId={clientId}
-                showDebug={showDebug}
-              />
-            ))}
+          <div className="pt-2">
+            {/* Actions/Responses/Outcomes */}
+            {nonNoteEvents.length > 0 && (
+              <div className="space-y-3">
+                {nonNoteEvents.map(event => (
+                  <EvidenceItem 
+                    key={event.id} 
+                    event={event} 
+                    clientId={clientId}
+                    showDebug={showDebug}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Notes sub-bucket (must render if header says notes exist) */}
+            {noteEvents.length > 0 && (
+              <div className={nonNoteEvents.length > 0 ? 'mt-4 pt-3 border-t' : ''}>
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Notes</div>
+                <div className="space-y-3">
+                  {noteEvents.map(event => (
+                    <EvidenceItem 
+                      key={event.id} 
+                      event={event} 
+                      clientId={clientId}
+                      showDebug={showDebug}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </AccordionContent>

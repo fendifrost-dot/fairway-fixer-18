@@ -4,7 +4,7 @@
 
 import { TimelineEvent, EventSource } from '@/types/operator';
 
-export type EvidenceCategory = 'Action' | 'Response' | 'Outcome';
+export type EvidenceCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
 
 export interface PlacementDebug {
   source: string;

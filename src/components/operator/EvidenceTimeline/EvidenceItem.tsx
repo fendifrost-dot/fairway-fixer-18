@@ -25,6 +25,7 @@ const categoryConfig: Record<EvidenceCategory, {
   Action: { icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100', label: 'Completed' },
   Response: { icon: MessageSquare, color: 'text-blue-600', bgColor: 'bg-blue-100', label: 'Response' },
   Outcome: { icon: FileText, color: 'text-purple-600', bgColor: 'bg-purple-100', label: 'Outcome' },
+  Note: { icon: FileText, color: 'text-amber-600', bgColor: 'bg-amber-100', label: 'Note' },
 };
 
 function getPlacementDebug(event: TimelineEvent): PlacementDebug {

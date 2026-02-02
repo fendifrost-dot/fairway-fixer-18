@@ -31,13 +31,13 @@ export function useCreateSourceCorrection() {
 
       if (updateError) throw updateError;
 
-      // Then log the correction
+      // Then log the correction (keep original casing - DB uses PascalCase)
       const { data, error: insertError } = await supabase
         .from('source_corrections')
         .insert({
           event_id: eventId,
-          from_source: fromSource.toLowerCase(),
-          to_source: toSource.toLowerCase(),
+          from_source: fromSource,
+          to_source: toSource,
           corrected_by: user.id,
           notes: notes || null,
         })

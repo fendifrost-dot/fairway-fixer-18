@@ -38,17 +38,32 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     return events.filter(e => e.category !== 'Note');
   }, [events]);
 
-  // Group events by source
-  const eventsBySource = useMemo(() => {
+  // Group events by source - strict key matching to DB enum
+  const { eventsBySource, placementErrors } = useMemo(() => {
     const grouped: Record<string, TimelineEvent[]> = {};
+    const errors: TimelineEvent[] = [];
+    
+    // Valid sources from DB enum (PascalCase)
+    const validSources = new Set([
+      'Experian', 'TransUnion', 'Equifax', 
+      'Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic',
+      'ChexSystems', 'EWS', 'NCTUE',
+      'CFPB', 'BBB', 'AG', 'Other'
+    ]);
     
     evidenceEvents.forEach(event => {
-      const source = event.source || 'Other';
-      if (!grouped[source]) grouped[source] = [];
-      grouped[source].push(event);
+      const source = event.source;
+      
+      if (!source || !validSources.has(source)) {
+        // Placement error - source doesn't match valid DB enum
+        errors.push(event);
+      } else {
+        if (!grouped[source]) grouped[source] = [];
+        grouped[source].push(event);
+      }
     });
 
-    return grouped;
+    return { eventsBySource: grouped, placementErrors: errors };
   }, [evidenceEvents]);
 
   // Handle drop for source correction
@@ -106,6 +121,29 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
           />
         ) : (
           <div className="space-y-4">
+            {/* Placement Errors - events with invalid/missing sources */}
+            {placementErrors.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-destructive">
+                  <span>⚠️ Placement Errors ({placementErrors.length})</span>
+                </div>
+                <div className="border border-destructive/50 rounded-lg p-3 bg-destructive/5">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    These events have invalid or missing sources and couldn't be placed in an accordion section:
+                  </p>
+                  <div className="space-y-2">
+                    {placementErrors.map(event => (
+                      <div key={event.id} className="text-xs bg-background p-2 rounded border">
+                        <strong>ID:</strong> {event.id.slice(0, 8)}... | 
+                        <strong> Raw Source:</strong> "{event.source || 'NULL'}" | 
+                        <strong> Title:</strong> {event.title}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {SOURCE_ACCORDION_STRUCTURE.map(({ group, sources }) => {
               const GroupIcon = GROUP_ICONS[group] || Building2;
               return (

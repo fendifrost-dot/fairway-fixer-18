@@ -3,9 +3,11 @@
 export type EventCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
 
 // Fixed 11-source enum - matches DB and parser exactly
+// Matches DB enum exactly (PascalCase)
 export type EventSource = 
   | 'Experian' | 'TransUnion' | 'Equifax' 
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
+  | 'ChexSystems' | 'EWS' | 'NCTUE'
   | 'CFPB' | 'BBB' | 'AG'
   | 'Other';
 
@@ -62,8 +64,8 @@ export interface ParsedImport {
 // Credit Bureaus (core 3)
 export const CRA_SOURCES: EventSource[] = ['Experian', 'TransUnion', 'Equifax'];
 
-// Data Brokers (4 sources)
-export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic'];
+// Data Brokers (7 sources - matches DB)
+export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic', 'ChexSystems', 'EWS', 'NCTUE'];
 
 // Regulatory (4 sources)  
 export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG'];
@@ -106,6 +108,9 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   LexisNexis: 'LexisNexis',
   Sagestream: 'SageStream',
   CoreLogic: 'CoreLogic',
+  ChexSystems: 'ChexSystems',
+  EWS: 'EWS',
+  NCTUE: 'NCTUE',
   CFPB: 'CFPB',
   BBB: 'BBB',
   AG: 'Attorney General',

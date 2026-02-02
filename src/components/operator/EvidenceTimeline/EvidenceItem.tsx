@@ -4,14 +4,16 @@
  * Single timeline event with debug placement info and drag handle.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical } from 'lucide-react';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
-import { TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
+import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
+import { ALL_EVIDENCE_SOURCES, TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
 import { EvidenceItemProps, EvidenceCategory, PlacementDebug } from './types';
 
 const categoryConfig: Record<EvidenceCategory, { 
@@ -49,6 +51,7 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
 export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }: EvidenceItemProps) {
   const [isOpen, setIsOpen] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
+  const createCorrection = useCreateSourceCorrection();
   const config = categoryConfig[event.category as EvidenceCategory];
   
   if (!config) return null;
@@ -56,11 +59,38 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
   const Icon = config.icon;
   const hasExpandableContent = event.details || (event.related_accounts && event.related_accounts.length > 0);
   const debug = getPlacementDebug(event);
+
+  const isDateUnknown = !event.event_date || !!event.date_is_unknown;
+
+  const selectValue = useMemo(() => {
+    const source = event.source;
+    if (!source) return undefined;
+    return ALL_EVIDENCE_SOURCES.includes(source) ? source : undefined;
+  }, [event.source]);
+
+  const selectPlaceholder = useMemo(() => {
+    if (!event.source) return 'Unassigned';
+    return (SOURCE_DISPLAY_NAMES[event.source as EventSource] || event.source) as string;
+  }, [event.source]);
   
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('application/json', JSON.stringify(event));
     e.dataTransfer.effectAllowed = 'move';
     onDragStart?.(event);
+  };
+
+  const handleManualAssignSource = (toSource: EventSource) => {
+    const current = event.source;
+    if (current === toSource) return;
+
+    createCorrection.mutate({
+      eventId: event.id,
+      fromSource: current ?? 'Unassigned',
+      toSource,
+      clientId,
+      method: 'manual',
+      notes: 'manual correction',
+    });
   };
   
   return (
@@ -90,8 +120,25 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
                   {config.label}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  {event.event_date ? format(parseISO(event.event_date), 'MMM d, yyyy') : 'Date Unknown'}
+                  {isDateUnknown ? 'Date unknown' : format(parseISO(event.event_date!), 'MMM d, yyyy')}
                 </span>
+
+                {/* Manual operator override (does not depend on drag-and-drop) */}
+                <Select
+                  value={selectValue}
+                  onValueChange={(value) => handleManualAssignSource(value as EventSource)}
+                >
+                  <SelectTrigger className="h-6 w-[160px] text-xs">
+                    <SelectValue placeholder={selectPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ALL_EVIDENCE_SOURCES.map(source => (
+                      <SelectItem key={source} value={source}>
+                        {SOURCE_DISPLAY_NAMES[source] || source}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <p className="font-medium mt-1 text-sm">{event.title}</p>
               <p className="text-sm text-muted-foreground">{event.summary}</p>

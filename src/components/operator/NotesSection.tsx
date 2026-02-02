@@ -41,7 +41,9 @@ function NoteItem({ event, clientId }: { event: TimelineEvent; clientId: string 
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-muted-foreground">
-                {event.event_date ? format(parseISO(event.event_date), 'MMM d, yyyy') : 'No date'}
+                {!event.event_date || event.date_is_unknown
+                  ? 'Date unknown'
+                  : format(parseISO(event.event_date), 'MMM d, yyyy')}
               </span>
               {event.source && (
                 <Badge variant="outline" className="text-xs">
@@ -80,9 +82,11 @@ export function NotesSection({ events, clientId }: NotesSectionProps) {
     return events
       .filter(e => e.category === 'Note')
       .sort((a, b) => {
-        if (!a.event_date) return 1;
-        if (!b.event_date) return -1;
-        return new Date(b.event_date).getTime() - new Date(a.event_date).getTime(); // newest first
+        const aHasDate = !!a.event_date && !a.date_is_unknown;
+        const bHasDate = !!b.event_date && !b.date_is_unknown;
+        if (!aHasDate) return 1;
+        if (!bHasDate) return -1;
+        return new Date(b.event_date!).getTime() - new Date(a.event_date!).getTime(); // newest first
       });
   }, [events]);
 

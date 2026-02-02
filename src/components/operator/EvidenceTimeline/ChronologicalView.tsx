@@ -20,16 +20,19 @@ export function ChronologicalView({ events, clientId, showDebug = false }: Chron
   const groupedEvents = useMemo(() => {
     // Sort events: known dates oldest→newest, null dates at bottom
     const sorted = [...events].sort((a, b) => {
-      if (!a.event_date && !b.event_date) return 0;
-      if (!a.event_date) return 1;
-      if (!b.event_date) return -1;
-      return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+      const aHasDate = !!a.event_date && !a.date_is_unknown;
+      const bHasDate = !!b.event_date && !b.date_is_unknown;
+
+      if (!aHasDate && !bHasDate) return 0;
+      if (!aHasDate) return 1;
+      if (!bHasDate) return -1;
+      return new Date(a.event_date!).getTime() - new Date(b.event_date!).getTime();
     });
     
     // Group by date
     const groups: Record<string, TimelineEvent[]> = {};
     sorted.forEach(event => {
-      const date = event.event_date || 'unknown';
+      const date = !event.event_date || event.date_is_unknown ? 'unknown' : event.event_date;
       if (!groups[date]) groups[date] = [];
       groups[date].push(event);
     });
@@ -58,7 +61,7 @@ export function ChronologicalView({ events, clientId, showDebug = false }: Chron
       {sortedDates.map(date => (
         <div key={date}>
           <div className="text-xs font-medium text-muted-foreground mb-3 sticky top-0 bg-card py-1">
-            {date === 'unknown' ? 'Date Unknown' : format(parseISO(date), 'EEEE, MMMM d, yyyy')}
+            {date === 'unknown' ? 'Date unknown' : format(parseISO(date), 'EEEE, MMMM d, yyyy')}
           </div>
           <div className="space-y-4">
             {groupedEvents[date].map(event => (

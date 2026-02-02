@@ -33,9 +33,9 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showDebug, setShowDebug] = useState(false);
   const createCorrection = useCreateSourceCorrection();
 
-  // Filter to only evidence events (exclude Notes)
+  // Include ALL events (including Notes) - Notes will render per source
   const evidenceEvents = useMemo(() => {
-    return events.filter(e => e.category !== 'Note');
+    return events;
   }, [events]);
 
   // Group events by source - strict key matching to DB enum

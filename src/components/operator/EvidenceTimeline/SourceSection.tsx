@@ -38,6 +38,7 @@ export function SourceSection({
     actions: events.filter(e => e.category === 'Action').length,
     responses: events.filter(e => e.category === 'Response').length,
     outcomes: events.filter(e => e.category === 'Outcome').length,
+    notes: events.filter(e => e.category === 'Note').length,
   }), [events]);
 
   const displayName = SOURCE_DISPLAY_NAMES[source] || source;
@@ -99,6 +100,11 @@ export function SourceSection({
             {stats.outcomes > 0 && (
               <Badge variant="outline" className="text-xs bg-purple-50 border-purple-200">
                 {stats.outcomes} outcome{stats.outcomes !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {stats.notes > 0 && (
+              <Badge variant="outline" className="text-xs bg-amber-50 border-amber-200">
+                {stats.notes} note{stats.notes !== 1 ? 's' : ''}
               </Badge>
             )}
           </div>

@@ -10,7 +10,7 @@
  * - Debug placement line per event
  */
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
+import { EvidenceItem } from './EvidenceItem';
 
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
@@ -33,29 +34,27 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showDebug, setShowDebug] = useState(false);
   const createCorrection = useCreateSourceCorrection();
 
+  const sectionSources = useMemo(() => {
+    return SOURCE_ACCORDION_STRUCTURE.flatMap(g => [...g.sources]);
+  }, []);
+
+  const sectionKeySet = useMemo(() => new Set<EventSource>(sectionSources), [sectionSources]);
+
   // Include ALL events (including Notes) - Notes will render per source
   const evidenceEvents = useMemo(() => {
     return events;
   }, [events]);
 
-  // Group events by source - strict key matching to DB enum
+  // Group events by source - strict key matching to *accordion section keys*
   const { eventsBySource, placementErrors } = useMemo(() => {
     const grouped: Record<string, TimelineEvent[]> = {};
     const errors: TimelineEvent[] = [];
-    
-    // Valid sources from DB enum (PascalCase)
-    const validSources = new Set([
-      'Experian', 'TransUnion', 'Equifax', 
-      'Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic',
-      'ChexSystems', 'EWS', 'NCTUE',
-      'CFPB', 'BBB', 'AG', 'Other'
-    ]);
-    
+
     evidenceEvents.forEach(event => {
       const source = event.source;
-      
-      if (!source || !validSources.has(source)) {
-        // Placement error - source doesn't match valid DB enum
+
+      // Placement error - source missing OR doesn't match any accordion section key exactly
+      if (!source || !sectionKeySet.has(source as EventSource)) {
         errors.push(event);
       } else {
         if (!grouped[source]) grouped[source] = [];
@@ -64,7 +63,46 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     });
 
     return { eventsBySource: grouped, placementErrors: errors };
-  }, [evidenceEvents]);
+  }, [evidenceEvents, sectionKeySet]);
+
+  const debugPanelRows = useMemo(() => {
+    const rows = sectionSources.map(source => {
+      const list = eventsBySource[source] || [];
+      return {
+        source,
+        count: list.length,
+        sampleIds: list.slice(0, 3).map(e => e.id),
+      };
+    });
+
+    const placementErrorRow = {
+      source: 'Placement Error' as const,
+      count: placementErrors.length,
+      sampleIds: placementErrors.slice(0, 3).map(e => e.id),
+    };
+
+    return { rows, placementErrorRow };
+  }, [eventsBySource, placementErrors, sectionSources]);
+
+  // Required forensic proof: log counts at each stage
+  useEffect(() => {
+    if (!showDebug) return;
+
+    const totalFetched = events.length;
+    const afterFiltering = evidenceEvents.length;
+
+    const groupedCounts = sectionSources.reduce<Record<string, number>>((acc, source) => {
+      acc[source] = (eventsBySource[source] || []).length;
+      return acc;
+    }, {});
+
+    console.groupCollapsed('[EvidenceTimeline Debug] placement counts');
+    console.log('a) total events passed to EvidenceTimeline:', totalFetched);
+    console.log('b) after filtering:', afterFiltering);
+    console.log('c) grouped counts per source key:', groupedCounts);
+    console.log('placementErrors:', placementErrors.length, placementErrors.slice(0, 3).map(e => e.id));
+    console.groupEnd();
+  }, [showDebug, events.length, evidenceEvents.length, eventsBySource, placementErrors, sectionSources]);
 
   // Handle drop for source correction
   const handleDrop = (event: TimelineEvent, toSource: EventSource) => {
@@ -113,6 +151,44 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Temporary debug panel (forensic proof) */}
+        {showDebug && (
+          <div className="mb-4 rounded-lg border bg-muted/20 p-3">
+            <div className="text-xs font-mono space-y-1">
+              <div>
+                <strong>a) total events:</strong> {events.length}
+              </div>
+              <div>
+                <strong>b) after filtering:</strong> {evidenceEvents.length}
+              </div>
+              <div className="pt-2">
+                <strong>c) grouped counts (source_key → count [sample ids]):</strong>
+              </div>
+              <div className="space-y-1 pt-1">
+                {debugPanelRows.rows.map(r => (
+                  <div key={r.source} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="min-w-[120px]">{r.source}</span>
+                    <span className="text-muted-foreground">
+                      → {r.count}
+                      {r.sampleIds.length > 0 ? ` [${r.sampleIds.slice(0, 3).join(', ')}]` : ''}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="flex flex-wrap items-baseline gap-x-2 pt-2">
+                  <span className="min-w-[120px] text-destructive">Placement Error</span>
+                  <span className="text-destructive">
+                    → {debugPanelRows.placementErrorRow.count}
+                    {debugPanelRows.placementErrorRow.sampleIds.length > 0
+                      ? ` [${debugPanelRows.placementErrorRow.sampleIds.join(', ')}]`
+                      : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showChronological ? (
           <ChronologicalView 
             events={evidenceEvents} 
@@ -129,15 +205,16 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 </div>
                 <div className="border border-destructive/50 rounded-lg p-3 bg-destructive/5">
                   <p className="text-xs text-muted-foreground mb-2">
-                    These events have invalid or missing sources and couldn't be placed in an accordion section:
+                    These events have missing/unknown sources or do not match any accordion section key exactly:
                   </p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {placementErrors.map(event => (
-                      <div key={event.id} className="text-xs bg-background p-2 rounded border">
-                        <strong>ID:</strong> {event.id.slice(0, 8)}... | 
-                        <strong> Raw Source:</strong> "{event.source || 'NULL'}" | 
-                        <strong> Title:</strong> {event.title}
-                      </div>
+                      <EvidenceItem
+                        key={event.id}
+                        event={event}
+                        clientId={clientId}
+                        showDebug={showDebug}
+                      />
                     ))}
                   </div>
                 </div>

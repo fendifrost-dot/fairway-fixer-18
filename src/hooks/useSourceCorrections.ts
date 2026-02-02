@@ -13,13 +13,14 @@ interface CreateCorrectionParams {
   toSource: EventSource;
   clientId: string;
   notes?: string;
+  method?: 'drag' | 'manual';
 }
 
 export function useCreateSourceCorrection() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ eventId, fromSource, toSource, clientId, notes }: CreateCorrectionParams) => {
+    mutationFn: async ({ eventId, fromSource, toSource, clientId, notes, method = 'drag' }: CreateCorrectionParams) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -45,11 +46,13 @@ export function useCreateSourceCorrection() {
         .single();
 
       if (insertError) throw insertError;
-      return { correction: data, clientId };
+      return { correction: data, clientId, fromSource, toSource, method };
     },
-    onSuccess: ({ clientId }) => {
+    onSuccess: ({ clientId, fromSource, toSource, method }) => {
       queryClient.invalidateQueries({ queryKey: ['timeline-events', clientId] });
-      toast.success('Source corrected and audit logged');
+
+      const suffix = method === 'manual' ? ' (manual correction)' : '';
+      toast.success(`Source updated: ${fromSource} → ${toSource}${suffix}`);
     },
     onError: (error) => {
       toast.error('Failed to correct source: ' + error.message);

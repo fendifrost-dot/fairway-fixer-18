@@ -23,13 +23,22 @@ export interface RelatedAccount {
 export interface TimelineEvent {
   id: string;
   client_id: string;
-  event_date: string;
+  event_date: string | null;
+  /**
+   * When true, this event should render as "Date unknown" even if event_date is present.
+   * (Used for forensic accuracy when dates are unreliable.)
+   */
+  date_is_unknown?: boolean;
   category: EventCategory;
   source: EventSource | null;
   title: string;
   summary: string;
   details: string | null;
   related_accounts: RelatedAccount[] | null;
+  /** Raw source line used for audit/debugging (optional in UI types). */
+  raw_line?: string;
+  /** action | response | outcome (optional in UI types). */
+  event_kind?: string;
   created_at: string;
 }
 

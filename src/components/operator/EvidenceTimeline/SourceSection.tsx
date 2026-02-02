@@ -25,12 +25,15 @@ export function SourceSection({
   // Sort events: known dates oldest→newest, null dates at bottom
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => {
-      // Null dates go to bottom
-      if (!a.event_date && !b.event_date) return 0;
-      if (!a.event_date) return 1;
-      if (!b.event_date) return -1;
+      const aHasDate = !!a.event_date && !a.date_is_unknown;
+      const bHasDate = !!b.event_date && !b.date_is_unknown;
+
+      // Unknown dates go to bottom
+      if (!aHasDate && !bHasDate) return 0;
+      if (!aHasDate) return 1;
+      if (!bHasDate) return -1;
       // Sort by event_date ascending (oldest first)
-      return new Date(a.event_date).getTime() - new Date(b.event_date).getTime();
+      return new Date(a.event_date!).getTime() - new Date(b.event_date!).getTime();
     });
   }, [events]);
 

@@ -8,7 +8,7 @@ export type EventSource =
   | 'Experian' | 'TransUnion' | 'Equifax' 
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
   | 'ChexSystems' | 'EWS' | 'NCTUE'
-  | 'CFPB' | 'BBB' | 'AG'
+  | 'FTC' | 'CFPB' | 'BBB' | 'AG'
   | 'Other';
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';
@@ -77,7 +77,7 @@ export const CRA_SOURCES: EventSource[] = ['Experian', 'TransUnion', 'Equifax'];
 export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic', 'ChexSystems', 'EWS', 'NCTUE'];
 
 // Regulatory (4 sources)  
-export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG'];
+export const REGULATORY_SOURCES: EventSource[] = ['FTC', 'CFPB', 'BBB', 'AG'];
 
 // Fixed accordion structure - ALWAYS rendered
 export const SOURCE_ACCORDION_STRUCTURE = [
@@ -120,6 +120,7 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   ChexSystems: 'ChexSystems',
   EWS: 'EWS',
   NCTUE: 'NCTUE',
+  FTC: 'FTC',
   CFPB: 'CFPB',
   BBB: 'BBB',
   AG: 'Attorney General',

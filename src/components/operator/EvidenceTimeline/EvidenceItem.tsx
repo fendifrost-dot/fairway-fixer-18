@@ -38,9 +38,9 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
   const sourceUpper = event.source?.toUpperCase() || '';
   if (['EXPERIAN', 'TRANSUNION', 'EQUIFAX'].includes(sourceUpper)) {
     groupName = 'Credit Bureaus';
-  } else if (['INNOVIS', 'LEXISNEXIS', 'SAGESTREAM', 'CORELOGIC'].includes(sourceUpper)) {
+  } else if (['INNOVIS', 'LEXISNEXIS', 'SAGESTREAM', 'CORELOGIC', 'CHEXSYSTEMS', 'EWS', 'NCTUE'].includes(sourceUpper)) {
     groupName = 'Data Brokers';
-  } else if (['CFPB', 'BBB', 'AG'].includes(sourceUpper)) {
+  } else if (['FTC', 'CFPB', 'BBB', 'AG'].includes(sourceUpper)) {
     groupName = 'Regulatory';
   }
   

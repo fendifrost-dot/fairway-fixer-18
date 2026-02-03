@@ -10,7 +10,7 @@ import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
 import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline/index';
 import { NotesSection } from '@/components/operator/NotesSection';
 
-import { ScheduledEvents } from '@/components/operator/ScheduledEvents';
+import { ScheduledEvents } from '@/components/operator/ScheduledEvents/index';
 import { UnresolvedStatePanel } from '@/components/operator/UnresolvedStatePanel';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
@@ -105,7 +105,7 @@ export default function ClientDetail() {
           {unresolvedItems.length > 0 && (
             <UnresolvedStatePanel items={unresolvedItems} />
           )}
-          <ScheduledEvents tasks={tasks} clientId={clientId!} />
+          <ScheduledEvents tasks={tasks} clientId={clientId!} timelineEvents={events} />
           {/* Drafts panel removed - not part of this workflow */}
         </div>
       </div>

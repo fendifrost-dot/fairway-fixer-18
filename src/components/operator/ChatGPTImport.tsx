@@ -362,6 +362,10 @@ function mapScheduledEventToTask(event: ScheduledEvent, clientId: string) {
     client_id: clientId,
     title: event.description,
     due_date: event.due_date,
+    due_time: null,
+    notes: null,
+    linked_event_ids: [],
+    recurrence_rule: null,
     priority: priorityMap[event.priority] || 'Medium',
     status: 'Open' as const,
   };

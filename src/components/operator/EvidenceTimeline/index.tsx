@@ -22,7 +22,7 @@ import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
-
+import { expandAllCrasEvents, isAllCrasSource } from '@/lib/allCrasExpander';
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
@@ -40,12 +40,14 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
 
   const sectionKeySet = useMemo(() => new Set<EventSource>(sectionSources), [sectionSources]);
 
-  // Include ALL events (including Notes) - Notes will render per source
+  // DEFENSIVE UI LAYER: Expand "All CRAs" events into 3 bureau-specific events
+  // This ensures no "All CRAs" appears in UI - each is shown under Experian/TransUnion/Equifax
   const evidenceEvents = useMemo(() => {
-    return events;
+    return expandAllCrasEvents(events);
   }, [events]);
 
   // Group events by source - strict key matching to *accordion section keys*
+  // Note: "All CRAs" events have already been expanded above, so they won't appear here
   const { eventsBySource, placementErrors } = useMemo(() => {
     const grouped: Record<string, TimelineEvent[]> = {};
     const errors: TimelineEvent[] = [];
@@ -54,7 +56,8 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
       const source = event.source;
 
       // Placement error - source missing OR doesn't match any accordion section key exactly
-      if (!source || !sectionKeySet.has(source as EventSource)) {
+      // Note: "All CRAs" should never reach here due to expansion above, but check defensively
+      if (!source || !sectionKeySet.has(source as EventSource) || isAllCrasSource(source)) {
         errors.push(event);
       } else {
         if (!grouped[source]) grouped[source] = [];

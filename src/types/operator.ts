@@ -4,12 +4,17 @@ export type EventCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
 
 // Fixed 11-source enum - matches DB and parser exactly
 // Matches DB enum exactly (PascalCase)
+// DB enum values (PascalCase) - matches DB exactly
 export type EventSource = 
   | 'Experian' | 'TransUnion' | 'Equifax' 
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
   | 'ChexSystems' | 'EWS' | 'NCTUE'
-  | 'FTC' | 'CFPB' | 'BBB' | 'AG'
+  | 'CFPB' | 'BBB' | 'AG'
   | 'Other';
+
+// UI-only sources not in DB enum (for display purposes)
+export type UIOnlySource = 'FTC';
+export type DisplaySource = EventSource | UIOnlySource;
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';
 export type SimpleStatus = 'Open' | 'Done';
@@ -76,8 +81,8 @@ export const CRA_SOURCES: EventSource[] = ['Experian', 'TransUnion', 'Equifax'];
 // Data Brokers (7 sources - matches DB)
 export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic', 'ChexSystems', 'EWS', 'NCTUE'];
 
-// Regulatory (4 sources)  
-export const REGULATORY_SOURCES: EventSource[] = ['FTC', 'CFPB', 'BBB', 'AG'];
+// Regulatory (3 sources in DB)  
+export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG'];
 
 // Fixed accordion structure - ALWAYS rendered
 export const SOURCE_ACCORDION_STRUCTURE = [
@@ -120,7 +125,6 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   ChexSystems: 'ChexSystems',
   EWS: 'EWS',
   NCTUE: 'NCTUE',
-  FTC: 'FTC',
   CFPB: 'CFPB',
   BBB: 'BBB',
   AG: 'Attorney General',

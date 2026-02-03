@@ -21,6 +21,10 @@ export function Recommendations({ recommendations, clientId }: RecommendationsPr
       client_id: clientId,
       title: rec.title,
       due_date: dueDate,
+      due_time: null,
+      notes: null,
+      linked_event_ids: [],
+      recurrence_rule: null,
       priority: rec.priority,
       status: 'Open',
     });

@@ -39,6 +39,10 @@ export function useCreateOperatorTask() {
           client_id: task.client_id,
           title: task.title,
           due_date: task.due_date,
+          due_time: task.due_time,
+          notes: task.notes,
+          linked_event_ids: task.linked_event_ids,
+          recurrence_rule: task.recurrence_rule,
           priority: task.priority,
           status: task.status,
         })
@@ -71,6 +75,10 @@ export function useBulkCreateOperatorTasks() {
           client_id: t.client_id,
           title: t.title,
           due_date: t.due_date,
+          due_time: t.due_time,
+          notes: t.notes,
+          linked_event_ids: t.linked_event_ids,
+          recurrence_rule: t.recurrence_rule,
           priority: t.priority,
           status: t.status,
         })))
@@ -97,7 +105,7 @@ export function useUpdateOperatorTask() {
     mutationFn: async ({ id, clientId, updates }: { 
       id: string; 
       clientId: string;
-      updates: Partial<Pick<OperatorTask, 'title' | 'due_date' | 'priority' | 'status'>> 
+      updates: Partial<Pick<OperatorTask, 'title' | 'due_date' | 'due_time' | 'notes' | 'linked_event_ids' | 'recurrence_rule' | 'priority' | 'status'>> 
     }) => {
       const { data, error } = await supabase
         .from('operator_tasks')

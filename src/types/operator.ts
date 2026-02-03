@@ -50,6 +50,10 @@ export interface OperatorTask {
   client_id: string;
   title: string;
   due_date: string | null;
+  due_time: string | null;
+  notes: string | null;
+  linked_event_ids: string[];
+  recurrence_rule: string | null;
   priority: SimplePriority;
   status: SimpleStatus;
   created_at: string;

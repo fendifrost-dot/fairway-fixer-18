@@ -324,8 +324,12 @@ export type Database = {
           client_id: string
           created_at: string
           due_date: string | null
+          due_time: string | null
           id: string
+          linked_event_ids: string[]
+          notes: string | null
           priority: Database["public"]["Enums"]["simple_priority"]
+          recurrence_rule: string | null
           status: Database["public"]["Enums"]["simple_status"]
           title: string
         }
@@ -333,8 +337,12 @@ export type Database = {
           client_id: string
           created_at?: string
           due_date?: string | null
+          due_time?: string | null
           id?: string
+          linked_event_ids?: string[]
+          notes?: string | null
           priority?: Database["public"]["Enums"]["simple_priority"]
+          recurrence_rule?: string | null
           status?: Database["public"]["Enums"]["simple_status"]
           title: string
         }
@@ -342,8 +350,12 @@ export type Database = {
           client_id?: string
           created_at?: string
           due_date?: string | null
+          due_time?: string | null
           id?: string
+          linked_event_ids?: string[]
+          notes?: string | null
           priority?: Database["public"]["Enums"]["simple_priority"]
+          recurrence_rule?: string | null
           status?: Database["public"]["Enums"]["simple_status"]
           title?: string
         }

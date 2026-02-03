@@ -40,7 +40,7 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
     groupName = 'Credit Bureaus';
   } else if (['INNOVIS', 'LEXISNEXIS', 'SAGESTREAM', 'CORELOGIC', 'CHEXSYSTEMS', 'EWS', 'NCTUE'].includes(sourceUpper)) {
     groupName = 'Data Brokers';
-  } else if (['CFPB', 'BBB', 'AG'].includes(sourceUpper)) {
+  } else if (['CFPB', 'BBB', 'AG', 'FTC'].includes(sourceUpper)) {
     groupName = 'Regulatory';
   }
   

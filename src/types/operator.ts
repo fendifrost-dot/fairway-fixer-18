@@ -9,12 +9,8 @@ export type EventSource =
   | 'Experian' | 'TransUnion' | 'Equifax' 
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
   | 'ChexSystems' | 'EWS' | 'NCTUE'
-  | 'CFPB' | 'BBB' | 'AG'
+  | 'CFPB' | 'BBB' | 'AG' | 'FTC'
   | 'Other';
-
-// UI-only sources not in DB enum (for display purposes)
-export type UIOnlySource = 'FTC';
-export type DisplaySource = EventSource | UIOnlySource;
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';
 export type SimpleStatus = 'Open' | 'Done';
@@ -81,8 +77,8 @@ export const CRA_SOURCES: EventSource[] = ['Experian', 'TransUnion', 'Equifax'];
 // Data Brokers (7 sources - matches DB)
 export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic', 'ChexSystems', 'EWS', 'NCTUE'];
 
-// Regulatory (3 sources in DB)  
-export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG'];
+// Regulatory (4 sources in DB)  
+export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG', 'FTC'];
 
 // Fixed accordion structure - ALWAYS rendered
 export const SOURCE_ACCORDION_STRUCTURE = [
@@ -128,6 +124,7 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   CFPB: 'CFPB',
   BBB: 'BBB',
   AG: 'Attorney General',
+  FTC: 'FTC',
   Other: 'Other',
 };
 

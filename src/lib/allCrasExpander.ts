@@ -64,8 +64,8 @@ export function expandAllCrasEvent(event: TimelineEvent): TimelineEvent[] {
   // Expand into 3 bureau-specific events
   return CRA_SOURCES.map((bureauSource) => ({
     ...event,
-    // Create synthetic unique ID for expanded events (append bureau suffix)
-    id: `${event.id}_${bureauSource.toLowerCase()}`,
+    // Create synthetic unique ID for expanded events (guaranteed unique with :: separator)
+    id: `${event.id}::${bureauSource.toLowerCase()}`,
     source: bureauSource,
   }));
 }

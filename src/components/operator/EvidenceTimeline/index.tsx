@@ -22,7 +22,7 @@ import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
-import { expandAllCrasEvents, isAllCrasSource, hasAllCrasInContent } from '@/lib/allCrasExpander';
+import { expandAllCrasEvents, isAllCrasSource } from '@/lib/allCrasExpander';
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
@@ -47,7 +47,8 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   }, [events]);
 
   // Group events by source - strict key matching to *accordion section keys*
-  // Note: "All CRAs" events have already been expanded above, so they won't appear here
+  // Note: "All CRAs" events have already been expanded above via expandAllCrasEvents,
+  // so they now have valid bureau sources (Experian/TransUnion/Equifax)
   const { eventsBySource, placementErrors } = useMemo(() => {
     const grouped: Record<string, TimelineEvent[]> = {};
     const errors: TimelineEvent[] = [];
@@ -55,16 +56,11 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     evidenceEvents.forEach(event => {
       const source = event.source;
 
-      // Placement error cases:
-      // 1. Source is null/missing AND doesn't match All CRAs patterns in content
+      // Placement error cases (AFTER expansion has already run):
+      // 1. Source is null/missing
       // 2. Source doesn't match any accordion section key
-      // 3. Source explicitly matches "All CRAs" patterns (shouldn't happen after expansion, but defensive)
-      const sourceIsAllCras = isAllCrasSource(source);
-      const contentIsAllCras = !source && hasAllCrasInContent(event.summary, event.title);
-      
-      // After expansion, events with All CRAs patterns in content should have a valid source
-      // If they don't have a valid source and don't match All CRAs patterns, they're placement errors
-      if (!source || !sectionKeySet.has(source as EventSource) || sourceIsAllCras || contentIsAllCras) {
+      // 3. Source explicitly matches "All CRAs" patterns (defensive - shouldn't happen after expansion)
+      if (!source || !sectionKeySet.has(source as EventSource) || isAllCrasSource(source)) {
         errors.push(event);
       } else {
         if (!grouped[source]) grouped[source] = [];

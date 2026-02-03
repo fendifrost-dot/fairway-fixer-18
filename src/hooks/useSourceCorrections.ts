@@ -24,7 +24,7 @@ export function useCreateSourceCorrection() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // First update the timeline event source
+      // First update the timeline event source (DB uses PascalCase for event_source enum)
       const { error: updateError } = await supabase
         .from('timeline_events')
         .update({ source: toSource })
@@ -32,13 +32,18 @@ export function useCreateSourceCorrection() {
 
       if (updateError) throw updateError;
 
-      // Then log the correction (keep original casing - DB uses PascalCase)
+      // Normalize sources to lowercase for source_corrections table constraint
+      // The constraint expects: experian, transunion, equifax, etc. (lowercase)
+      const fromSourceLower = fromSource?.toLowerCase() || 'other';
+      const toSourceLower = toSource.toLowerCase();
+
+      // Then log the correction
       const { data, error: insertError } = await supabase
         .from('source_corrections')
         .insert({
           event_id: eventId,
-          from_source: fromSource,
-          to_source: toSource,
+          from_source: fromSourceLower,
+          to_source: toSourceLower,
           corrected_by: user.id,
           notes: notes || null,
         })

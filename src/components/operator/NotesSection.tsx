@@ -77,10 +77,14 @@ function NoteItem({ event, clientId }: { event: TimelineEvent; clientId: string 
 }
 
 export function NotesSection({ events, clientId }: NotesSectionProps) {
-  // Filter to only Note events
+  // Filter to only Note events - EXPLICITLY EXCLUDE DRAFTS
   const noteEvents = useMemo(() => {
     return events
-      .filter(e => e.category === 'Note')
+      .filter(e => 
+        e.category === 'Note' && 
+        e.is_draft !== true && 
+        e.event_kind !== 'draft'
+      )
       .sort((a, b) => {
         const aHasDate = !!a.event_date && !a.date_is_unknown;
         const bHasDate = !!b.event_date && !b.date_is_unknown;

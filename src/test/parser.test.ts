@@ -118,6 +118,51 @@ Experian | Collection account | Disputed | ABC Collections | 2025-01-20`;
     });
   });
 
+  describe('FTC Deterministic Classification', () => {
+    it('auto-assigns source=ftc for FTC Identity Theft Report creation', () => {
+      const input = `COMPLETED ACTIONS:
+2025-01-10 | - | FTC Identity Theft Report | Created online | -`;
+      
+      const result = parseUpdate(input, clientId);
+      
+      expect(result.timeline_events.length).toBe(1);
+      expect(result.timeline_events[0].source).toBe('ftc');
+      expect(result.timeline_events[0].event_kind).toBe('action');
+      expect(result.unrouted_lines.length).toBe(0);
+    });
+
+    it('auto-assigns source=ftc for Identity Theft Report filed', () => {
+      const input = `COMPLETED ACTIONS:
+2025-01-10 | Unknown | Identity Theft Report | Filed with FTC | -`;
+      
+      const result = parseUpdate(input, clientId);
+      
+      expect(result.timeline_events.length).toBe(1);
+      expect(result.timeline_events[0].source).toBe('ftc');
+    });
+
+    it('auto-assigns source=ftc for identitytheft.gov submission', () => {
+      const input = `COMPLETED ACTIONS:
+2025-01-10 | - | Report | Submitted via identitytheft.gov | -`;
+      
+      const result = parseUpdate(input, clientId);
+      
+      expect(result.timeline_events.length).toBe(1);
+      expect(result.timeline_events[0].source).toBe('ftc');
+    });
+
+    it('does not auto-assign ftc for unrelated content', () => {
+      const input = `COMPLETED ACTIONS:
+2025-01-10 | - | Random Report | Some details | -`;
+      
+      const result = parseUpdate(input, clientId);
+      
+      // Should be unrouted (no valid source)
+      expect(result.timeline_events.length).toBe(0);
+      expect(result.unrouted_lines.length).toBe(1);
+    });
+  });
+
   describe('Unrouted Handling', () => {
     it('routes lines before any section header to unrouted', () => {
       const input = `2025-01-15 | Experian | Something | Details

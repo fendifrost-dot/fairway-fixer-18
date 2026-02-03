@@ -32,6 +32,39 @@ export function splitPipeLine(line: string): string[] {
  * Returns null if source cannot be determined (routes to unrouted).
  * Expands "All CRAs" into 3 separate events.
  */
+/**
+ * Detect FTC Identity Theft Report from content.
+ * When FTC Identity Theft Report is created/filed online, it must be source='ftc'.
+ * This is deterministic: creation online = filed = action.
+ */
+function detectFTCIdentityTheftReport(rawLine: string, typeOrStatus: string, details: string): boolean {
+  const fullText = `${rawLine} ${typeOrStatus} ${details}`.toLowerCase();
+  
+  // FTC Identity Theft Report patterns
+  const ftcPatterns = [
+    'ftc identity theft',
+    'identity theft report',
+    'identitytheft.gov',
+    'ftc report',
+    'federal trade commission',
+  ];
+  
+  const creationPatterns = [
+    'created',
+    'filed',
+    'submitted',
+    'completed',
+    'generated',
+    'obtained',
+  ];
+  
+  const hasFTCPattern = ftcPatterns.some(p => fullText.includes(p));
+  const hasCreationPattern = creationPatterns.some(p => fullText.includes(p));
+  
+  // FTC Identity Theft Report creation = deterministic FTC source
+  return hasFTCPattern && hasCreationPattern;
+}
+
 export function parseTimelineEventRow(
   parts: string[], 
   eventKind: EventKind,
@@ -45,10 +78,17 @@ export function parseTimelineEventRow(
   const details = parts[3]?.trim() || '';
   const accountRef = parts[4]?.trim() || '';
   
-  // Detect scope and sources
-  const { scope, sources } = detectScope(entityRaw);
+  // Detect scope and sources from entity column
+  let { scope, sources } = detectScope(entityRaw);
   
-  // If no valid source detected, return empty (caller routes to unrouted)
+  // DETERMINISTIC FTC RULE: If no source detected but content indicates
+  // FTC Identity Theft Report creation, assign source='ftc' automatically
+  if (sources.length === 0 && detectFTCIdentityTheftReport(rawLine, typeOrStatus, details)) {
+    sources = ['ftc'];
+    scope = 'single';
+  }
+  
+  // If still no valid source detected, return empty (caller routes to unrouted)
   if (sources.length === 0) {
     return [];
   }

@@ -119,39 +119,50 @@ Experian | Collection account | Disputed | ABC Collections | 2025-01-20`;
   });
 
   describe('FTC Deterministic Classification', () => {
-    it('auto-assigns source=ftc for FTC Identity Theft Report creation', () => {
+    it('auto-assigns source=FTC for FTC Identity Theft Report creation', () => {
       const input = `COMPLETED ACTIONS:
 2025-01-10 | - | FTC Identity Theft Report | Created online | -`;
       
       const result = parseUpdate(input, clientId);
       
       expect(result.timeline_events.length).toBe(1);
-      expect(result.timeline_events[0].source).toBe('ftc');
+      expect(result.timeline_events[0].source).toBe('FTC');
       expect(result.timeline_events[0].event_kind).toBe('action');
       expect(result.unrouted_lines.length).toBe(0);
     });
 
-    it('auto-assigns source=ftc for Identity Theft Report filed', () => {
+    it('auto-assigns source=FTC for report filed with FTC', () => {
       const input = `COMPLETED ACTIONS:
-2025-01-10 | Unknown | Identity Theft Report | Filed with FTC | -`;
+2025-01-10 | Unknown | Report | Filed with FTC | -`;
       
       const result = parseUpdate(input, clientId);
       
       expect(result.timeline_events.length).toBe(1);
-      expect(result.timeline_events[0].source).toBe('ftc');
+      expect(result.timeline_events[0].source).toBe('FTC');
     });
 
-    it('auto-assigns source=ftc for identitytheft.gov submission', () => {
+    it('auto-assigns source=FTC for identitytheft.gov submission', () => {
       const input = `COMPLETED ACTIONS:
 2025-01-10 | - | Report | Submitted via identitytheft.gov | -`;
       
       const result = parseUpdate(input, clientId);
       
       expect(result.timeline_events.length).toBe(1);
-      expect(result.timeline_events[0].source).toBe('ftc');
+      expect(result.timeline_events[0].source).toBe('FTC');
     });
 
-    it('does not auto-assign ftc for unrelated content', () => {
+    it('does NOT auto-assign FTC for generic "identity theft report" without explicit FTC indicator', () => {
+      const input = `COMPLETED ACTIONS:
+2025-01-10 | - | Identity Theft Report | Created for records | -`;
+      
+      const result = parseUpdate(input, clientId);
+      
+      // No explicit FTC indicator = unrouted (not false positive)
+      expect(result.timeline_events.length).toBe(0);
+      expect(result.unrouted_lines.length).toBe(1);
+    });
+
+    it('does not auto-assign FTC for unrelated content', () => {
       const input = `COMPLETED ACTIONS:
 2025-01-10 | - | Random Report | Some details | -`;
       

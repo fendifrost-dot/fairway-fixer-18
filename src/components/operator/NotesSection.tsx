@@ -1,14 +1,14 @@
-import { TimelineEvent } from '@/types/operator';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { StickyNote, Trash2, AlertTriangle } from 'lucide-react';
 import { useMemo } from 'react';
+import { useNotes } from '@/hooks/useNotes';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
+import { TimelineEvent } from '@/types/operator';
 
 interface NotesSectionProps {
-  events: TimelineEvent[];
   clientId: string;
 }
 
@@ -76,23 +76,17 @@ function NoteItem({ event, clientId }: { event: TimelineEvent; clientId: string 
   );
 }
 
-export function NotesSection({ events, clientId }: NotesSectionProps) {
-  // Filter to only Note events - EXPLICITLY EXCLUDE DRAFTS
-  const noteEvents = useMemo(() => {
-    return events
-      .filter(e => 
-        e.category === 'Note' && 
-        e.is_draft !== true && 
-        e.event_kind !== 'draft'
-      )
-      .sort((a, b) => {
-        const aHasDate = !!a.event_date && !a.date_is_unknown;
-        const bHasDate = !!b.event_date && !b.date_is_unknown;
-        if (!aHasDate) return 1;
-        if (!bHasDate) return -1;
-        return new Date(b.event_date!).getTime() - new Date(a.event_date!).getTime(); // newest first
-      });
-  }, [events]);
+/**
+ * Notes & Flags Section
+ * 
+ * STRICT ISOLATION RULES (non-negotiable):
+ * - Uses dedicated useNotes hook with strict filtering
+ * - Shows ONLY true notes (event_kind NOT in action/response/outcome/draft)
+ * - NEVER shows items from Evidence Timeline or Drafts
+ * - If no true notes exist, section is hidden
+ */
+export function NotesSection({ clientId }: NotesSectionProps) {
+  const { data: noteEvents = [], isLoading } = useNotes(clientId);
 
   const flagCount = useMemo(() => {
     return noteEvents.filter(e => {
@@ -106,8 +100,9 @@ export function NotesSection({ events, clientId }: NotesSectionProps) {
     }).length;
   }, [noteEvents]);
 
-  if (noteEvents.length === 0) {
-    return null; // Don't show section if no notes
+  // Don't show section if no notes or loading
+  if (isLoading || noteEvents.length === 0) {
+    return null;
   }
   
   return (

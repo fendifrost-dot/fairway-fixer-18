@@ -97,7 +97,7 @@ export default function ClientDetail() {
         {/* Left Column - Evidence Timeline + Notes */}
         <div className="lg:col-span-2 space-y-6">
           <EvidenceTimeline events={events} clientId={clientId!} />
-          <NotesSection events={events} clientId={clientId!} />
+          <NotesSection clientId={clientId!} />
         </div>
         
         {/* Right sidebar - Unresolved State + Scheduled Events + Drafts */}

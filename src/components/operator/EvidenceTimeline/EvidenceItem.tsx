@@ -144,14 +144,22 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
               <p className="font-medium mt-1 text-sm">{event.title}</p>
               <p className="text-sm text-muted-foreground">{event.summary}</p>
               
-              {/* Debug placement line - shows event_date, created_at, source, category */}
+              {/* Debug placement line - shows id, source, summary, raw_line, category, event_kind */}
               {showDebug && (
                 <div className="text-[10px] font-mono bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-1 rounded mt-1 border border-yellow-300 dark:border-yellow-700">
                   <div className="text-yellow-800 dark:text-yellow-200">
-                    <strong>event_date:</strong> {event.event_date || 'NULL'} | 
-                    <strong> created_at:</strong> {event.created_at} | 
-                    <strong> source:</strong> {event.source || 'NULL'} | 
-                    <strong> category:</strong> {event.category}
+                    <strong>id:</strong> {event.id}
+                  </div>
+                  <div className="text-yellow-800 dark:text-yellow-200">
+                    <strong>source:</strong> {event.source || 'NULL'} | 
+                    <strong> category:</strong> {event.category} |
+                    <strong> event_kind:</strong> {event.event_kind || 'NULL'}
+                  </div>
+                  <div className="text-yellow-800 dark:text-yellow-200 break-all">
+                    <strong>summary:</strong> {event.summary}
+                  </div>
+                  <div className="text-muted-foreground break-all">
+                    <strong>raw_line:</strong> {event.raw_line || 'NULL'}
                   </div>
                   <div className="text-muted-foreground">
                     placed_in: {debug.placedIn}

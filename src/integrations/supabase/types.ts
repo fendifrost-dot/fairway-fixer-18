@@ -611,6 +611,7 @@ export type Database = {
           event_date: string | null
           event_kind: string
           id: string
+          is_draft: boolean
           raw_line: string
           related_accounts: Json | null
           source: Database["public"]["Enums"]["event_source"] | null
@@ -626,6 +627,7 @@ export type Database = {
           event_date?: string | null
           event_kind?: string
           id?: string
+          is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
           source?: Database["public"]["Enums"]["event_source"] | null
@@ -641,6 +643,7 @@ export type Database = {
           event_date?: string | null
           event_kind?: string
           id?: string
+          is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
           source?: Database["public"]["Enums"]["event_source"] | null

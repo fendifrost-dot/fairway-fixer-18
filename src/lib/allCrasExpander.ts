@@ -34,18 +34,35 @@ export function isAllCrasSource(source: string | null): boolean {
 }
 
 /**
+ * Check if event summary/title contains "All CRAs" patterns
+ * Used when source is null but content indicates multi-bureau scope
+ */
+export function hasAllCrasInContent(summary: string | null, title: string | null): boolean {
+  const combined = `${summary || ''} ${title || ''}`.toLowerCase().trim();
+  if (!combined) return false;
+  return ALL_CRAS_PATTERNS.some(pattern => combined.includes(pattern));
+}
+
+/**
  * Expand a single timeline event into multiple if it's an "All CRAs" event.
  * Returns the original event if it doesn't match All CRAs patterns.
  * Returns 3 duplicated events (one per bureau) if it does match.
+ * 
+ * Checks BOTH source field AND summary/title content for "All CRAs" patterns.
  */
 export function expandAllCrasEvent(event: TimelineEvent): TimelineEvent[] {
   // Check if source matches "All CRAs" patterns
-  if (!isAllCrasSource(event.source)) {
+  const sourceIsAllCras = isAllCrasSource(event.source);
+  
+  // Also check summary/title when source is null
+  const contentIsAllCras = !event.source && hasAllCrasInContent(event.summary, event.title);
+  
+  if (!sourceIsAllCras && !contentIsAllCras) {
     return [event];
   }
 
   // Expand into 3 bureau-specific events
-  return CRA_SOURCES.map((bureauSource, index) => ({
+  return CRA_SOURCES.map((bureauSource) => ({
     ...event,
     // Create synthetic unique ID for expanded events (append bureau suffix)
     id: `${event.id}_${bureauSource.toLowerCase()}`,

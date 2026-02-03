@@ -10,12 +10,14 @@ export function useTimelineEvents(clientId: string | undefined) {
     queryFn: async () => {
       if (!clientId) return [];
       
-      // Exclude drafts from the evidence timeline query
+      // Evidence Timeline: ONLY non-draft events with valid event_kind
+      // Enforces: is_draft = false AND event_kind IN ('action','response','outcome')
       const { data, error } = await supabase
         .from('timeline_events')
         .select('*')
         .eq('client_id', clientId)
-        .eq('is_draft', false) // Filter out drafts
+        .eq('is_draft', false)
+        .in('event_kind', ['action', 'response', 'outcome'])
         .order('event_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
       

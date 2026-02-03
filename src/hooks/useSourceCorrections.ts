@@ -34,7 +34,10 @@ export function useCreateSourceCorrection() {
 
       // Normalize sources to lowercase for source_corrections table constraint
       // The constraint expects: experian, transunion, equifax, etc. (lowercase)
-      const fromSourceLower = fromSource?.toLowerCase() || 'other';
+      // Use 'unassigned' when fromSource is null/empty (allowed by DB constraint)
+      const fromSourceLower = fromSource && fromSource !== 'Unassigned' 
+        ? fromSource.toLowerCase() 
+        : 'unassigned';
       const toSourceLower = toSource.toLowerCase();
 
       // Then log the correction

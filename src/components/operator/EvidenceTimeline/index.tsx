@@ -22,7 +22,7 @@ import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
-import { expandAllCrasEvents, isAllCrasSource } from '@/lib/allCrasExpander';
+import { expandAllCrasEvents, isAllCrasSource, hasAllCrasInContent } from '@/lib/allCrasExpander';
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
@@ -55,9 +55,16 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     evidenceEvents.forEach(event => {
       const source = event.source;
 
-      // Placement error - source missing OR doesn't match any accordion section key exactly
-      // Note: "All CRAs" should never reach here due to expansion above, but check defensively
-      if (!source || !sectionKeySet.has(source as EventSource) || isAllCrasSource(source)) {
+      // Placement error cases:
+      // 1. Source is null/missing AND doesn't match All CRAs patterns in content
+      // 2. Source doesn't match any accordion section key
+      // 3. Source explicitly matches "All CRAs" patterns (shouldn't happen after expansion, but defensive)
+      const sourceIsAllCras = isAllCrasSource(source);
+      const contentIsAllCras = !source && hasAllCrasInContent(event.summary, event.title);
+      
+      // After expansion, events with All CRAs patterns in content should have a valid source
+      // If they don't have a valid source and don't match All CRAs patterns, they're placement errors
+      if (!source || !sectionKeySet.has(source as EventSource) || sourceIsAllCras || contentIsAllCras) {
         errors.push(event);
       } else {
         if (!grouped[source]) grouped[source] = [];

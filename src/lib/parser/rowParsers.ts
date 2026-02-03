@@ -34,19 +34,21 @@ export function splitPipeLine(line: string): string[] {
  */
 /**
  * Detect FTC Identity Theft Report from content.
- * When FTC Identity Theft Report is created/filed online, it must be source='ftc'.
+ * When FTC Identity Theft Report is created/filed online, it must be source='FTC'.
  * This is deterministic: creation online = filed = action.
+ * 
+ * STRICT RULE: Requires EXPLICIT FTC indicator (not generic "identity theft report").
  */
 function detectFTCIdentityTheftReport(rawLine: string, typeOrStatus: string, details: string): boolean {
   const fullText = `${rawLine} ${typeOrStatus} ${details}`.toLowerCase();
   
-  // FTC Identity Theft Report patterns
-  const ftcPatterns = [
-    'ftc identity theft',
-    'identity theft report',
+  // EXPLICIT FTC indicators only - generic phrases like "identity theft report" do NOT qualify
+  const explicitFTCIndicators = [
     'identitytheft.gov',
-    'ftc report',
     'federal trade commission',
+    'ftc identity theft',
+    'ftc report',
+    'ftc ',  // "FTC " with space to avoid false positives
   ];
   
   const creationPatterns = [
@@ -58,11 +60,11 @@ function detectFTCIdentityTheftReport(rawLine: string, typeOrStatus: string, det
     'obtained',
   ];
   
-  const hasFTCPattern = ftcPatterns.some(p => fullText.includes(p));
+  const hasExplicitFTC = explicitFTCIndicators.some(p => fullText.includes(p));
   const hasCreationPattern = creationPatterns.some(p => fullText.includes(p));
   
-  // FTC Identity Theft Report creation = deterministic FTC source
-  return hasFTCPattern && hasCreationPattern;
+  // Both explicit FTC indicator AND creation signal required
+  return hasExplicitFTC && hasCreationPattern;
 }
 
 export function parseTimelineEventRow(
@@ -82,9 +84,9 @@ export function parseTimelineEventRow(
   let { scope, sources } = detectScope(entityRaw);
   
   // DETERMINISTIC FTC RULE: If no source detected but content indicates
-  // FTC Identity Theft Report creation, assign source='ftc' automatically
+  // FTC Identity Theft Report creation, assign source='FTC' automatically (PascalCase for DB enum)
   if (sources.length === 0 && detectFTCIdentityTheftReport(rawLine, typeOrStatus, details)) {
-    sources = ['ftc'];
+    sources = ['FTC' as NormalizedSource];
     scope = 'single';
   }
   

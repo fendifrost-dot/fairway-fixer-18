@@ -38,8 +38,10 @@ export interface TimelineEvent {
   related_accounts: RelatedAccount[] | null;
   /** Raw source line used for audit/debugging (optional in UI types). */
   raw_line?: string;
-  /** action | response | outcome (optional in UI types). */
+  /** action | response | outcome | draft (optional in UI types). */
   event_kind?: string;
+  /** When true, this is a draft document (not sent) - excluded from Evidence Timeline. */
+  is_draft?: boolean;
   created_at: string;
 }
 

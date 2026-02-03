@@ -10,10 +10,12 @@ export function useTimelineEvents(clientId: string | undefined) {
     queryFn: async () => {
       if (!clientId) return [];
       
+      // Exclude drafts from the evidence timeline query
       const { data, error } = await supabase
         .from('timeline_events')
         .select('*')
         .eq('client_id', clientId)
+        .eq('is_draft', false) // Filter out drafts
         .order('event_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
       
@@ -24,6 +26,7 @@ export function useTimelineEvents(clientId: string | undefined) {
         category: row.category as EventCategory,
         source: row.source as EventSource | null,
         related_accounts: (row.related_accounts as unknown) as RelatedAccount[] | null,
+        is_draft: row.is_draft,
       })) as TimelineEvent[];
     },
     enabled: !!clientId,

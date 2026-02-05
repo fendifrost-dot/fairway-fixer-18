@@ -15,18 +15,12 @@
    date_is_unknown: boolean;
  }
  
- // Source aliases map (lowercase key → EventSource value)
- const SOURCE_ALIASES: Record<string, EventSource> = {
-   'tu': 'TransUnion',
-   'ln': 'LexisNexis',
-   'ag': 'AG',
-   'attorney general': 'AG',
- };
- 
- // All valid sources (lowercase → EventSource)
- const VALID_SOURCES: Record<string, EventSource> = {
+// All valid sources (lowercase → EventSource) - matches DB enum exactly
+// NO short aliases except safe ones (tu for TransUnion is common and unambiguous)
+const VALID_SOURCES: Record<string, EventSource> = {
    'experian': 'Experian',
    'transunion': 'TransUnion',
+  'tu': 'TransUnion',
    'equifax': 'Equifax',
    'innovis': 'Innovis',
    'lexisnexis': 'LexisNexis',
@@ -39,22 +33,38 @@
    'ftc': 'FTC',
    'bbb': 'BBB',
    'ag': 'AG',
-   // Add aliases
-   ...SOURCE_ALIASES,
+  'attorney general': 'AG',
  };
  
+// Leading label patterns - these sources at the START of input get priority
+// Captures: "TransUnion emailed..." or "TransUnion: response..."
+const LEADING_SOURCE_PATTERN = /^(Experian|TransUnion|Equifax|Innovis|LexisNexis|Sagestream|CoreLogic|ChexSystems|EWS|NCTUE|CFPB|FTC|BBB|AG|Attorney General)\b[:\s-]*/i;
+
  // Event kind detection keywords
+// Order matters: response checked first, then action, then outcome
  const RESPONSE_KEYWORDS = ['received', 'emailed', 'replied', 'response', 'acknowledg', 'we received'];
  const ACTION_KEYWORDS = ['sent', 'mailed', 'submitted', 'filed', 'uploaded', 'faxed'];
- const OUTCOME_KEYWORDS = ['deleted', 'removed', 'updated', 'completed', 'verified', 'results'];
+// Narrowed outcome keywords to avoid noise from acknowledgement emails
+const OUTCOME_KEYWORDS = ['deleted', 'removed', 'reinsertion', 'verified as accurate', 'investigation completed'];
  
  /**
-  * Detect source from text using case-insensitive matching
+ * Detect source from text using case-insensitive matching
+ * Priority: 1) Leading label pattern, 2) Word-boundary scan (longest first)
   */
  export function detectSource(text: string): EventSource | null {
-   const lowerText = text.toLowerCase();
-   
-   // Check each valid source (longest matches first to avoid partial matches)
+  // PASS 1: Check for leading source label (most reliable)
+  const leadingMatch = text.match(LEADING_SOURCE_PATTERN);
+  if (leadingMatch) {
+    const leadingSource = leadingMatch[1].toLowerCase();
+    // Normalize "attorney general" to "ag"
+    const normalizedLeading = leadingSource === 'attorney general' ? 'ag' : leadingSource;
+    if (VALID_SOURCES[normalizedLeading]) {
+      return VALID_SOURCES[normalizedLeading];
+    }
+  }
+  
+  // PASS 2: Word-boundary scan (longest matches first to avoid partial matches)
+  const lowerText = text.toLowerCase();
    const sortedSources = Object.entries(VALID_SOURCES)
      .sort((a, b) => b[0].length - a[0].length);
    
@@ -70,26 +80,27 @@
  }
  
  /**
-  * Detect event kind using keyword matching
+ * Detect event kind using keyword matching
+ * Strict precedence: response → action → outcome → default action
   */
  export function detectEventKind(text: string): SmartImportEventKind {
    const lowerText = text.toLowerCase();
    
-   // Check response keywords first
+  // Check response keywords first (highest priority)
    for (const keyword of RESPONSE_KEYWORDS) {
      if (lowerText.includes(keyword)) {
        return 'response';
      }
    }
    
-   // Check action keywords
+  // Check action keywords second
    for (const keyword of ACTION_KEYWORDS) {
      if (lowerText.includes(keyword)) {
        return 'action';
      }
    }
    
-   // Check outcome keywords
+  // Check outcome keywords third
    for (const keyword of OUTCOME_KEYWORDS) {
      if (lowerText.includes(keyword)) {
        return 'outcome';
@@ -101,30 +112,53 @@
  }
  
  /**
-  * Parse date from text
-  * Supports: MM/DD/YY, MM/DD/YYYY, YYYY-MM-DD
-  * Returns YYYY-MM-DD format or null
+ * Validate date components are within valid ranges
+ */
+function isValidDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  // Basic validation - could be more precise per month but this catches garbage
+  if (year < 2000 || year > 2099) return false;
+  return true;
+}
+
+/**
+ * Parse date from text with validation
+ * Supports: MM/DD/YY, MM/DD/YYYY, YYYY-MM-DD
+ * Returns YYYY-MM-DD format or null if invalid/not found
   */
  export function parseDate(text: string): string | null {
    // YYYY-MM-DD format
    const isoMatch = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
    if (isoMatch) {
-     const [, year, month, day] = isoMatch;
-     return `${year}-${month}-${day}`;
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10);
+    const day = parseInt(isoMatch[3], 10);
+    if (isValidDate(year, month, day)) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
    }
    
    // MM/DD/YYYY format
    const usFullMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
    if (usFullMatch) {
-     const [, month, day, year] = usFullMatch;
-     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const month = parseInt(usFullMatch[1], 10);
+    const day = parseInt(usFullMatch[2], 10);
+    const year = parseInt(usFullMatch[3], 10);
+    if (isValidDate(year, month, day)) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
    }
    
-   // MM/DD/YY format (use 20YY)
+  // MM/DD/YY format (assumes 20YY)
    const usShortMatch = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2})\b/);
    if (usShortMatch) {
-     const [, month, day, year] = usShortMatch;
-     return `20${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const month = parseInt(usShortMatch[1], 10);
+    const day = parseInt(usShortMatch[2], 10);
+    const year = 2000 + parseInt(usShortMatch[3], 10);
+    if (isValidDate(year, month, day)) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
    }
    
    return null;

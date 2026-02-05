@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical } from 'lucide-react';
+import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical, Copy, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { ALL_EVIDENCE_SOURCES, TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
@@ -51,18 +52,10 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
 
 export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }: EvidenceItemProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isRawLineExpanded, setIsRawLineExpanded] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const createCorrection = useCreateSourceCorrection();
-  const config = categoryConfig[event.category as EvidenceCategory];
   
-  if (!config) return null;
-  
-  const Icon = config.icon;
-  const hasExpandableContent = event.details || (event.related_accounts && event.related_accounts.length > 0);
-  const debug = getPlacementDebug(event);
-
-  const isDateUnknown = !event.event_date || !!event.date_is_unknown;
-
   const selectValue = useMemo(() => {
     const source = event.source;
     if (!source) return undefined;
@@ -73,6 +66,16 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
     if (!event.source) return 'Unassigned';
     return (SOURCE_DISPLAY_NAMES[event.source as EventSource] || event.source) as string;
   }, [event.source]);
+
+  const config = categoryConfig[event.category as EvidenceCategory];
+  
+  if (!config) return null;
+  
+  const Icon = config.icon;
+  const hasExpandableContent = event.details || (event.related_accounts && event.related_accounts.length > 0);
+  const debug = getPlacementDebug(event);
+
+  const isDateUnknown = !event.event_date || !!event.date_is_unknown;
   
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('application/json', JSON.stringify(event));
@@ -158,8 +161,46 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
                   <div className="text-yellow-800 dark:text-yellow-200 break-all">
                     <strong>summary:</strong> {event.summary}
                   </div>
-                  <div className="text-muted-foreground break-all">
-                    <strong>raw_line:</strong> {event.raw_line || 'NULL'}
+                  <div className="text-muted-foreground">
+                    <div className="flex items-center gap-1 mb-1">
+                      <strong>raw_line:</strong>
+                      {event.raw_line && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px]"
+                            onClick={() => setIsRawLineExpanded(!isRawLineExpanded)}
+                          >
+                            {isRawLineExpanded ? 'Collapse' : 'View full'}
+                            <ChevronRight className={`h-3 w-3 ml-0.5 transition-transform ${isRawLineExpanded ? 'rotate-90' : ''}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 w-5 p-0"
+                            onClick={() => {
+                              navigator.clipboard.writeText(event.raw_line || '');
+                              toast.success('Copied raw_line to clipboard');
+                            }}
+                            title="Copy full raw_line"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {event.raw_line ? (
+                      isRawLineExpanded ? (
+                        <pre className="whitespace-pre-wrap break-words text-[10px] bg-muted/50 p-1.5 rounded border max-h-48 overflow-auto">
+                          {event.raw_line}
+                        </pre>
+                      ) : (
+                        <span className="line-clamp-1">{event.raw_line}</span>
+                      )
+                    ) : (
+                      'NULL'
+                    )}
                   </div>
                   <div className="text-muted-foreground">
                     placed_in: {debug.placedIn}

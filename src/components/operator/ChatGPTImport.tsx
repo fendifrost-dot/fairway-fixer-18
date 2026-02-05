@@ -26,6 +26,19 @@ import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';
  import { format, parse } from 'date-fns';
  import { CalendarIcon } from 'lucide-react';
 
+// Structured header-based import (parseUpdate path) must NOT be gated by JSON.
+// Minimal detection: if it looks like our operator template headers, treat as structured.
+function isStructuredHeaderInput(text: string): boolean {
+  const t = text.trim();
+  // Accept both with and without markdown heading prefix
+  return /^(?:#{1,6}\s*)?(COMPLETED ACTIONS|COMPLETED RESPONSES|COMPLETED OUTCOMES|OUTCOMES|ACTIONS|RESPONSES)\b[:\s]/i.test(t);
+}
+
+// Smart Import is strictly single-event. If multi-line, it must go through structured parsing.
+function isSingleLine(text: string): boolean {
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+  return lines.length === 1;
+}
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -115,13 +128,24 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
   
   const handleImport = async () => {
     if (!input.trim()) return;
-     
-     // Check if JSON input → use existing importer
-     if (!isJsonInput(input.trim())) {
-       // Plain text → show Smart Import preview
-       prepareSmartImport();
-       return;
-     }
+    
+    const trimmed = input.trim();
+    
+    // Route selection (minimal / deterministic)
+    // 1) JSON → existing JSON import path (unchanged)
+    // 2) Structured headers (COMPLETED ACTIONS, etc.) → parseUpdate path
+    // 3) Everything else:
+    //    - single-line → Smart Import
+    //    - multi-line → parseUpdate (prevents block-merge into one raw_line)
+    if (!isJsonInput(trimmed)) {
+      if (isStructuredHeaderInput(trimmed) || !isSingleLine(trimmed)) {
+        // fall through to structured parsing path (parseUpdate) below
+      } else {
+        // single-line plain text → Smart Import preview
+        prepareSmartImport();
+        return;
+      }
+    }
     
     const parsed = parseUpdate(input, clientId);
     

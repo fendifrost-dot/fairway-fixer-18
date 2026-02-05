@@ -28,8 +28,7 @@ import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { parseUpdate } from '@/lib/parser';
-import { Json } from '@/integrations/supabase/types';
+
 import type { Database } from '@/integrations/supabase/types';
 
 type MatterType = Database['public']['Enums']['matter_type'];
@@ -100,27 +99,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setShowErrorDetails(false);
   };
 
-  // Best-effort name parsing (never blocks creation)
-  const parseNameFromIntake = (text: string): string | null => {
-    const patterns = [
-      /primary\s+legal\s+name[^:\n]*:\s*([^\n,]+)/i,
-      /(?:client|name|legal name|full name|consumer)\s*[:\-]\s*([^\n,]+)/i,
-      /^([A-Z][a-z]+(?:\s+[A-Z]\.?\s*)?(?:\s+[A-Z][a-z]+)+)/m,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1] && match[1].trim().length > 2) {
-        const candidate = match[1].trim().substring(0, 100);
-        // Skip if it looks like identifier data rather than a name
-        if (/\b(dob|ssn|social\s*security|last\s*four|identifier|specific\s*identifiers)\b/i.test(candidate)) {
-          continue;
-        }
-        return candidate;
-      }
-    }
-    return null;
-  };
 
   const buildTechnicalError = (error: unknown): string | undefined => {
     if (!error) return undefined;
@@ -293,6 +271,12 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   };
 
   const handlePasteSubmit = async () => {
+    // REQUIRED: Explicit legal name input - intake text must NEVER influence client name
+    if (!legalName.trim()) {
+      toast.error('Client name is required');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
     setShowErrorDetails(false);
@@ -301,122 +285,21 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     const who = await runWhoami();
 
     try {
-      const parsedName = intakeText.trim() ? parseNameFromIntake(intakeText) : null;
+      // Client creation ONLY - no timeline parsing during onboarding
+      // Timeline events are added via ChatGPT Import on the client page
       const result = await createClientAndMatter(
-        parsedName || 'New Client',
+        legalName.trim(),
         intakeText.trim() || null,
         'Narrative / ChatGPT'
       );
 
       if (result && result.client.id) {
-        const clientId = result.client.id;
-        
-        // Parse the intake text and create timeline events + tasks
-        if (intakeText.trim()) {
-          const parsed = parseUpdate(intakeText, clientId);
-          
-          // Map timeline events to database format
-          type DbEventCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
-          type DbEventSource = 'Experian' | 'TransUnion' | 'Equifax' | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic' | 'CFPB' | 'BBB' | 'AG' | 'Other' | 'ChexSystems' | 'EWS' | 'NCTUE';
-          type DbPriority = 'Low' | 'Medium' | 'High';
-          type DbStatus = 'Open' | 'Done';
-          
-          const SOURCE_MAP: Record<string, DbEventSource> = {
-            experian: 'Experian',
-            transunion: 'TransUnion',
-            equifax: 'Equifax',
-            innovis: 'Innovis',
-            lexisnexis: 'LexisNexis',
-            sagestream: 'Sagestream',
-            corelogic: 'CoreLogic',
-            cfpb: 'CFPB',
-            bbb: 'BBB',
-            ag: 'AG',
-          };
-          
-          const CATEGORY_MAP: Record<string, DbEventCategory> = {
-            action: 'Action',
-            response: 'Response',
-            outcome: 'Outcome',
-          };
-          
-          // Insert timeline events
-          // Fail-fast: forensic integrity requires raw_line on every event
-          const invalidEvents = parsed.timeline_events.filter(
-            e => !e.raw_line || e.raw_line.trim() === ''
-          );
-          
-          if (invalidEvents.length > 0) {
-            throw new Error(
-              `Onboarding produced ${invalidEvents.length} timeline events without raw_line. Evidence is required.`
-            );
-          }
-          
-          if (parsed.timeline_events.length > 0) {
-            const { error: eventsError } = await supabase
-              .from('timeline_events')
-              .insert(parsed.timeline_events.map(e => ({
-                client_id: clientId,
-                event_date: e.event_date || null,
-                date_is_unknown: !e.event_date || e.date_is_unknown,
-                category: (CATEGORY_MAP[e.event_kind] || 'Action') as DbEventCategory,
-                source: (SOURCE_MAP[e.source] || 'Other') as DbEventSource,
-                title: e.action_type || e.status_verb || e.event_kind,
-                summary: e.description,
-                details: e.account_ref,
-                related_accounts: e.account_ref ? [{ name: e.account_ref }] as unknown as Json : null,
-                raw_line: e.raw_line,
-                event_kind: e.event_kind,
-                is_draft: false,
-              })));
-            
-            if (eventsError) {
-              console.error('Failed to insert timeline events:', eventsError);
-            }
-          }
-          
-          // Insert operator tasks
-          if (parsed.scheduled_events.length > 0) {
-            const PRIORITY_MAP: Record<string, DbPriority> = {
-              low: 'Low',
-              medium: 'Medium',
-              high: 'High',
-            };
-            
-            const { error: tasksError } = await supabase
-              .from('operator_tasks')
-              .insert(parsed.scheduled_events.map(t => ({
-                client_id: clientId,
-                title: t.description,
-                due_date: t.due_date,
-                priority: (PRIORITY_MAP[t.priority] || 'Medium') as DbPriority,
-                status: 'Open' as DbStatus,
-              })));
-            
-            if (tasksError) {
-              console.error('Failed to insert operator tasks:', tasksError);
-            }
-          }
-          
-          // Show parse results
-          const totalEvents = parsed.timeline_events.length;
-          const totalTasks = parsed.scheduled_events.length;
-          if (totalEvents > 0 || totalTasks > 0) {
-            toast.success(`Created client with ${totalEvents} events and ${totalTasks} tasks`);
-          } else if (parsed.errors.length > 0) {
-            toast.warning('Client created but no structured data was parsed. You can add events via ChatGPT Import on the client page.');
-          } else {
-            toast.success('Client created');
-          }
-        } else {
-          toast.success('Client created');
-        }
-        
+        toast.success('Client created. Use ChatGPT Import to add timeline events.');
         resetForm();
         onOpenChange(false);
         onSuccess?.();
         // Navigate to client page (the main operator console)
-        navigate(`/clients/${clientId}`);
+        navigate(`/clients/${result.client.id}`);
       }
     } catch (error) {
       const anyErr = error as any;
@@ -593,30 +476,34 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           {/* ===== PASTE INTAKE MODE (PRIMARY) ===== */}
           <TabsContent value="paste" className="space-y-4 mt-4">
             <div className="space-y-2">
+              <Label htmlFor="paste-legal-name" className="text-sm font-medium">
+                Client Legal Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="paste-legal-name"
+                placeholder="Full legal name (required)"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="intake-text" className="text-sm font-medium">
-                Paste client intake from ChatGPT or structured notes
+                Intake Text (optional)
               </Label>
               <Textarea
                 ref={textareaRef}
                 id="intake-text"
-                placeholder="Paste structured narrative intake here...
+                placeholder="Paste structured narrative intake here (optional)...
 
-Example:
-Client: John Smith
-Issue: Identity theft — fraudulent accounts on all three bureaus
-FTC Report: Filed 01/15/2025
-Disputed Accounts:
-- Capital One ($5,000) — not mine
-- Chase ($12,000) — not mine
-- Wells Fargo ($3,200) — not mine
-
-Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
+This text will be stored verbatim. Use ChatGPT Import after creation to add timeline events."
                 value={intakeText}
                 onChange={(e) => setIntakeText(e.target.value)}
-                className="min-h-[280px] font-mono text-sm leading-relaxed resize-none"
+                className="min-h-[200px] font-mono text-sm leading-relaxed resize-none"
               />
               <p className="text-xs text-muted-foreground">
-                Paste structured narrative intake. This will be stored verbatim and used to initialize the case.
+                Intake text is stored but not parsed. Use ChatGPT Import on the client page to add timeline events.
               </p>
             </div>
 
@@ -667,7 +554,7 @@ Strategy: Full dispute cycle, escalate to CFPB if boilerplate..."
             <Button 
               onClick={handlePasteSubmit} 
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
-              disabled={isSubmitting || whoamiStatus !== 'authenticated' || whoamiLoading}
+              disabled={isSubmitting || !legalName.trim() || whoamiStatus !== 'authenticated' || whoamiLoading}
             >
               {isSubmitting ? (
                 <>

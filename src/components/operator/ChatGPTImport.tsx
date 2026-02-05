@@ -19,6 +19,12 @@ import { ClipboardPaste, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, I
 import { toast } from 'sonner';
 import { TimelineEventParsed, ScheduledEvent, UnresolvedItem, DraftItem, NoteFlag } from '@/types/parser';
 import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';
+ import { isJsonInput, smartImportParse, SmartImportResult, SmartImportEventKind, getAllSources } from '@/lib/smartImport';
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+ import { Calendar } from '@/components/ui/calendar';
+ import { format, parse } from 'date-fns';
+ import { CalendarIcon } from 'lucide-react';
 
 interface ChatGPTImportProps {
   clientId: string;
@@ -29,14 +35,85 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
   const [input, setInput] = useState('');
   const [result, setResult] = useState<ParseResult | null>(null);
   const [showFormat, setShowFormat] = useState(false);
+   const [smartPreview, setSmartPreview] = useState<SmartImportResult | null>(null);
+   const [smartOverrides, setSmartOverrides] = useState<{
+     source: EventSource | null;
+     event_kind: SmartImportEventKind;
+     event_date: string | null;
+   } | null>(null);
   
   const createEvents = useBulkCreateTimelineEvents();
   const createTasks = useBulkCreateOperatorTasks();
   
-  const isLoading = createEvents.isPending || createTasks.isPending;
+   const isLoading = createEvents.isPending || createTasks.isPending;
+   
+   // Handle input change - detect Smart Import mode
+   const handleInputChange = (value: string) => {
+     setInput(value);
+     // Reset smart preview when input changes
+     setSmartPreview(null);
+     setSmartOverrides(null);
+   };
+   
+   // Prepare Smart Import preview
+   const prepareSmartImport = () => {
+     if (!input.trim()) return;
+     
+     const parsed = smartImportParse(input.trim());
+     setSmartPreview(parsed);
+     setSmartOverrides({
+       source: parsed.source,
+       event_kind: parsed.event_kind,
+       event_date: parsed.event_date,
+     });
+   };
+   
+   // Confirm Smart Import
+   const confirmSmartImport = async () => {
+     if (!smartPreview || !smartOverrides) return;
+     
+     try {
+       const eventDate = smartOverrides.event_date;
+       const dateIsUnknown = eventDate === null;
+       
+       // Map event_kind to category
+       const categoryMap: Record<SmartImportEventKind, EventCategory> = {
+         action: 'Action',
+         response: 'Response',
+         outcome: 'Outcome',
+       };
+       
+       const dbEvent = {
+         client_id: clientId,
+         event_date: eventDate,
+         category: categoryMap[smartOverrides.event_kind],
+         source: smartOverrides.source,
+         title: smartOverrides.event_kind.charAt(0).toUpperCase() + smartOverrides.event_kind.slice(1),
+         summary: smartPreview.raw_line.slice(0, 200),
+         details: null,
+         related_accounts: null,
+       };
+       
+       await createEvents.mutateAsync([dbEvent]);
+       
+       toast.success('Smart Import: 1 event created');
+       setInput('');
+       setSmartPreview(null);
+       setSmartOverrides(null);
+     } catch (error) {
+       toast.error('Smart Import failed: ' + (error as Error).message);
+     }
+   };
   
   const handleImport = async () => {
     if (!input.trim()) return;
+     
+     // Check if JSON input → use existing importer
+     if (!isJsonInput(input.trim())) {
+       // Plain text → show Smart Import preview
+       prepareSmartImport();
+       return;
+     }
     
     const parsed = parseUpdate(input, clientId);
     
@@ -152,14 +229,88 @@ Experian | Collection account | Disputed | ABC Collections | 2025-01-20
 SUGGESTED NEXT ACTIONS:
 2025-02-25 | File CFPB Complaint | CFPB | High | Re: violation`}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+           onChange={(e) => handleInputChange(e.target.value)}
           className="min-h-[180px] font-mono text-sm"
         />
+         
+         {/* Smart Import Preview */}
+         {smartPreview && smartOverrides && (
+            <div className="p-3 bg-accent/50 rounded-md border border-accent">
+              <div className="text-xs font-medium text-accent-foreground mb-2">
+               Smart Import Preview
+             </div>
+             <div className="text-sm mb-3">
+               Will import as: <strong>{smartOverrides.source || 'Unassigned'}</strong> • <strong>{smartOverrides.event_kind}</strong> • <strong>{smartOverrides.event_date || 'Date unknown'}</strong>
+             </div>
+             
+             {/* Override controls */}
+             <div className="flex flex-wrap gap-2 mb-3">
+               {/* Source override */}
+               <Select 
+                 value={smartOverrides.source || '_null_'} 
+                 onValueChange={(v) => setSmartOverrides(prev => prev ? {...prev, source: v === '_null_' ? null : v as EventSource} : null)}
+               >
+                 <SelectTrigger className="w-[140px] h-8 text-xs">
+                   <SelectValue placeholder="Source" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="_null_">Unassigned</SelectItem>
+                   {getAllSources().map(s => (
+                     <SelectItem key={s} value={s}>{s}</SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+               
+               {/* Event kind override */}
+               <Select 
+                 value={smartOverrides.event_kind} 
+                 onValueChange={(v) => setSmartOverrides(prev => prev ? {...prev, event_kind: v as SmartImportEventKind} : null)}
+               >
+                 <SelectTrigger className="w-[120px] h-8 text-xs">
+                   <SelectValue />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="action">action</SelectItem>
+                   <SelectItem value="response">response</SelectItem>
+                   <SelectItem value="outcome">outcome</SelectItem>
+                 </SelectContent>
+               </Select>
+               
+               {/* Date override */}
+               <Popover>
+                 <PopoverTrigger asChild>
+                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                     <CalendarIcon className="h-3 w-3" />
+                     {smartOverrides.event_date || 'Pick date'}
+                   </Button>
+                 </PopoverTrigger>
+                 <PopoverContent className="w-auto p-0" align="start">
+                   <Calendar
+                     mode="single"
+                     selected={smartOverrides.event_date ? parse(smartOverrides.event_date, 'yyyy-MM-dd', new Date()) : undefined}
+                     onSelect={(date) => setSmartOverrides(prev => prev ? {...prev, event_date: date ? format(date, 'yyyy-MM-dd') : null} : null)}
+                     initialFocus
+                   />
+                 </PopoverContent>
+               </Popover>
+             </div>
+             
+             <div className="flex gap-2">
+               <Button size="sm" onClick={confirmSmartImport} disabled={isLoading}>
+                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                 Confirm Import
+               </Button>
+               <Button size="sm" variant="ghost" onClick={() => { setSmartPreview(null); setSmartOverrides(null); }}>
+                 Cancel
+               </Button>
+             </div>
+           </div>
+         )}
         
         <div className="flex items-center justify-between gap-2">
           <Button 
             onClick={handleImport} 
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || !!smartPreview}
             size="sm"
           >
             {isLoading ? (

@@ -13,6 +13,9 @@ import { Scale, Loader2 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { z } from 'zod';
 
+// Version marker - increment on each deploy to verify code is live
+const AUTH_VERSION = "2026-02-05-v1";
+
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -99,6 +102,10 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      {/* Hidden version marker for debugging */}
+      <div className="fixed bottom-2 right-2 text-xs text-muted-foreground/50 font-mono">
+        {AUTH_VERSION}
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 mb-2">

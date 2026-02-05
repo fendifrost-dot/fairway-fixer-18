@@ -341,19 +341,21 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           };
           
           // Insert timeline events
-          // Filter out events with empty raw_line - forensic integrity requires source text
-          const validEvents = parsed.timeline_events.filter(e => e.raw_line && e.raw_line.trim() !== '');
+          // Fail-fast: forensic integrity requires raw_line on every event
+          const invalidEvents = parsed.timeline_events.filter(
+            e => !e.raw_line || e.raw_line.trim() === ''
+          );
           
-          if (validEvents.length > 0) {
-            // Log if any events were rejected for missing raw_line
-            const rejectedCount = parsed.timeline_events.length - validEvents.length;
-            if (rejectedCount > 0) {
-              console.warn(`Rejected ${rejectedCount} timeline events due to missing raw_line`);
-            }
-            
+          if (invalidEvents.length > 0) {
+            throw new Error(
+              `Onboarding produced ${invalidEvents.length} timeline events without raw_line. Evidence is required.`
+            );
+          }
+          
+          if (parsed.timeline_events.length > 0) {
             const { error: eventsError } = await supabase
               .from('timeline_events')
-              .insert(validEvents.map(e => ({
+              .insert(parsed.timeline_events.map(e => ({
                 client_id: clientId,
                 event_date: e.event_date || null,
                 date_is_unknown: !e.event_date || e.date_is_unknown,

@@ -40,17 +40,26 @@ export function useCreateTimelineEvent() {
   
   return useMutation({
     mutationFn: async (event: Omit<TimelineEvent, 'id' | 'created_at'>) => {
+      // Enforce raw_line requirement - forensic integrity
+      if (!event.raw_line || event.raw_line.trim() === '') {
+        throw new Error('Cannot create timeline event without raw_line - forensic integrity requirement');
+      }
+      
       const { data, error } = await supabase
         .from('timeline_events')
         .insert({
           client_id: event.client_id,
           event_date: event.event_date,
+          date_is_unknown: event.date_is_unknown ?? !event.event_date,
           category: event.category,
           source: event.source,
           title: event.title,
           summary: event.summary,
           details: event.details,
           related_accounts: event.related_accounts as unknown as Json,
+          raw_line: event.raw_line,
+          event_kind: event.event_kind || 'action',
+          is_draft: false,
         })
         .select()
         .single();
@@ -74,17 +83,27 @@ export function useBulkCreateTimelineEvents() {
     mutationFn: async (events: Omit<TimelineEvent, 'id' | 'created_at'>[]) => {
       if (events.length === 0) return [];
       
+      // Enforce raw_line requirement - forensic integrity
+      const invalidEvents = events.filter(e => !e.raw_line || e.raw_line.trim() === '');
+      if (invalidEvents.length > 0) {
+        throw new Error(`Cannot create ${invalidEvents.length} timeline events without raw_line - forensic integrity requirement`);
+      }
+      
       const { data, error } = await supabase
         .from('timeline_events')
         .insert(events.map(e => ({
           client_id: e.client_id,
           event_date: e.event_date,
+          date_is_unknown: e.date_is_unknown ?? !e.event_date,
           category: e.category,
           source: e.source,
           title: e.title,
           summary: e.summary,
           details: e.details,
           related_accounts: e.related_accounts as unknown as Json,
+          raw_line: e.raw_line,
+          event_kind: e.event_kind || 'action',
+          is_draft: false,
         })))
         .select();
       

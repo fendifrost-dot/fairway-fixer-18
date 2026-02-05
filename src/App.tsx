@@ -25,13 +25,27 @@ const queryClient = new QueryClient({
 });
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { session, loading } = useAuth();
+  const debugAuth =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("debugAuth") === "1";
   
   if (loading) {
+    if (debugAuth) {
+      console.info("AUTH_DEBUG protected_route:loading", {
+        path: window.location.pathname,
+      });
+    }
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
   
-  if (!user) {
+  if (!session) {
+    if (debugAuth) {
+      console.warn("AUTH_DEBUG protected_route:redirect", {
+        reason: "loading=false && session=null",
+        path: window.location.pathname,
+      });
+    }
     return <Navigate to="/auth" replace />;
   }
   
@@ -39,11 +53,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 const AppRoutes = () => {
-  const { user } = useAuth();
+  const { session } = useAuth();
   
   return (
     <Routes>
-      <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
+      <Route path="/auth" element={session ? <Navigate to="/" replace /> : <Auth />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
       <Route path="/clients" element={<ProtectedRoute><AppLayout><Clients /></AppLayout></ProtectedRoute>} />

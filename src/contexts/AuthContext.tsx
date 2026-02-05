@@ -22,10 +22,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
+    const debugAuth =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('debugAuth') === '1';
+
     // Set up auth state listener FIRST (for ongoing changes)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         if (!isMounted) return;
+
+        if (debugAuth) {
+          console.info('AUTH_DEBUG onAuthStateChange', {
+            event,
+            hasSession: !!session,
+            userId: session?.user?.id ?? null,
+            expiresAt: session?.expires_at ?? null,
+          });
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
       }
@@ -36,6 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!isMounted) return;
+
+        if (debugAuth) {
+          console.info('AUTH_DEBUG getSession(initial)', {
+            hasSession: !!session,
+            userId: session?.user?.id ?? null,
+            expiresAt: session?.expires_at ?? null,
+            error: error ? { message: (error as any).message ?? String(error) } : null,
+            storage: {
+              hasSupabaseAuthTokenKey:
+                typeof window !== 'undefined'
+                  ? Object.keys(localStorage).some((k) => k.includes('supabase') && k.includes('auth'))
+                  : null,
+            },
+          });
+        }
         
         if (error) {
           console.error('Auth initialization error:', error);
@@ -68,7 +97,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         sessionStorage.removeItem('session_temporary');
       }
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      const debugAuth =
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('debugAuth') === '1';
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (debugAuth) {
+        console.info('AUTH_DEBUG signInWithPassword', {
+          hasSession: !!data?.session,
+          userId: data?.session?.user?.id ?? null,
+          error: error ? { message: error.message, status: (error as any).status } : null,
+        });
+      }
+
+      // IMPORTANT: if auth returns no error but also no session, the UI will bounce back to /auth.
+      // Treat this as an actionable error message for the user (usually unverified email).
+      if (!error && !data?.session) {
+        return {
+          error: new Error(
+            'Signed in but no session was created. This usually means the email address is not verified yet (or sign-in is blocked by auth settings).'
+          ),
+        };
+      }
+
       return { error: error as Error | null };
     } catch (error) {
       console.error('Sign in error:', error);

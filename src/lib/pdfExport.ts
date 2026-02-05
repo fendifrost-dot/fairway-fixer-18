@@ -16,14 +16,20 @@ export function generateClientStatusReportHTML(
   const now = format(new Date(), 'MMMM d, yyyy');
   const clientName = client.preferred_name || client.legal_name;
   
-  // Group events by category
-  const actions = events.filter(e => e.category === 'Action').sort((a, b) => 
+   // PDF MUST include ALL timeline_events where:
+   // - client_id = current client (already filtered by caller)
+   // - event_kind IN ('action','response','outcome') (already filtered by useTimelineEvents)
+   // - is_draft = false (already filtered by useTimelineEvents)
+   // NO additional filtering, recency limits, or heuristics permitted.
+   
+   // Group events by event_kind (NOT category) - filters on exact lowercase values
+   const actions = events.filter(e => e.event_kind === 'action').sort((a, b) => 
     new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   );
-  const responses = events.filter(e => e.category === 'Response').sort((a, b) => 
+   const responses = events.filter(e => e.event_kind === 'response').sort((a, b) => 
     new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   );
-  const outcomes = events.filter(e => e.category === 'Outcome').sort((a, b) => 
+   const outcomes = events.filter(e => e.event_kind === 'outcome').sort((a, b) => 
     new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
   );
   
@@ -34,13 +40,22 @@ export function generateClientStatusReportHTML(
     return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
   });
 
-  const formatEventDate = (dateStr: string) => {
+   // Render date or "Date unknown" if date_is_unknown = true or no date
+   const formatEventDate = (event: TimelineEvent) => {
+     if (event.date_is_unknown || !event.event_date) {
+       return 'Date unknown';
+     }
     try {
-      return format(parseISO(dateStr), 'MMM d, yyyy');
+       return format(parseISO(event.event_date), 'MMM d, yyyy');
     } catch {
-      return dateStr;
+       return 'Date unknown';
     }
   };
+   
+   // Render raw_line verbatim - no edits, trimming, summarization, or interpretation
+   const formatRawLine = (event: TimelineEvent) => {
+     return event.raw_line || event.summary || '';
+   };
 
   return `
 <!DOCTYPE html>
@@ -71,6 +86,7 @@ export function generateClientStatusReportHTML(
     .date-col { width: 90px; white-space: nowrap; }
     .source-col { width: 100px; }
     .priority-col { width: 70px; }
+     .content-col { word-break: break-word; }
     .empty { color: #999; font-style: italic; padding: 16px; text-align: center; }
     .badge { 
       display: inline-block; 
@@ -104,15 +120,15 @@ export function generateClientStatusReportHTML(
       <tr>
         <th class="date-col">Date</th>
         <th class="source-col">Source</th>
-        <th>Action</th>
+         <th class="content-col">Action</th>
       </tr>
     </thead>
     <tbody>
       ${actions.map(a => `
       <tr>
-        <td class="date-col">${formatEventDate(a.event_date)}</td>
+         <td class="date-col">${formatEventDate(a)}</td>
         <td class="source-col">${a.source || '-'}</td>
-        <td>${a.title}${a.summary && a.summary !== a.title ? ` — ${a.summary}` : ''}</td>
+         <td class="content-col">${formatRawLine(a)}</td>
       </tr>
       `).join('')}
     </tbody>
@@ -126,15 +142,15 @@ export function generateClientStatusReportHTML(
       <tr>
         <th class="date-col">Date</th>
         <th class="source-col">From</th>
-        <th>Summary</th>
+         <th class="content-col">Response</th>
       </tr>
     </thead>
     <tbody>
       ${responses.map(r => `
       <tr>
-        <td class="date-col">${formatEventDate(r.event_date)}</td>
+         <td class="date-col">${formatEventDate(r)}</td>
         <td class="source-col">${r.source || '-'}</td>
-        <td>${r.summary}${r.details ? ` (${r.details})` : ''}</td>
+         <td class="content-col">${formatRawLine(r)}</td>
       </tr>
       `).join('')}
     </tbody>
@@ -147,14 +163,14 @@ export function generateClientStatusReportHTML(
     <thead>
       <tr>
         <th class="date-col">Date</th>
-        <th>What Changed</th>
+         <th class="content-col">Outcome</th>
       </tr>
     </thead>
     <tbody>
       ${outcomes.map(o => `
       <tr>
-        <td class="date-col">${formatEventDate(o.event_date)}</td>
-        <td>${o.summary}</td>
+         <td class="date-col">${formatEventDate(o)}</td>
+         <td class="content-col">${formatRawLine(o)}</td>
       </tr>
       `).join('')}
     </tbody>
@@ -175,7 +191,7 @@ export function generateClientStatusReportHTML(
       ${openTasks.map(t => `
       <tr>
         <td>${t.title}</td>
-        <td class="date-col">${t.due_date ? formatEventDate(t.due_date) : '-'}</td>
+         <td class="date-col">${t.due_date ? format(parseISO(t.due_date), 'MMM d, yyyy') : '-'}</td>
         <td class="priority-col"><span class="badge badge-${t.priority.toLowerCase()}">${t.priority}</span></td>
       </tr>
       `).join('')}

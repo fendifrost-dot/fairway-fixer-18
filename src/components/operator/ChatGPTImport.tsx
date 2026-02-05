@@ -464,13 +464,17 @@ function HealthIndicator({
 // Map parsed timeline event to database format
 type DbTimelineEvent = {
   client_id: string;
-  event_date: string;
+  event_date: string | null;
+  date_is_unknown: boolean;
   category: EventCategory;
   source: EventSource | null;
   title: string;
   summary: string;
   details: string | null;
   related_accounts: RelatedAccount[] | null;
+  raw_line: string;
+  event_kind: string;
+  is_draft: boolean;
 };
 
 function mapTimelineEventToDb(event: TimelineEventParsed, clientId: string): DbTimelineEvent {
@@ -499,13 +503,17 @@ function mapTimelineEventToDb(event: TimelineEventParsed, clientId: string): DbT
   
   return {
     client_id: clientId,
-    event_date: event.event_date || new Date().toISOString().split('T')[0],
+    event_date: event.event_date || null,
+    date_is_unknown: !event.event_date || event.date_is_unknown,
     category: categoryMap[event.event_kind] || 'Action',
     source: mappedSource,
     title: event.action_type || event.status_verb || event.event_kind,
     summary: event.description,
     details: event.account_ref || null,
     related_accounts: event.account_ref ? [{ name: event.account_ref }] : null,
+    raw_line: event.raw_line,
+    event_kind: event.event_kind,
+    is_draft: false,
   };
 }
 

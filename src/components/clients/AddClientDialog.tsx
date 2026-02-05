@@ -341,18 +341,31 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
           };
           
           // Insert timeline events
-          if (parsed.timeline_events.length > 0) {
+          // Filter out events with empty raw_line - forensic integrity requires source text
+          const validEvents = parsed.timeline_events.filter(e => e.raw_line && e.raw_line.trim() !== '');
+          
+          if (validEvents.length > 0) {
+            // Log if any events were rejected for missing raw_line
+            const rejectedCount = parsed.timeline_events.length - validEvents.length;
+            if (rejectedCount > 0) {
+              console.warn(`Rejected ${rejectedCount} timeline events due to missing raw_line`);
+            }
+            
             const { error: eventsError } = await supabase
               .from('timeline_events')
-              .insert(parsed.timeline_events.map(e => ({
+              .insert(validEvents.map(e => ({
                 client_id: clientId,
-                event_date: e.event_date || new Date().toISOString().split('T')[0],
+                event_date: e.event_date || null,
+                date_is_unknown: !e.event_date || e.date_is_unknown,
                 category: (CATEGORY_MAP[e.event_kind] || 'Action') as DbEventCategory,
                 source: (SOURCE_MAP[e.source] || 'Other') as DbEventSource,
                 title: e.action_type || e.status_verb || e.event_kind,
                 summary: e.description,
                 details: e.account_ref,
                 related_accounts: e.account_ref ? [{ name: e.account_ref }] as unknown as Json : null,
+                raw_line: e.raw_line,
+                event_kind: e.event_kind,
+                is_draft: false,
               })));
             
             if (eventsError) {

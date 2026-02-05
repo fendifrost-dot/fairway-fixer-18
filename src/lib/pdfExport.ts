@@ -54,7 +54,8 @@ export function generateClientStatusReportHTML(
    
    // Render raw_line verbatim - no edits, trimming, summarization, or interpretation
    const formatRawLine = (event: TimelineEvent) => {
-     return event.raw_line || event.summary || '';
+      // STRICT: raw_line only, no fallback to derived fields
+      return event.raw_line || '';
    };
 
   return `

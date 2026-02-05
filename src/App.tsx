@@ -15,6 +15,9 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import { toast } from "sonner";
 
+// Version marker - increment to verify published bundle is updated
+const BUILD_VERSION = "2026-02-05-v2";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -71,6 +74,17 @@ const AppRoutes = () => {
 const App = () => {
   // Global unhandled rejection handler to prevent white screen crashes
   useEffect(() => {
+    const debugAuth =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("debugAuth") === "1";
+
+    if (debugAuth) {
+      console.info("AUTH_DEBUG build", {
+        version: BUILD_VERSION,
+        href: typeof window !== "undefined" ? window.location.href : null,
+      });
+    }
+
     const handleRejection = (event: PromiseRejectionEvent) => {
       console.error("Unhandled rejection:", event.reason);
       toast.error("An error occurred. Please try again.");

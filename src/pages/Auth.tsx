@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { z } from 'zod';
 
 // Version marker - increment on each deploy to verify code is live
-const AUTH_VERSION = "2026-02-05-v1";
+const AUTH_VERSION = "2026-02-05-v2";
 
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),

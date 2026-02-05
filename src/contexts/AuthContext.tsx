@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -19,50 +20,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    let isMounted = true;
 
-    // Listen for auth changes
+    // Set up auth state listener FIRST (for ongoing changes)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        if (!isMounted) return;
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
+    // THEN check for existing session (controls loading state)
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!isMounted) return;
+        
+        if (error) {
+          console.error('Auth initialization error:', error);
+        }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Unexpected auth error:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string, rememberDevice: boolean = true) => {
-    // Store preference for session persistence
-    if (!rememberDevice) {
-      // For non-remembered sessions, we'll still use localStorage but clear on browser close
-      sessionStorage.setItem('session_temporary', 'true');
-    } else {
-      sessionStorage.removeItem('session_temporary');
+    try {
+      // Store preference for session persistence
+      if (!rememberDevice) {
+        sessionStorage.setItem('session_temporary', 'true');
+      } else {
+        sessionStorage.removeItem('session_temporary');
+      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      return { error: error as Error | null };
+    } catch (error) {
+      console.error('Sign in error:', error);
+      return { error: error as Error };
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ 
-      email, 
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`
-      }
-    });
-    return { error: error as Error | null };
+    try {
+      const { error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`
+        }
+      });
+      return { error: error as Error | null };
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return { error: error as Error };
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast.error('Failed to sign out');
+    }
   };
 
   return (

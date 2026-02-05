@@ -111,3 +111,38 @@
      });
    });
  });
+  
+  // ====================================================================
+  // REQUIRED ACCEPTANCE TESTS - Must pass before shipping
+  // ====================================================================
+  
+  describe('Smart Import - Required Acceptance Tests', () => {
+    it('TEST A: Real case - TransUnion emailed response with full message', () => {
+      const text = 'TransUnion emailed response 02/04/26: Hi TERRENCE CLEVELAND. We received your dispute...';
+      const result = smartImportParse(text);
+      
+      expect(result.source).toBe('TransUnion');
+      expect(result.event_kind).toBe('response');
+      expect(result.event_date).toBe('2026-02-04');
+      expect(result.date_is_unknown).toBe(false);
+      expect(result.raw_line).toBe(text);
+    });
+    
+    it('TEST B: Invalid date rejected (99/99/26)', () => {
+      const text = 'TransUnion response 99/99/26: ...';
+      const result = smartImportParse(text);
+      
+      expect(result.event_date).toBe(null);
+      expect(result.date_is_unknown).toBe(true);
+      expect(result.source).toBe('TransUnion');
+    });
+    
+    it('TEST C: No source detected goes to null (placement error)', () => {
+      const text = 'Emailed response 02/04/26: ...';
+      const result = smartImportParse(text);
+      
+      expect(result.source).toBe(null);
+      expect(result.event_kind).toBe('response');
+      expect(result.event_date).toBe('2026-02-04');
+    });
+  });

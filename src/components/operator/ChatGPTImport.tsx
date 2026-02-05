@@ -83,16 +83,24 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
          outcome: 'Outcome',
        };
        
-       const dbEvent = {
-         client_id: clientId,
-         event_date: eventDate,
-         category: categoryMap[smartOverrides.event_kind],
-         source: smartOverrides.source,
-         title: smartOverrides.event_kind.charAt(0).toUpperCase() + smartOverrides.event_kind.slice(1),
-         summary: smartPreview.raw_line.slice(0, 200),
-         details: null,
-         related_accounts: null,
-       };
+        // Smart Import: Creates exactly ONE timeline_events row
+        // - raw_line preserved verbatim
+        // - is_draft = false always
+        // - date_is_unknown = true iff event_date is NULL
+        const dbEvent = {
+          client_id: clientId,
+          event_date: eventDate,
+          date_is_unknown: dateIsUnknown,
+          category: categoryMap[smartOverrides.event_kind],
+          source: smartOverrides.source,
+          title: smartOverrides.event_kind.charAt(0).toUpperCase() + smartOverrides.event_kind.slice(1),
+          summary: smartPreview.raw_line.slice(0, 200),
+          details: null,
+          related_accounts: null,
+          raw_line: smartPreview.raw_line,
+          is_draft: false,
+          event_kind: smartOverrides.event_kind,
+        };
        
        await createEvents.mutateAsync([dbEvent]);
        

@@ -518,6 +518,7 @@ function mapTimelineEventToDb(event: TimelineEventParsed, clientId: string): DbT
     lexisnexis: 'LexisNexis',
     sagestream: 'Sagestream',
     corelogic: 'CoreLogic',
+    ftc: 'FTC',
     cfpb: 'CFPB',
     bbb: 'BBB',
     ag: 'AG',

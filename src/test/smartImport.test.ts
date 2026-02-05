@@ -43,7 +43,8 @@
      
      it('detects outcome keywords', () => {
        expect(detectEventKind('Account deleted from report')).toBe('outcome');
-       expect(detectEventKind('Verified information')).toBe('outcome');
+      expect(detectEventKind('Investigation completed successfully')).toBe('outcome');
+      expect(detectEventKind('Reinsertion detected on report')).toBe('outcome');
      });
      
      it('defaults to action', () => {

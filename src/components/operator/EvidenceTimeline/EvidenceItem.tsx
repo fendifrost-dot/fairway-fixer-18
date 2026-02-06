@@ -10,8 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical, Copy, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical } from 'lucide-react';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { ALL_EVIDENCE_SOURCES, TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
@@ -52,7 +51,6 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
 
 export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }: EvidenceItemProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isRawLineExpanded, setIsRawLineExpanded] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const createCorrection = useCreateSourceCorrection();
   

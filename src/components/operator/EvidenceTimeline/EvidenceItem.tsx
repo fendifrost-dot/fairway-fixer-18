@@ -162,45 +162,10 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
                     <strong>summary:</strong> {event.summary}
                   </div>
                   <div className="text-muted-foreground">
-                    <div className="flex items-center gap-1 mb-1">
-                      <strong>raw_line:</strong>
-                      {event.raw_line && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 px-1.5 text-[10px]"
-                            onClick={() => setIsRawLineExpanded(!isRawLineExpanded)}
-                          >
-                            {isRawLineExpanded ? 'Collapse' : 'View full'}
-                            <ChevronRight className={`h-3 w-3 ml-0.5 transition-transform ${isRawLineExpanded ? 'rotate-90' : ''}`} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 w-5 p-0"
-                            onClick={() => {
-                              navigator.clipboard.writeText(event.raw_line || '');
-                              toast.success('Copied raw_line to clipboard');
-                            }}
-                            title="Copy full raw_line"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                    {event.raw_line ? (
-                      isRawLineExpanded ? (
-                        <pre className="whitespace-pre-wrap break-words text-[10px] bg-muted/50 p-1.5 rounded border max-h-48 overflow-auto">
-                          {event.raw_line}
-                        </pre>
-                      ) : (
-                        <span className="line-clamp-1">{event.raw_line}</span>
-                      )
-                    ) : (
-                      'NULL'
-                    )}
+                    <strong>raw_line:</strong>
+                    <pre className="whitespace-pre-wrap break-words text-[10px] mt-1">
+                      {event.raw_line || 'NULL'}
+                    </pre>
                   </div>
                   <div className="text-muted-foreground">
                     placed_in: {debug.placedIn}

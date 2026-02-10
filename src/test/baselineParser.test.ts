@@ -353,5 +353,28 @@ Chase Bank - 4489-15XX-XXXX - 2020-05-10 - Open`;
       expect(result.warnings.length).toBeGreaterThan(0);
       expect(result.items).toHaveLength(1);
     });
+
+    it('throws on unknown bureau header token', () => {
+      const input = `## Experiann\nAccounts\nChase Bank - ****1234 - 2020-05-10 - Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Unknown bureau header');
+    });
+
+    it('throws when account mask contains no digits', () => {
+      const input = `## Equifax\nAccounts\nChase - XXXX-XXXX - 2020-05-10 - Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Invalid account mask');
+    });
+
+    it('throws when trailing part is empty (status missing)', () => {
+      // "Chase - ****1234 - 2020-05-10 - " → filter(Boolean) drops empty → 3 parts → throws
+      const input = `## Equifax\nAccounts\nChase - ****1234 - 2020-05-10 - `;
+      expect(() => parseBaselineText(input, opts)).toThrow('Account requires exactly 4 parts (got 3)');
+    });
+
+    it('stores parts[3] as status (not extra) for accounts', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - ****1234 - 2020-05-10 - Open`;
+      const result = parseBaselineText(input, opts);
+      expect(result.items[0].raw_fields.status).toBe('Open');
+      expect(result.items[0].raw_fields).not.toHaveProperty('extra');
+    });
   });
 });

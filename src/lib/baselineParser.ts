@@ -32,7 +32,7 @@ export interface BaselineParseOptions {
 // ── Strict-mode Validators ──
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const ACCOUNT_MASK_PATTERN = /^[\dX*x#_\-]{4,}$/;
+const ACCOUNT_MASK_PATTERN = /^(?=.*\d)[\dXx*#\-]{4,}$/;
 
 function assertStrict(condition: boolean, message: string, line: string): void {
   if (!condition) {
@@ -153,11 +153,12 @@ function parseDataLine(
     return null;
   }
 
-  // Strict account validation: exactly 4 parts, valid ISO date, valid mask
+  // Strict account validation: exactly 4 parts, valid ISO date, valid mask, non-empty status
   if (strict && section === 'account') {
     assertStrict(parts.length === 4, `Account requires exactly 4 parts (got ${parts.length})`, line);
     assertStrict(ACCOUNT_MASK_PATTERN.test(parts[1]), `Invalid account mask: "${parts[1]}"`, line);
     assertStrict(ISO_DATE_PATTERN.test(parts[2]), `Invalid ISO date: "${parts[2]}"`, line);
+    assertStrict(parts[3].trim().length > 0, 'Account status required', line);
   }
 
   let rawFields: Record<string, string>;
@@ -186,7 +187,7 @@ function parseDataLine(
         account_mask: parts[1] || '',
       };
       if (parts[2]) rawFields.date_opened = parts[2];
-      if (parts[3]) rawFields.extra = parts[3];
+      if (parts[3]) rawFields.status = parts[3];
       label = `${parts[0]} (${parts[1] || 'no mask'})`;
       break;
     }
@@ -223,6 +224,11 @@ export function parseBaselineText(text: string, options?: BaselineParseOptions):
       currentBureau = bureau;
       currentSection = null;
       continue;
+    }
+
+    // Strict: detect lines that look like bureau headers but don't match known bureaus
+    if (strict && /^#{1,3}\s+\S/.test(line)) {
+      assertStrict(false, `Unknown bureau header: "${line}"`, line);
     }
 
     // Check section header

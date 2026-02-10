@@ -74,6 +74,91 @@ export type Database = {
           },
         ]
       }
+      baseline_analyses: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          original_text: string
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          original_text: string
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          original_text?: string
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_analyses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      baseline_targets: {
+        Row: {
+          baseline_id: string
+          bureau: Database["public"]["Enums"]["baseline_bureau"]
+          created_at: string
+          fingerprint: string
+          id: string
+          item_type: string
+          label: string
+          raw_fields: Json
+          status: Database["public"]["Enums"]["baseline_target_status"]
+          updated_at: string
+        }
+        Insert: {
+          baseline_id: string
+          bureau: Database["public"]["Enums"]["baseline_bureau"]
+          created_at?: string
+          fingerprint: string
+          id?: string
+          item_type: string
+          label: string
+          raw_fields?: Json
+          status?: Database["public"]["Enums"]["baseline_target_status"]
+          updated_at?: string
+        }
+        Update: {
+          baseline_id?: string
+          bureau?: Database["public"]["Enums"]["baseline_bureau"]
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          item_type?: string
+          label?: string
+          raw_fields?: Json
+          status?: Database["public"]["Enums"]["baseline_target_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_targets_baseline_id_fkey"
+            columns: ["baseline_id"]
+            isOneToOne: false
+            referencedRelation: "baseline_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_actions: {
         Row: {
           case_id: string
@@ -823,6 +908,8 @@ export type Database = {
       action_priority: "Low" | "Medium" | "High"
       action_status: "Done" | "Open"
       app_role: "admin" | "staff"
+      baseline_bureau: "Experian" | "TransUnion" | "Equifax"
+      baseline_target_status: "pending" | "still_present" | "not_found"
       client_status: "Active" | "Inactive" | "Pending"
       date_confidence: "Exact" | "Inferred" | "Unknown"
       deadline_status: "Open" | "DueSoon" | "Overdue" | "Closed"
@@ -1027,6 +1114,8 @@ export const Constants = {
       action_priority: ["Low", "Medium", "High"],
       action_status: ["Done", "Open"],
       app_role: ["admin", "staff"],
+      baseline_bureau: ["Experian", "TransUnion", "Equifax"],
+      baseline_target_status: ["pending", "still_present", "not_found"],
       client_status: ["Active", "Inactive", "Pending"],
       date_confidence: ["Exact", "Inferred", "Unknown"],
       deadline_status: ["Open", "DueSoon", "Overdue", "Closed"],

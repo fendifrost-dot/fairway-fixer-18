@@ -80,7 +80,7 @@ export function useBaseline(clientId: string) {
     mutationFn: async (input: CommitBaselineInput) => {
       // Pre-dedupe targets by fingerprint (keep first occurrence)
       const seen = new Set<string>();
-      const dedupedTargets: Array<Record<string, any>> = [];
+      const dedupedTargets: Json[] = [];
       for (const t of input.targets) {
         if (seen.has(t.fingerprint)) continue;
         seen.add(t.fingerprint);
@@ -89,7 +89,7 @@ export function useBaseline(clientId: string) {
           item_type: t.item_type,
           label: t.label,
           fingerprint: t.fingerprint,
-          raw_fields: t.raw_fields ?? {},
+          raw_fields: (t.raw_fields ?? {}) as Json,
           status: t.status ?? 'pending',
         });
       }
@@ -100,7 +100,7 @@ export function useBaseline(clientId: string) {
         _client_id: clientId,
         _source_type: input.sourceType,
         _original_text: input.originalText,
-        _targets: dedupedTargets as unknown as Json,
+        _targets: dedupedTargets as Json,
       });
 
       if (error) throw error;

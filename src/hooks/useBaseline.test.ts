@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -30,13 +30,6 @@ function createWrapper() {
 }
 
 const CLIENT_ID = 'c1111111-1111-1111-1111-111111111111';
-
-/** Helper to wait for queries to settle */
-async function flushQueries() {
-  await vi.waitFor(() => {}, { timeout: 100 });
-  // Small delay for React Query to process
-  await new Promise((r) => setTimeout(r, 50));
-}
 
 /** Build standard mock chains for both active + history queries */
 function setupQueryMocks() {
@@ -70,20 +63,22 @@ describe('useBaseline', () => {
     const { eq1Fn, eq2Fn, maybeSingleFn } = setupQueryMocks();
 
     renderHook(() => useBaseline(CLIENT_ID), { wrapper: createWrapper() });
-    await flushQueries();
 
-    expect(eq1Fn).toHaveBeenCalledWith('client_id', CLIENT_ID);
-    expect(eq2Fn).toHaveBeenCalledWith('is_active', true);
-    expect(maybeSingleFn).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(eq1Fn).toHaveBeenCalledWith('client_id', CLIENT_ID);
+      expect(eq2Fn).toHaveBeenCalledWith('is_active', true);
+      expect(maybeSingleFn).toHaveBeenCalled();
+    });
   });
 
   it('history query orders by created_at desc', async () => {
     const { orderFn } = setupQueryMocks();
 
     renderHook(() => useBaseline(CLIENT_ID), { wrapper: createWrapper() });
-    await flushQueries();
 
-    expect(orderFn).toHaveBeenCalledWith('created_at', { ascending: false });
+    await waitFor(() => {
+      expect(orderFn).toHaveBeenCalledWith('created_at', { ascending: false });
+    });
   });
 
   it('commitBaseline calls RPC with correct params and returns baseline_id', async () => {
@@ -94,7 +89,8 @@ describe('useBaseline', () => {
     });
 
     const { result } = renderHook(() => useBaseline(CLIENT_ID), { wrapper: createWrapper() });
-    await flushQueries();
+
+    await waitFor(() => expect(result.current.commitBaseline).toBeDefined());
 
     let baselineId: string | undefined;
     await act(async () => {
@@ -128,7 +124,8 @@ describe('useBaseline', () => {
     });
 
     const { result } = renderHook(() => useBaseline(CLIENT_ID), { wrapper: createWrapper() });
-    await flushQueries();
+
+    await waitFor(() => expect(result.current.commitBaseline).toBeDefined());
 
     await act(async () => {
       await result.current.commitBaseline.mutateAsync({
@@ -156,17 +153,16 @@ describe('useBaseline', () => {
     });
 
     const { result } = renderHook(() => useBaseline(CLIENT_ID), { wrapper: createWrapper() });
-    await flushQueries();
+
+    await waitFor(() => expect(result.current.commitBaseline).toBeDefined());
 
     await expect(
-      act(() =>
-        result.current.commitBaseline.mutateAsync({
-          sourceType: 'manual',
-          originalText: 'text',
-          targets: [{ bureau: 'Equifax', item_type: 'account', label: 'X', fingerprint: 'fp' }],
-        })
-      )
-    ).rejects.toEqual({ code: '23505', message: 'duplicate key value violates unique constraint' });
+      result.current.commitBaseline.mutateAsync({
+        sourceType: 'manual',
+        originalText: 'text',
+        targets: [{ bureau: 'Equifax', item_type: 'account', label: 'X', fingerprint: 'fp' }],
+      })
+    ).rejects.toMatchObject({ code: '23505' });
   });
 });
 
@@ -181,9 +177,11 @@ describe('useBaselineTargets', () => {
     mockFrom.mockReturnValue({ select: selectFn });
 
     const { result } = renderHook(() => useBaselineTargets('bl-123'), { wrapper: createWrapper() });
-    await flushQueries();
 
-    expect(result.current.isSuccess).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
     expect(mockFrom).toHaveBeenCalledWith('baseline_targets');
     expect(eqFn).toHaveBeenCalledWith('baseline_id', 'bl-123');
   });

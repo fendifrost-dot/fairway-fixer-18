@@ -26,19 +26,7 @@ import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';
  import { format, parse } from 'date-fns';
  import { CalendarIcon } from 'lucide-react';
 
-// Structured header-based import (parseUpdate path) must NOT be gated by JSON.
-// Minimal detection: if it looks like our operator template headers, treat as structured.
-function isStructuredHeaderInput(text: string): boolean {
-  const t = text.trim();
-  // Accept both with and without markdown heading prefix
-  return /^(?:#{1,6}\s*)?(COMPLETED ACTIONS|COMPLETED RESPONSES|COMPLETED OUTCOMES|OUTCOMES|ACTIONS|RESPONSES)\b[:\s]/i.test(t);
-}
-
-// Smart Import is strictly single-event. If multi-line, it must go through structured parsing.
-function isSingleLine(text: string): boolean {
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-  return lines.length === 1;
-}
+import { selectImportMode, mapTimelineEventToDb } from '@/lib/importRouting';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -129,23 +117,16 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
   const handleImport = async () => {
     if (!input.trim()) return;
     
-    const trimmed = input.trim();
-    
-    // Route selection (minimal / deterministic)
-    // 1) JSON → existing JSON import path (unchanged)
-    // 2) Structured headers (COMPLETED ACTIONS, etc.) → parseUpdate path
-    // 3) Everything else:
-    //    - single-line → Smart Import
-    //    - multi-line → parseUpdate (prevents block-merge into one raw_line)
-    if (!isJsonInput(trimmed)) {
-      if (isStructuredHeaderInput(trimmed) || !isSingleLine(trimmed)) {
-        // fall through to structured parsing path (parseUpdate) below
-      } else {
-        // single-line plain text → Smart Import preview
-        prepareSmartImport();
-        return;
-      }
-    }
+     const trimmed = input.trim();
+     
+     const mode = selectImportMode(trimmed);
+     
+     if (mode === 'smart') {
+       prepareSmartImport();
+       return;
+     }
+     
+     // mode === 'json' or 'structured' → parseUpdate path
     
     const parsed = parseUpdate(input, clientId);
     
@@ -483,63 +464,6 @@ function HealthIndicator({
       </span>
     </div>
   );
-}
-
-// Map parsed timeline event to database format
-type DbTimelineEvent = {
-  client_id: string;
-  event_date: string | null;
-  date_is_unknown: boolean;
-  category: EventCategory;
-  source: EventSource | null;
-  title: string;
-  summary: string;
-  details: string | null;
-  related_accounts: RelatedAccount[] | null;
-  raw_line: string;
-  event_kind: string;
-  is_draft: boolean;
-};
-
-function mapTimelineEventToDb(event: TimelineEventParsed, clientId: string): DbTimelineEvent {
-  // Map event_kind to category
-  const categoryMap: Record<string, EventCategory> = {
-    action: 'Action',
-    response: 'Response',
-    outcome: 'Outcome',
-  };
-  
-  // Map normalized source to DB source enum
-  const sourceMap: Record<string, EventSource> = {
-    experian: 'Experian',
-    transunion: 'TransUnion',
-    equifax: 'Equifax',
-    innovis: 'Innovis',
-    lexisnexis: 'LexisNexis',
-    sagestream: 'Sagestream',
-    corelogic: 'CoreLogic',
-    ftc: 'FTC',
-    cfpb: 'CFPB',
-    bbb: 'BBB',
-    ag: 'AG',
-  };
-  
-  const mappedSource = sourceMap[event.source] || 'Other';
-  
-  return {
-    client_id: clientId,
-    event_date: event.event_date || null,
-    date_is_unknown: !event.event_date || event.date_is_unknown,
-    category: categoryMap[event.event_kind] || 'Action',
-    source: mappedSource,
-    title: event.action_type || event.status_verb || event.event_kind,
-    summary: event.description,
-    details: event.account_ref || null,
-    related_accounts: event.account_ref ? [{ name: event.account_ref }] : null,
-    raw_line: event.raw_line,
-    event_kind: event.event_kind,
-    is_draft: false,
-  };
 }
 
 // Map scheduled event to task

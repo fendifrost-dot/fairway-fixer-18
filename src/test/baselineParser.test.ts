@@ -304,4 +304,54 @@ Chase Bank - 4489-15XX-XXXX - 2020-05-10 - Open`;
       expect(Array.isArray(result.warnings)).toBe(true);
     });
   });
+
+  // ── Strict Mode ──
+
+  describe('strict mode', () => {
+    const opts = { strict: true };
+
+    it('throws when account has fewer than 4 parts', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - ****1234`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Account requires exactly 4 parts (got 2)');
+    });
+
+    it('throws when account has more than 4 parts', () => {
+      const input = `## Equifax\nAccounts\nChase - ****1234 - 2020-05-10 - Open - Extra`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Account requires exactly 4 parts (got 5)');
+    });
+
+    it('throws on invalid ISO date in account', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - ****1234 - 05/10/2020 - Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Invalid ISO date');
+    });
+
+    it('throws on malformed account mask', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - AB - 2020-05-10 - Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Invalid account mask');
+    });
+
+    it('throws on orphan lines outside bureau/section context', () => {
+      const input = `random orphan line`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Line outside bureau/section context');
+    });
+
+    it('throws on line after bureau but before section', () => {
+      const input = `## Experian\nsome data line`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Line outside bureau/section context');
+    });
+
+    it('does NOT throw for valid 4-part account in strict mode', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - ****1234 - 2020-05-10 - Open`;
+      const result = parseBaselineText(input, opts);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].raw_fields.furnisher).toBe('Chase Bank');
+    });
+
+    it('default mode (no strict) still uses warnings', () => {
+      const input = `orphan line\n## Experian\nAccounts\nChase Bank - ****1234`;
+      const result = parseBaselineText(input);
+      expect(result.warnings.length).toBeGreaterThan(0);
+      expect(result.items).toHaveLength(1);
+    });
+  });
 });

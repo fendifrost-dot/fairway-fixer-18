@@ -25,6 +25,21 @@ export interface BaselineParseResult {
   warnings: BaselineWarning[];
 }
 
+export interface BaselineParseOptions {
+  strict?: boolean;
+}
+
+// ── Strict-mode Validators ──
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const ACCOUNT_MASK_PATTERN = /^[\dX*x#_\-]{4,}$/;
+
+function assertStrict(condition: boolean, message: string, line: string): void {
+  if (!condition) {
+    throw new Error(`[baselineParser] ${message} → line: "${line}"`);
+  }
+}
+
 // ── Helpers ──
 
 /** Normalize for fingerprinting: lowercase, collapse whitespace, trim */
@@ -105,7 +120,8 @@ function splitLine(line: string): string[] | null {
 function parseDataLine(
   line: string,
   bureau: BaselineBureau,
-  section: BaselineItemType
+  section: BaselineItemType,
+  strict: boolean = false
 ): BaselineItem | null {
   const parts = splitLine(line);
 
@@ -121,12 +137,28 @@ function parseDataLine(
         raw_fields: rawFields,
       };
     }
+    if (strict) {
+      assertStrict(false, 'Unparseable line format', line);
+    }
     return null;
   }
 
   // Enforce minimum parts by section
-  if (section === 'inquiry' && parts.length < 2) return null;
-  if (section === 'account' && parts.length < 2) return null;
+  if (section === 'inquiry' && parts.length < 2) {
+    if (strict) assertStrict(false, 'Inquiry requires at least 2 parts (subscriber + date)', line);
+    return null;
+  }
+  if (section === 'account' && parts.length < 2) {
+    if (strict) assertStrict(false, 'Account requires at least 2 parts', line);
+    return null;
+  }
+
+  // Strict account validation: exactly 4 parts, valid ISO date, valid mask
+  if (strict && section === 'account') {
+    assertStrict(parts.length === 4, `Account requires exactly 4 parts (got ${parts.length})`, line);
+    assertStrict(ACCOUNT_MASK_PATTERN.test(parts[1]), `Invalid account mask: "${parts[1]}"`, line);
+    assertStrict(ISO_DATE_PATTERN.test(parts[2]), `Invalid ISO date: "${parts[2]}"`, line);
+  }
 
   let rawFields: Record<string, string>;
   let label: string;
@@ -171,7 +203,8 @@ function parseDataLine(
 
 // ── Main Parser ──
 
-export function parseBaselineText(text: string): BaselineParseResult {
+export function parseBaselineText(text: string, options?: BaselineParseOptions): BaselineParseResult {
+  const strict = options?.strict ?? false;
   const lines = text.split('\n');
   const items: BaselineItem[] = [];
   const warnings: BaselineWarning[] = [];
@@ -199,6 +232,11 @@ export function parseBaselineText(text: string): BaselineParseResult {
       continue;
     }
 
+    // In strict mode, unknown headers and orphan lines throw
+    if (strict) {
+      assertStrict(currentBureau !== null && currentSection !== null, 'Line outside bureau/section context', line);
+    }
+
     // Skip lines before any bureau/section context
     if (!currentBureau || !currentSection) {
       warnings.push({ line: rawLine, reason: 'No bureau or section context' });
@@ -206,7 +244,7 @@ export function parseBaselineText(text: string): BaselineParseResult {
     }
 
     // Try to parse data line
-    const item = parseDataLine(line, currentBureau, currentSection);
+    const item = parseDataLine(line, currentBureau, currentSection, strict);
     if (!item) {
       warnings.push({ line: rawLine, reason: 'Unparseable line format' });
       continue;

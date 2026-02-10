@@ -370,6 +370,16 @@ Chase Bank - 4489-15XX-XXXX - 2020-05-10 - Open`;
       expect(() => parseBaselineText(input, opts)).toThrow('Account requires exactly 4 parts (got 3)');
     });
 
+    it('throws on pipe-delimited account line', () => {
+      const input = `## Equifax\nAccounts\nChase Bank | ****1234 | 2020-05-10 | Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Pipe-delimited format not supported');
+    });
+
+    it('throws on mixed separators', () => {
+      const input = `## Equifax\nAccounts\nChase Bank - ****1234 | 2020-05-10 - Open`;
+      expect(() => parseBaselineText(input, opts)).toThrow('Pipe-delimited format not supported');
+    });
+
     it('stores parts[3] as status (not extra) for accounts', () => {
       const input = `## Equifax\nAccounts\nChase Bank - ****1234 - 2020-05-10 - Open`;
       const result = parseBaselineText(input, opts);

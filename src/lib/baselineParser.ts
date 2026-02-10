@@ -249,6 +249,11 @@ export function parseBaselineText(text: string, options?: BaselineParseOptions):
       continue;
     }
 
+    // Strict: reject pipe-delimited lines
+    if (strict && line.includes('|')) {
+      assertStrict(false, 'Pipe-delimited format not supported; use " - "', line);
+    }
+
     // Try to parse data line
     const item = parseDataLine(line, currentBureau, currentSection, strict);
     if (!item) {

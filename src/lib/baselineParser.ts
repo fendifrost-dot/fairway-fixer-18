@@ -94,11 +94,9 @@ function splitLine(line: string): string[] | null {
   if (line.includes('|')) {
     return line.split('|').map(s => s.trim()).filter(Boolean);
   }
-  // Dash-delimited: if line contains any -
-  if (line.includes('-')) {
-    const parts = line.split(/\s*-\s*/).map(s => s.trim()).filter(Boolean);
-    if (parts.length >= 2) return parts;
-    // single part after split means the dash was leading/trailing — fall through
+  // Dash-delimited: only split on separator dashes (NOT date hyphens)
+  if (line.includes(' - ')) {
+    return line.split(' - ').map(s => s.trim()).filter(Boolean);
   }
   // No delimiters found
   return null;

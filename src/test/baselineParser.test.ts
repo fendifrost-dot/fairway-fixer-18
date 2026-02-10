@@ -93,7 +93,7 @@ Chase Bank - ****1234 - 2020-05-10 - Open`;
       expect(result.items[0].item_type).toBe('account');
       expect(result.items[0].raw_fields.furnisher).toBe('Chase Bank');
       expect(result.items[0].raw_fields.account_mask).toBe('****1234');
-      expect(result.items[0].raw_fields.date_opened).toBe('2020');
+      expect(result.items[0].raw_fields.date_opened).toBe('2020-05-10');
     });
 
     it('parses account lines (2-part, most common)', () => {
@@ -280,6 +280,16 @@ Accounts
 -OnlyOneToken`;
       const result = parseBaselineText(input);
       expect(result.items).toHaveLength(0);
+    });
+
+    it('does NOT split hyphens inside account masks or dates', () => {
+      const input = `## Equifax
+Accounts
+Chase Bank - 4489-15XX-XXXX - 2020-05-10 - Open`;
+      const result = parseBaselineText(input);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].raw_fields.account_mask).toBe('4489-15XX-XXXX');
+      expect(result.items[0].raw_fields.date_opened).toBe('2020-05-10');
     });
   });
 

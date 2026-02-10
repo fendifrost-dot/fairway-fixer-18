@@ -94,6 +94,8 @@ export function useBaseline(clientId: string) {
         });
       }
 
+      if (!clientId) throw new Error('clientId is required');
+
       const { data, error } = await supabase.rpc('commit_baseline', {
         _client_id: clientId,
         _source_type: input.sourceType,

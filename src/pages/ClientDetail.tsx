@@ -12,6 +12,7 @@ import { NotesSection } from '@/components/operator/NotesSection';
 
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents/index';
 import { UnresolvedStatePanel } from '@/components/operator/UnresolvedStatePanel';
+import { BaselinePanel } from '@/components/baseline/BaselinePanel';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
 import { downloadPDF } from '@/lib/pdfExport';
@@ -97,6 +98,7 @@ export default function ClientDetail() {
         {/* Left Column - Evidence Timeline + Notes */}
         <div className="lg:col-span-2 space-y-6">
           <EvidenceTimeline events={events} clientId={clientId!} />
+          <BaselinePanel clientId={clientId!} />
           <NotesSection clientId={clientId!} />
         </div>
         

@@ -846,6 +846,15 @@ export type Database = {
       }
       can_access_matter: { Args: { _matter_id: string }; Returns: boolean }
       client_exists: { Args: { _id: string }; Returns: boolean }
+      commit_baseline: {
+        Args: {
+          _client_id: string
+          _original_text: string
+          _source_type: string
+          _targets: Json
+        }
+        Returns: Json
+      }
       create_client_and_matter: {
         Args: {
           _client_notes?: string

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useBaseline } from '@/hooks/useBaseline';
 import { BaselineTargetsTable } from './BaselineTargetsTable';
+import { CreateBaselineDialog } from './CreateBaselineDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, FileText } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, FileText, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -11,8 +13,9 @@ interface Props {
 }
 
 export function BaselinePanel({ clientId }: Props) {
-  const { activeBaseline, history } = useBaseline(clientId);
+  const { activeBaseline, history, commitBaseline } = useBaseline(clientId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Auto-select: active baseline first, else most recent from history
   useEffect(() => {
@@ -57,8 +60,12 @@ export function BaselinePanel({ clientId }: Props) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-lg">Baseline Analysis</CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" />
+          Create New
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* History list */}
@@ -106,7 +113,18 @@ export function BaselinePanel({ clientId }: Props) {
         )}
 
         {/* Targets table */}
+
         {selectedId && <BaselineTargetsTable baselineId={selectedId} />}
+
+        <CreateBaselineDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          onCommit={async (input) => {
+            const newId = await commitBaseline.mutateAsync(input);
+            setSelectedId(newId);
+            return newId;
+          }}
+        />
       </CardContent>
     </Card>
   );

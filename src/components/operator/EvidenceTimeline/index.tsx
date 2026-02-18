@@ -14,14 +14,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { FileText, Building2, Database, Shield, Bug } from 'lucide-react';
+import { FileText, Building2, Database, Shield, Bug, Plus } from 'lucide-react';
 import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/operator';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
+import { AddEntryDialog } from './AddEntryDialog';
+import { EditEntryDialog } from './EditEntryDialog';
 import { expandAllCrasEvents, isAllCrasSource } from '@/lib/allCrasExpander';
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
@@ -32,6 +35,8 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showChronological, setShowChronological] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
 
   const sectionSources = useMemo(() => {
@@ -132,6 +137,11 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
             Evidence Timeline ({evidenceEvents.length})
           </CardTitle>
           <div className="flex items-center gap-4">
+            {/* Add Entry button */}
+            <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)} className="gap-1">
+              <Plus className="h-3 w-3" />
+              Add Entry
+            </Button>
             {/* Debug toggle */}
             <div className="flex items-center gap-2">
               <Bug className="h-3 w-3 text-muted-foreground" />
@@ -200,6 +210,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
             events={evidenceEvents} 
             clientId={clientId}
             showDebug={showDebug}
+            onEdit={setEditingEvent}
           />
         ) : (
           <div className="space-y-4">
@@ -220,6 +231,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                         event={event}
                         clientId={clientId}
                         showDebug={showDebug}
+                        onEdit={setEditingEvent}
                       />
                     ))}
                   </div>
@@ -244,6 +256,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                         clientId={clientId}
                         showDebug={showDebug}
                         onDrop={handleDrop}
+                        onEdit={setEditingEvent}
                       />
                     ))}
                   </Accordion>
@@ -253,6 +266,10 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
           </div>
         )}
       </CardContent>
+
+      {/* Dialogs */}
+      <AddEntryDialog open={showAddDialog} onOpenChange={setShowAddDialog} clientId={clientId} />
+      <EditEntryDialog open={!!editingEvent} onOpenChange={(open) => { if (!open) setEditingEvent(null); }} event={editingEvent} clientId={clientId} />
     </Card>
   );
 }

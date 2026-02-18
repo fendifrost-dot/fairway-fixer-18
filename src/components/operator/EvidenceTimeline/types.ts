@@ -18,6 +18,7 @@ export interface EvidenceItemProps {
   clientId: string;
   showDebug?: boolean;
   onDragStart?: (event: TimelineEvent) => void;
+  onEdit?: (event: TimelineEvent) => void;
 }
 
 export interface SourceSectionProps {
@@ -27,6 +28,7 @@ export interface SourceSectionProps {
   showDebug?: boolean;
   isDropTarget?: boolean;
   onDrop?: (event: TimelineEvent, toSource: EventSource) => void;
+  onEdit?: (event: TimelineEvent) => void;
 }
 
 export interface EvidenceTimelineProps {

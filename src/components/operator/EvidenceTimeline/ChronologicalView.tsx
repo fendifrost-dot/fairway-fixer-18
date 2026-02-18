@@ -13,9 +13,10 @@ interface ChronologicalViewProps {
   events: TimelineEvent[];
   clientId: string;
   showDebug?: boolean;
+  onEdit?: (event: TimelineEvent) => void;
 }
 
-export function ChronologicalView({ events, clientId, showDebug = false }: ChronologicalViewProps) {
+export function ChronologicalView({ events, clientId, showDebug = false, onEdit }: ChronologicalViewProps) {
   // Sort and group by date
   const groupedEvents = useMemo(() => {
     // Sort events: known dates oldest→newest, null dates at bottom
@@ -70,6 +71,7 @@ export function ChronologicalView({ events, clientId, showDebug = false }: Chron
                 event={event} 
                 clientId={clientId}
                 showDebug={showDebug}
+                onEdit={onEdit}
               />
             ))}
           </div>

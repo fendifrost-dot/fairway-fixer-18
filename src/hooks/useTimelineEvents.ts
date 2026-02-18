@@ -121,6 +121,33 @@ export function useBulkCreateTimelineEvents() {
   });
 }
 
+export function useUpdateTimelineEvent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, clientId, updates }: { 
+      id: string; 
+      clientId: string; 
+      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind'>>
+    }) => {
+      const { error } = await supabase
+        .from('timeline_events')
+        .update(updates)
+        .eq('id', id);
+      
+      if (error) throw error;
+      return { clientId };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['timeline-events', result.clientId] });
+      toast.success('Event updated');
+    },
+    onError: (error) => {
+      toast.error('Failed to update event: ' + error.message);
+    },
+  });
+}
+
 export function useDeleteTimelineEvent() {
   const queryClient = useQueryClient();
   

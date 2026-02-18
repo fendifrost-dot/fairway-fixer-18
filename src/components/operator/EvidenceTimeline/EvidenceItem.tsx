@@ -1,7 +1,7 @@
 /**
  * Evidence Item Component
  * 
- * Single timeline event with debug placement info and drag handle.
+ * Single timeline event with debug placement info, drag handle, edit, delete, raw_line expansion.
  */
 
 import { useMemo, useState } from 'react';
@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical } from 'lucide-react';
+import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical, Pencil, Copy, Eye, EyeOff } from 'lucide-react';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { ALL_EVIDENCE_SOURCES, TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
 import { EvidenceItemProps, EvidenceCategory, PlacementDebug } from './types';
+import { toast } from 'sonner';
 
 const categoryConfig: Record<EvidenceCategory, { 
   icon: React.ComponentType<{ className?: string }>; 
@@ -33,7 +34,6 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
   const kind = event.category.toLowerCase();
   const date = event.event_date || 'unknown';
   
-  // Determine which group this source belongs to
   let groupName = 'Unknown';
   const sourceUpper = event.source?.toUpperCase() || '';
   if (['EXPERIAN', 'TRANSUNION', 'EQUIFAX'].includes(sourceUpper)) {
@@ -49,8 +49,9 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
   return { source, kind, date, placedIn };
 }
 
-export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }: EvidenceItemProps) {
+export function EvidenceItem({ event, clientId, showDebug = false, onDragStart, onEdit }: EvidenceItemProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showRawLine, setShowRawLine] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const createCorrection = useCreateSourceCorrection();
   
@@ -94,10 +95,17 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
       notes: 'manual correction',
     });
   };
+
+  const handleCopyRawLine = () => {
+    if (event.raw_line) {
+      navigator.clipboard.writeText(event.raw_line);
+      toast.success('Raw text copied');
+    }
+  };
   
   return (
     <div className="flex gap-2 group border-l-2 border-transparent hover:border-primary/30 pl-1">
-      {/* Drag handle - ALWAYS VISIBLE */}
+      {/* Drag handle */}
       <div 
         className="flex-shrink-0 cursor-grab active:cursor-grabbing bg-muted/50 rounded px-0.5 hover:bg-muted"
         draggable
@@ -125,7 +133,7 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
                   {isDateUnknown ? 'Date unknown' : format(parseISO(event.event_date!), 'MMM d, yyyy')}
                 </span>
 
-                {/* Manual operator override (does not depend on drag-and-drop) */}
+                {/* Source selector */}
                 <Select
                   value={selectValue}
                   onValueChange={(value) => handleManualAssignSource(value as EventSource)}
@@ -145,7 +153,38 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
               <p className="font-medium mt-1 text-sm">{event.title}</p>
               <p className="text-sm text-muted-foreground">{event.summary}</p>
               
-              {/* Debug placement line - shows id, source, summary, raw_line, category, event_kind */}
+              {/* Raw line toggle */}
+              {event.raw_line && (
+                <div className="mt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1 text-xs text-muted-foreground gap-1"
+                    onClick={() => setShowRawLine(!showRawLine)}
+                  >
+                    {showRawLine ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    {showRawLine ? 'Hide raw text' : 'Show raw text'}
+                  </Button>
+                  {showRawLine && (
+                    <div className="mt-1 relative">
+                      <pre className="text-xs font-mono bg-muted p-2 rounded whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+                        {event.raw_line}
+                      </pre>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-1 right-1 h-5 w-5 p-0"
+                        onClick={handleCopyRawLine}
+                        title="Copy raw text"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Debug placement line */}
               {showDebug && (
                 <div className="text-[10px] font-mono bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-1 rounded mt-1 border border-yellow-300 dark:border-yellow-700">
                   <div className="text-yellow-800 dark:text-yellow-200">
@@ -173,6 +212,18 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart }
             </div>
             
             <div className="flex items-center gap-1">
+              {/* Edit button */}
+              {onEdit && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onEdit(event)}
+                  title="Edit entry"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
               {hasExpandableContent && (
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0">

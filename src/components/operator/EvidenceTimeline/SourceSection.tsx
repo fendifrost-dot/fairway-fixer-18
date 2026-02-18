@@ -18,7 +18,8 @@ export function SourceSection({
   clientId, 
   showDebug = false,
   isDropTarget = false,
-  onDrop 
+  onDrop,
+  onEdit,
 }: SourceSectionProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   
@@ -154,6 +155,7 @@ export function SourceSection({
                     event={event} 
                     clientId={clientId}
                     showDebug={showDebug}
+                    onEdit={onEdit}
                   />
                 ))}
               </div>
@@ -170,6 +172,7 @@ export function SourceSection({
                       event={event} 
                       clientId={clientId}
                       showDebug={showDebug}
+                      onEdit={onEdit}
                     />
                   ))}
                 </div>

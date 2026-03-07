@@ -100,19 +100,19 @@ export default function Clients() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Users className="h-8 w-8 text-accent" />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2 sm:gap-3">
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-accent" />
             Clients
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Credit file operator console
           </p>
         </div>
         <Button 
           onClick={() => setAddClientOpen(true)}
-          className="bg-accent hover:bg-accent/90 text-accent-foreground"
+          className="bg-accent hover:bg-accent/90 text-accent-foreground w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Client

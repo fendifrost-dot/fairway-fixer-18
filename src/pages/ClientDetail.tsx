@@ -83,10 +83,21 @@ export default function ClientDetail() {
           </Link>
         </Button>
         
-        <Button onClick={handleGeneratePDF} variant="outline" size="sm">
-          <FileDown className="h-4 w-4 mr-1" />
-          Generate Client Status Report (PDF)
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleGeneratePDF} variant="outline" size="sm">
+            <FileDown className="h-4 w-4 mr-1" />
+            Generate PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Delete Client
+          </Button>
+        </div>
       </div>
 
       {/* Client Header */}

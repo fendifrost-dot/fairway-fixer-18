@@ -73,58 +73,58 @@ export default function ClientDetail() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/clients">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
-          </Link>
-        </Button>
-        
-        <div className="flex items-center gap-2">
-          <Button onClick={handleGeneratePDF} variant="outline" size="sm">
-            <FileDown className="h-4 w-4 mr-1" />
-            Generate PDF
+    <>
+      <div className="space-y-6 animate-fade-in">
+        {/* Navigation */}
+        <div className="flex items-center justify-between">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/clients">
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Link>
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Delete Client
-          </Button>
+          
+          <div className="flex items-center gap-2">
+            <Button onClick={handleGeneratePDF} variant="outline" size="sm">
+              <FileDown className="h-4 w-4 mr-1" />
+              Generate PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete Client
+            </Button>
+          </div>
+        </div>
+
+        {/* Client Header */}
+        <ClientHeader client={client} />
+
+        {/* ChatGPT Import */}
+        <ChatGPTImport clientId={clientId!} onImportComplete={handleImportComplete} />
+
+        {/* Main Content Grid */}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left Column - Evidence Timeline + Notes */}
+          <div className="lg:col-span-2 space-y-6">
+            <EvidenceTimeline events={events} clientId={clientId!} />
+            <BaselinePanel clientId={clientId!} />
+            <NotesSection clientId={clientId!} />
+          </div>
+          
+          {/* Right sidebar - Unresolved State + Scheduled Events + Drafts */}
+          <div className="space-y-6">
+            {unresolvedItems.length > 0 && (
+              <UnresolvedStatePanel items={unresolvedItems} />
+            )}
+            <ScheduledEvents tasks={tasks} clientId={clientId!} timelineEvents={events} />
+          </div>
         </div>
       </div>
-
-      {/* Client Header */}
-      <ClientHeader client={client} />
-
-      {/* ChatGPT Import */}
-      <ChatGPTImport clientId={clientId!} onImportComplete={handleImportComplete} />
-
-      {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left Column - Evidence Timeline + Notes */}
-        <div className="lg:col-span-2 space-y-6">
-          <EvidenceTimeline events={events} clientId={clientId!} />
-          <BaselinePanel clientId={clientId!} />
-          <NotesSection clientId={clientId!} />
-        </div>
-        
-        {/* Right sidebar - Unresolved State + Scheduled Events + Drafts */}
-        <div className="space-y-6">
-          {unresolvedItems.length > 0 && (
-            <UnresolvedStatePanel items={unresolvedItems} />
-          )}
-          <ScheduledEvents tasks={tasks} clientId={clientId!} timelineEvents={events} />
-          {/* Drafts panel removed - not part of this workflow */}
-        </div>
-      </div>
-    </div>
 
       <DeleteClientDialog
         open={deleteDialogOpen}
@@ -132,6 +132,6 @@ export default function ClientDetail() {
         clientId={clientId!}
         clientName={client.legal_name}
       />
-    </div>
+    </>
   );
 }

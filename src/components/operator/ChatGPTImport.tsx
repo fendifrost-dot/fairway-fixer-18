@@ -46,6 +46,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
      event_date: string | null;
    } | null>(null);
    const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
+   const [aiUnroutedLines, setAiUnroutedLines] = useState<string[]>([]);
    const [aiProcessing, setAiProcessing] = useState(false);
   
   const createEvents = useBulkCreateTimelineEvents();
@@ -97,6 +98,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
        }));
 
        setAiSuggestions(suggestions);
+       setAiUnroutedLines(unroutedLines);
        toast.info(`AI found ${suggestions.length} potential events — review below`);
      } catch (e) {
        toast.error('AI parsing failed: ' + (e as Error).message);
@@ -515,7 +517,8 @@ SUGGESTED NEXT ACTIONS:
           <AIReviewPanel
             suggestions={aiSuggestions}
             clientId={clientId}
-            onDone={() => setAiSuggestions(null)}
+            allUnroutedLines={aiUnroutedLines}
+            onDone={() => { setAiSuggestions(null); setAiUnroutedLines([]); }}
           />
         )}
       </CardContent>

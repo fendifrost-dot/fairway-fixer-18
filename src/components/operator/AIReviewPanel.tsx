@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Check, X, Loader2, Brain, CalendarIcon, AlertTriangle } from 'lucide-react';
+import { Check, X, Loader2, Brain, CalendarIcon, AlertTriangle, Eye, Copy } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -263,9 +264,46 @@ export function AIReviewPanel({ suggestions, clientId, onDone }: AIReviewPanelPr
               />
 
               {/* Original line (read-only, forensic) */}
-              <p className="text-xs text-muted-foreground font-mono truncate" title={item.original_line}>
-                raw: {item.original_line}
-              </p>
+              <div className="flex items-center gap-1">
+                <p className="text-xs text-muted-foreground font-mono truncate flex-1" title={item.original_line}>
+                  raw: {item.original_line || '(empty)'}
+                </p>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-5 px-1.5 text-xs gap-1 text-muted-foreground shrink-0">
+                      <Eye className="h-3 w-3" /> View full raw line
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-sm">Original Raw Line</DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Preserved exactly as entered. Read-only.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {item.original_line ? (
+                      <div className="relative">
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted p-3 rounded-md border max-h-64 overflow-auto select-text">
+                          {item.original_line}
+                        </pre>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="absolute top-2 right-2 h-6 text-xs gap-1"
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.original_line);
+                            toast.success('Raw line copied');
+                          }}
+                        >
+                          <Copy className="h-3 w-3" /> Copy
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">No raw line available for this suggestion.</p>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              </div>
 
               {/* Actions */}
               {item.accepted === null && (

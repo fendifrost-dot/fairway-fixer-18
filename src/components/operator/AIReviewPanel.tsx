@@ -284,7 +284,7 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
                       </DialogDescription>
                     </DialogHeader>
                     {item.original_line ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex justify-end">
                           <Button
                             variant="outline"
@@ -301,6 +301,23 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
                         <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted p-3 rounded-md border max-h-64 overflow-auto select-text">
                           {item.original_line}
                         </pre>
+
+                        {/* Show surrounding context so operator can verify AI's bureau inference */}
+                        {allUnroutedLines && allUnroutedLines.length > 1 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                              Full context sent to AI ({allUnroutedLines.length} lines):
+                            </p>
+                            <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-md border max-h-48 overflow-auto select-text">
+                              {allUnroutedLines.map((line, li) => {
+                                const isCurrentLine = li === item.line_index - 1;
+                                return isCurrentLine
+                                  ? `► ${li + 1}. ${line}`
+                                  : `  ${li + 1}. ${line}`;
+                              }).join('\n')}
+                            </pre>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">No raw line available for this suggestion.</p>

@@ -50,7 +50,7 @@ const confidenceColor: Record<string, string> = {
   low: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-export function AIReviewPanel({ suggestions, clientId, onDone }: AIReviewPanelProps) {
+export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone }: AIReviewPanelProps) {
   const [items, setItems] = useState<(AISuggestion & { accepted: boolean | null })[]>(
     suggestions.map((s) => ({ ...s, accepted: null }))
   );

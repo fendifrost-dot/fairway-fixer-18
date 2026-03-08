@@ -41,7 +41,7 @@ describe('DeleteClientDialog logic', () => {
   });
 
   it('blocks elevated step if wrong text', () => {
-    const elevatedText = 'DELETE LITIGATION';
+    const elevatedText = 'DELETE LITIGATION' as string;
     const canExecute = elevatedText === 'DELETE LITIGATION DATA';
     expect(canExecute).toBe(false);
   });

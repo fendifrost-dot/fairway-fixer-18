@@ -218,7 +218,6 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
                 <Select
                   value={item.source}
                   onValueChange={(v) => updateItem(idx, { source: v })}
-                  disabled={item.accepted === true}
                 >
                   <SelectTrigger className="w-[130px] h-7 text-xs">
                     <SelectValue />

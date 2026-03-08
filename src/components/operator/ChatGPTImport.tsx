@@ -166,6 +166,11 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
       // Notify parent of import completion (for unresolved items, drafts, notes)
       onImportComplete?.(parsed);
       
+      // Auto-process unrouted lines through AI
+      if (parsed.unrouted_lines.length > 0) {
+        autoProcessUnrouted(parsed.unrouted_lines);
+      }
+      
       // Clear input on success with no unrouted lines
       if (parsed.errors.length === 0 && parsed.unrouted_lines.length === 0) {
         setInput('');

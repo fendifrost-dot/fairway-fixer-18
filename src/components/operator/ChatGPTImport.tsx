@@ -517,7 +517,8 @@ SUGGESTED NEXT ACTIONS:
           <AIReviewPanel
             suggestions={aiSuggestions}
             clientId={clientId}
-            onDone={() => setAiSuggestions(null)}
+            allUnroutedLines={aiUnroutedLines}
+            onDone={() => { setAiSuggestions(null); setAiUnroutedLines([]); }}
           />
         )}
       </CardContent>

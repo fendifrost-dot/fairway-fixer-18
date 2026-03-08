@@ -180,6 +180,15 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
     
      const trimmed = input.trim();
      
+     // JSON array detection — bypass parser entirely
+     const jsonEvents = parseJsonImportArray(trimmed);
+     if (jsonEvents !== null) {
+       const validation = validateJsonImportBatch(jsonEvents);
+       setJsonValidation(validation);
+       setResult(null);
+       return;
+     }
+     
      const mode = selectImportMode(trimmed);
      
      if (mode === 'smart') {
@@ -187,7 +196,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
        return;
      }
      
-     // mode === 'json' or 'structured' → parseUpdate path
+     // mode === 'json' (non-array) or 'structured' → parseUpdate path
     
     const parsed = parseUpdate(input, clientId);
     

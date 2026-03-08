@@ -163,6 +163,13 @@ export default function Clients() {
                     </DropdownMenuItem>
                     <DropdownMenuItem>Edit Client</DropdownMenuItem>
                     <DropdownMenuItem>Add Note</DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeleteTarget({ id: client.id, name: client.legal_name })}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Client
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

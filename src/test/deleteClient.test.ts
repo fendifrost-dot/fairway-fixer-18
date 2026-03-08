@@ -16,7 +16,7 @@ describe('DeleteClientDialog logic', () => {
   });
 
   it('blocks if DELETE not typed', () => {
-    const confirmText = 'delete'; // case-sensitive
+    const confirmText = 'delete' as string; // case-sensitive
     const understood = true;
     const canProceed = confirmText === 'DELETE' && understood;
     expect(canProceed).toBe(false);

@@ -15,7 +15,7 @@ import { parseUpdate, ParseResult } from '@/lib/parser';
 import { getFormatExample, getFormatSummary } from '@/lib/parser/formatExample';
 import { useBulkCreateTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useBulkCreateOperatorTasks } from '@/hooks/useOperatorTasks';
-import { ClipboardPaste, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, Info } from 'lucide-react';
+import { ClipboardPaste, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, Info, Brain } from 'lucide-react';
 import { toast } from 'sonner';
 import { TimelineEventParsed, ScheduledEvent, UnresolvedItem, DraftItem, NoteFlag } from '@/types/parser';
 import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';

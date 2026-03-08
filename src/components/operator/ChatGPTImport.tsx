@@ -52,7 +52,58 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
   const createTasks = useBulkCreateOperatorTasks();
   
    const isLoading = createEvents.isPending || createTasks.isPending;
-   
+
+   // Auto-process unrouted lines through AI
+   const autoProcessUnrouted = useCallback(async (unroutedLines: string[]) => {
+     if (unroutedLines.length === 0) return;
+     setAiProcessing(true);
+     try {
+       // Client-side PII masking (defense-in-depth: server also masks)
+       const { maskedLines } = maskPIIBatch(unroutedLines);
+
+       const { data, error } = await supabase.functions.invoke('parse-with-ai', {
+         body: { lines: maskedLines },
+       });
+
+       if (error) {
+         toast.error('AI parsing failed: ' + error.message);
+         return;
+       }
+
+       if (data?.error) {
+         toast.error('AI parsing error: ' + data.error);
+         return;
+       }
+
+       const events = (data?.events || []) as Array<{
+         line_index: number;
+         event_kind: 'action' | 'response' | 'outcome';
+         category: EventCategory;
+         source: string;
+         event_date: string | null;
+         summary: string;
+         confidence: 'high' | 'medium' | 'low';
+       }>;
+
+       if (events.length === 0) {
+         toast.info('AI found no parseable events in unrouted lines');
+         return;
+       }
+
+       // Map AI results to suggestions, preserving ORIGINAL lines (not masked)
+       const suggestions: AISuggestion[] = events.map((e) => ({
+         ...e,
+         original_line: unroutedLines[e.line_index - 1] || maskedLines[e.line_index - 1] || '',
+       }));
+
+       setAiSuggestions(suggestions);
+       toast.info(`AI found ${suggestions.length} potential events — review below`);
+     } catch (e) {
+       toast.error('AI parsing failed: ' + (e as Error).message);
+     } finally {
+       setAiProcessing(false);
+     }
+   }, []);
    // Handle input change - detect Smart Import mode
    const handleInputChange = (value: string) => {
      setInput(value);

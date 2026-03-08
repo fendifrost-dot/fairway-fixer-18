@@ -140,6 +140,7 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   BBB: 'BBB',
   AG: 'Attorney General',
   FTC: 'FTC',
+  Creditor: 'Creditor / Furnisher',
   Other: 'Other',
 };
 

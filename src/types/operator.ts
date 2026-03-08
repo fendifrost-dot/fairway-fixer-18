@@ -115,6 +115,7 @@ export const ALL_EVIDENCE_SOURCES: EventSource[] = [
   ...CRA_SOURCES,
   ...DATA_BROKER_SOURCES,
   ...REGULATORY_SOURCES,
+  ...DIRECT_SOURCES,
 ];
 
 // All sources including Other

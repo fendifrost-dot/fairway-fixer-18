@@ -95,9 +95,10 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
     
     switch (currentSection) {
       case 'none': {
-        // No section header seen yet - route to unrouted if it looks like data
-        if (cleanLine.includes('|') && cleanLine.length > 5) {
-          result.unrouted_lines.push(`Line ${lineNumber}: ${cleanLine.substring(0, 80)}${cleanLine.length > 80 ? '...' : ''}`);
+        // No section header seen yet — route ALL non-trivial lines to unrouted
+        // so they can be processed by AI fallback layer
+        if (cleanLine.length > 5) {
+          result.unrouted_lines.push(cleanLine);
           result.notes_flags.push(createUnroutedWarning(lineNumber, cleanLine));
           result.counts.unrouted++;
         }

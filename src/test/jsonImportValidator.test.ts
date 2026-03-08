@@ -111,6 +111,14 @@ describe('validateJsonImportBatch', () => {
     const result = validateJsonImportBatch([makeValidEvent()]);
     expect(result.rows[0].validated!.is_draft).toBe(false);
   });
+
+  it('preserves note event_kind without remapping (regression: DB constraint now allows note)', () => {
+    const result = validateJsonImportBatch([makeValidEvent({ category: 'Note', event_kind: 'note' })]);
+    expect(result.validCount).toBe(1);
+    expect(result.rows[0].validated!.event_kind).toBe('note');
+    expect(result.rows[0].validated!.category).toBe('Note');
+    expect(result.rows[0].validated!.is_draft).toBe(false);
+  });
 });
 
 describe('mapValidatedToDb', () => {

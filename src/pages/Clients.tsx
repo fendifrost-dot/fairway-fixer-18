@@ -20,6 +20,7 @@ export default function Clients() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [addClientOpen, setAddClientOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const { data: clients, isLoading, refetch } = useClients();
 
   const filteredClients = clients?.filter(client =>

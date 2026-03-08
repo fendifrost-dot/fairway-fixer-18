@@ -167,10 +167,35 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          <AlertTriangle className="h-3 w-3 inline mr-1" />
-          AI output is never committed automatically. Review each suggestion, edit if needed, then approve or reject.
-        </p>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            <AlertTriangle className="h-3 w-3 inline mr-1" />
+            AI output is never committed automatically. Review each suggestion, edit if needed, then approve or reject.
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs text-muted-foreground">Change all sources:</span>
+            <Select
+              onValueChange={(v) => {
+                setItems((prev) =>
+                  prev.map((item) =>
+                    item.accepted !== true ? { ...item, source: v } : item
+                  )
+                );
+                toast.success(`All pending suggestions updated to ${v}`);
+              }}
+            >
+              <SelectTrigger className="w-[140px] h-7 text-xs">
+                <SelectValue placeholder="Bulk change…" />
+              </SelectTrigger>
+              <SelectContent>
+                {getAllSources().map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {items.map((item, idx) => {
           if (item.accepted === false) return null; // hide rejected

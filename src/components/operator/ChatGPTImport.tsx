@@ -46,6 +46,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
      event_date: string | null;
    } | null>(null);
    const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
+   const [aiUnroutedLines, setAiUnroutedLines] = useState<string[]>([]);
    const [aiProcessing, setAiProcessing] = useState(false);
   
   const createEvents = useBulkCreateTimelineEvents();

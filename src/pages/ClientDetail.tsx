@@ -125,5 +125,13 @@ export default function ClientDetail() {
         </div>
       </div>
     </div>
+
+      <DeleteClientDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        clientId={clientId!}
+        clientName={client.legal_name}
+      />
+    </div>
   );
 }

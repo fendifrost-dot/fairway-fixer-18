@@ -236,6 +236,15 @@ export default function Clients() {
         onOpenChange={setAddClientOpen}
         onSuccess={() => refetch()}
       />
+
+      {deleteTarget && (
+        <DeleteClientDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => !v && setDeleteTarget(null)}
+          clientId={deleteTarget.id}
+          clientName={deleteTarget.name}
+        />
+      )}
     </div>
   );
 }

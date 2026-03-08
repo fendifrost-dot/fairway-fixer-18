@@ -178,7 +178,7 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
               onValueChange={(v) => {
                 setItems((prev) =>
                   prev.map((item) =>
-                    item.accepted !== true ? { ...item, source: v } : item
+                    item.accepted !== false ? { ...item, source: v } : item
                   )
                 );
                 toast.success(`All pending suggestions updated to ${v}`);
@@ -218,7 +218,6 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
                 <Select
                   value={item.source}
                   onValueChange={(v) => updateItem(idx, { source: v })}
-                  disabled={item.accepted === true}
                 >
                   <SelectTrigger className="w-[130px] h-7 text-xs">
                     <SelectValue />

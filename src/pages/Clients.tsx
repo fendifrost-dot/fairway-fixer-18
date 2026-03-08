@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/hooks/useClients';
 import { AddClientDialog } from '@/components/clients/AddClientDialog';
-import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2 } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2, Trash2 } from 'lucide-react';
+import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {

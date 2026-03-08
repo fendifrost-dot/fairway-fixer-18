@@ -500,6 +500,24 @@ SUGGESTED NEXT ACTIONS:
             </AlertDescription>
           </Alert>
         )}
+
+        {/* AI Processing indicator */}
+        {aiProcessing && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+            <Brain className="h-4 w-4 animate-pulse text-accent" />
+            <span>AI is analyzing unrouted lines...</span>
+            <Loader2 className="h-3 w-3 animate-spin" />
+          </div>
+        )}
+
+        {/* AI Review Panel */}
+        {aiSuggestions && aiSuggestions.length > 0 && (
+          <AIReviewPanel
+            suggestions={aiSuggestions}
+            clientId={clientId}
+            onDone={() => setAiSuggestions(null)}
+          />
+        )}
       </CardContent>
     </Card>
   );

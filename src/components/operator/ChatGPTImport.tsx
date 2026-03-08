@@ -98,6 +98,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
        }));
 
        setAiSuggestions(suggestions);
+       setAiUnroutedLines(unroutedLines);
        toast.info(`AI found ${suggestions.length} potential events — review below`);
      } catch (e) {
        toast.error('AI parsing failed: ' + (e as Error).message);

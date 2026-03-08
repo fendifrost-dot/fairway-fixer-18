@@ -303,6 +303,42 @@ export type Database = {
           },
         ]
       }
+      deletion_audit_log: {
+        Row: {
+          deleted_at: string
+          deleted_by_user_id: string
+          deleted_client_id: string
+          deletion_mode: string
+          event_count: number
+          export_created: boolean
+          id: string
+          matter_count: number
+          reason: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by_user_id: string
+          deleted_client_id: string
+          deletion_mode?: string
+          event_count?: number
+          export_created?: boolean
+          id?: string
+          matter_count?: number
+          reason?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by_user_id?: string
+          deleted_client_id?: string
+          deletion_mode?: string
+          event_count?: number
+          export_created?: boolean
+          id?: string
+          matter_count?: number
+          reason?: string | null
+        }
+        Relationships: []
+      }
       entity_cases: {
         Row: {
           created_at: string
@@ -875,6 +911,15 @@ export type Database = {
           _intake_source: string
           _legal_name: string
           _matter_type: Database["public"]["Enums"]["matter_type"]
+        }
+        Returns: Json
+      }
+      delete_client_cascade: {
+        Args: {
+          _client_id: string
+          _elevated_confirm?: boolean
+          _export_created?: boolean
+          _reason?: string
         }
         Returns: Json
       }

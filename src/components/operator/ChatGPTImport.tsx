@@ -515,6 +515,16 @@ SUGGESTED NEXT ACTIONS:
           </Alert>
         )}
 
+        {/* JSON Import Review Panel */}
+        {jsonValidation && (
+          <JsonImportReview
+            validation={jsonValidation}
+            clientId={clientId}
+            onDone={() => { setJsonValidation(null); setInput(''); }}
+            onCancel={() => setJsonValidation(null)}
+          />
+        )}
+
         {/* AI Processing indicator */}
         {aiProcessing && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">

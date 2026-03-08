@@ -30,6 +30,8 @@ import { selectImportMode, mapTimelineEventToDb } from '@/lib/importRouting';
 import { maskPIIBatch } from '@/lib/piiMasker';
 import { AIReviewPanel, AISuggestion } from '@/components/operator/AIReviewPanel';
 import { supabase } from '@/integrations/supabase/client';
+import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
+import { JsonImportReview } from '@/components/operator/JsonImportReview';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -48,6 +50,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
    const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
    const [aiUnroutedLines, setAiUnroutedLines] = useState<string[]>([]);
    const [aiProcessing, setAiProcessing] = useState(false);
+   const [jsonValidation, setJsonValidation] = useState<JsonValidationResult | null>(null);
   
   const createEvents = useBulkCreateTimelineEvents();
   const createTasks = useBulkCreateOperatorTasks();
@@ -177,6 +180,15 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
     
      const trimmed = input.trim();
      
+     // JSON array detection — bypass parser entirely
+     const jsonEvents = parseJsonImportArray(trimmed);
+     if (jsonEvents !== null) {
+       const validation = validateJsonImportBatch(jsonEvents);
+       setJsonValidation(validation);
+       setResult(null);
+       return;
+     }
+     
      const mode = selectImportMode(trimmed);
      
      if (mode === 'smart') {
@@ -184,7 +196,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
        return;
      }
      
-     // mode === 'json' or 'structured' → parseUpdate path
+     // mode === 'json' (non-array) or 'structured' → parseUpdate path
     
     const parsed = parseUpdate(input, clientId);
     
@@ -386,7 +398,7 @@ SUGGESTED NEXT ACTIONS:
         <div className="flex items-center justify-between gap-2">
           <Button 
             onClick={handleImport} 
-            disabled={!input.trim() || isLoading || !!smartPreview}
+            disabled={!input.trim() || isLoading || !!smartPreview || !!jsonValidation}
             size="sm"
           >
             {isLoading ? (
@@ -501,6 +513,16 @@ SUGGESTED NEXT ACTIONS:
               </ul>
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* JSON Import Review Panel */}
+        {jsonValidation && (
+          <JsonImportReview
+            validation={jsonValidation}
+            clientId={clientId}
+            onDone={() => { setJsonValidation(null); setInput(''); }}
+            onCancel={() => setJsonValidation(null)}
+          />
         )}
 
         {/* AI Processing indicator */}

@@ -50,6 +50,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
    const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
    const [aiUnroutedLines, setAiUnroutedLines] = useState<string[]>([]);
    const [aiProcessing, setAiProcessing] = useState(false);
+   const [jsonValidation, setJsonValidation] = useState<JsonValidationResult | null>(null);
   
   const createEvents = useBulkCreateTimelineEvents();
   const createTasks = useBulkCreateOperatorTasks();

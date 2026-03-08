@@ -16,6 +16,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Check, X, Loader2, Brain, CalendarIcon, AlertTriangle } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { useBulkCreateTimelineEvents } from '@/hooks/useTimelineEvents';
 import { getAllSources } from '@/lib/smartImport';
 import { EventSource, EventCategory } from '@/types/operator';

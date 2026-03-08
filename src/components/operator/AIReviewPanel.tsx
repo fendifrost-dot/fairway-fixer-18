@@ -282,21 +282,23 @@ export function AIReviewPanel({ suggestions, clientId, onDone }: AIReviewPanelPr
                       </DialogDescription>
                     </DialogHeader>
                     {item.original_line ? (
-                      <div className="relative">
+                      <div className="space-y-2">
+                        <div className="flex justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-xs gap-1"
+                            onClick={() => {
+                              navigator.clipboard.writeText(item.original_line);
+                              toast.success('Raw line copied');
+                            }}
+                          >
+                            <Copy className="h-3 w-3" /> Copy
+                          </Button>
+                        </div>
                         <pre className="text-xs font-mono whitespace-pre-wrap break-words bg-muted p-3 rounded-md border max-h-64 overflow-auto select-text">
                           {item.original_line}
                         </pre>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="absolute top-2 right-2 h-6 text-xs gap-1"
-                          onClick={() => {
-                            navigator.clipboard.writeText(item.original_line);
-                            toast.success('Raw line copied');
-                          }}
-                        >
-                          <Copy className="h-3 w-3" /> Copy
-                        </Button>
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">No raw line available for this suggestion.</p>

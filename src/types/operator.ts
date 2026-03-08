@@ -87,6 +87,9 @@ export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sag
 // Regulatory (4 sources in DB)  
 export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG', 'FTC'];
 
+// Direct Dispute Targets (creditors, furnishers, collectors, lenders, servicers)
+export const DIRECT_SOURCES: EventSource[] = ['Creditor'];
+
 // Fixed accordion structure - ALWAYS rendered
 export const SOURCE_ACCORDION_STRUCTURE = [
   {

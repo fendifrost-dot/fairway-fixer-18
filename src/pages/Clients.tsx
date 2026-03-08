@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/hooks/useClients';
 import { AddClientDialog } from '@/components/clients/AddClientDialog';
-import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2 } from 'lucide-react';
+import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2, Trash2 } from 'lucide-react';
+import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
@@ -19,6 +20,7 @@ export default function Clients() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [addClientOpen, setAddClientOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const { data: clients, isLoading, refetch } = useClients();
 
   const filteredClients = clients?.filter(client =>
@@ -161,6 +163,13 @@ export default function Clients() {
                     </DropdownMenuItem>
                     <DropdownMenuItem>Edit Client</DropdownMenuItem>
                     <DropdownMenuItem>Add Note</DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeleteTarget({ id: client.id, name: client.legal_name })}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Client
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -227,6 +236,15 @@ export default function Clients() {
         onOpenChange={setAddClientOpen}
         onSuccess={() => refetch()}
       />
+
+      {deleteTarget && (
+        <DeleteClientDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => !v && setDeleteTarget(null)}
+          clientId={deleteTarget.id}
+          clientName={deleteTarget.name}
+        />
+      )}
     </div>
   );
 }

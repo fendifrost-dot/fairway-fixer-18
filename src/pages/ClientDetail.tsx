@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { DbClient } from '@/types/database';
-import { ArrowLeft, Loader2, FileDown } from 'lucide-react';
+import { ArrowLeft, Loader2, FileDown, Trash2 } from 'lucide-react';
 import { ClientHeader } from '@/components/operator/ClientHeader';
 import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
 import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline/index';
@@ -13,6 +13,7 @@ import { NotesSection } from '@/components/operator/NotesSection';
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents/index';
 import { UnresolvedStatePanel } from '@/components/operator/UnresolvedStatePanel';
 import { BaselinePanel } from '@/components/baseline/BaselinePanel';
+import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
 import { downloadPDF } from '@/lib/pdfExport';
@@ -21,6 +22,7 @@ import { ParseResult, UnresolvedItem } from '@/types/parser';
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
   const [unresolvedItems, setUnresolvedItems] = useState<UnresolvedItem[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ['client', clientId],

@@ -104,6 +104,10 @@ export const SOURCE_ACCORDION_STRUCTURE = [
     group: 'Regulatory',
     sources: REGULATORY_SOURCES,
   },
+  {
+    group: 'Direct Disputes',
+    sources: DIRECT_SOURCES,
+  },
 ] as const;
 
 // All valid evidence sources (excludes 'Other' for placement)

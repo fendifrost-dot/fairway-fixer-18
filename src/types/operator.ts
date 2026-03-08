@@ -10,6 +10,7 @@ export type EventSource =
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
   | 'ChexSystems' | 'EWS' | 'NCTUE'
   | 'CFPB' | 'BBB' | 'AG' | 'FTC'
+  | 'Creditor'
   | 'Other';
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';

@@ -16,6 +16,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Check, X, Loader2, Brain, CalendarIcon, AlertTriangle } from 'lucide-react';
 import { format, parse } from 'date-fns';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { useBulkCreateTimelineEvents } from '@/hooks/useTimelineEvents';
 import { getAllSources } from '@/lib/smartImport';
 import { EventSource, EventCategory } from '@/types/operator';
@@ -87,11 +88,12 @@ export function AIReviewPanel({ suggestions, clientId, onDone }: AIReviewPanelPr
       outcome: 'Outcome',
     };
 
-    const dbEvents = acceptedItems.map((item) => ({
+    // Build candidate events
+    const allCandidates = acceptedItems.map((item) => ({
       client_id: clientId,
       event_date: item.event_date || null,
       date_is_unknown: !item.event_date,
-      category: categoryMap[item.event_kind] || 'Action',
+      category: (categoryMap[item.event_kind] || 'Action') as EventCategory,
       source: (VALID_SOURCES.has(item.source as EventSource) ? item.source : 'Other') as EventSource,
       title: item.event_kind.charAt(0).toUpperCase() + item.event_kind.slice(1),
       summary: item.summary.slice(0, 200),
@@ -104,8 +106,46 @@ export function AIReviewPanel({ suggestions, clientId, onDone }: AIReviewPanelPr
     }));
 
     try {
-      await createEvents.mutateAsync(dbEvents);
-      toast.success(`${acceptedItems.length} AI-suggested events committed`);
+      // DUPLICATE CHECK: fetch existing events for this client, build fingerprint set
+      const { data: existing } = await supabase
+        .from('timeline_events')
+        .select('raw_line, source, event_date, event_kind')
+        .eq('client_id', clientId);
+
+      const existingFingerprints = new Set(
+        (existing || []).map((e) =>
+          `${(e.raw_line || '').trim()}|${e.source || ''}|${e.event_date || ''}|${e.event_kind || ''}`
+        )
+      );
+
+      // Also deduplicate within the batch itself
+      const seenInBatch = new Set<string>();
+      const deduped: typeof allCandidates = [];
+      let skipped = 0;
+
+      for (const evt of allCandidates) {
+        const fp = `${(evt.raw_line || '').trim()}|${evt.source || ''}|${evt.event_date || ''}|${evt.event_kind || ''}`;
+        if (existingFingerprints.has(fp) || seenInBatch.has(fp)) {
+          skipped++;
+        } else {
+          seenInBatch.add(fp);
+          deduped.push(evt);
+        }
+      }
+
+      if (deduped.length === 0) {
+        toast.info(`All ${skipped} suggestions were duplicates — nothing inserted`);
+        onDone();
+        return;
+      }
+
+      await createEvents.mutateAsync(deduped);
+
+      if (skipped > 0) {
+        toast.success(`${deduped.length} events committed, ${skipped} duplicates skipped`);
+      } else {
+        toast.success(`${deduped.length} AI-suggested events committed`);
+      }
       onDone();
     } catch (e) {
       toast.error('Failed to commit: ' + (e as Error).message);

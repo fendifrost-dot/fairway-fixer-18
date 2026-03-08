@@ -993,6 +993,7 @@ export type Database = {
         | "AG"
         | "Other"
         | "FTC"
+        | "Creditor"
       evidence_type:
         | "Report"
         | "Portal"
@@ -1200,6 +1201,7 @@ export const Constants = {
         "AG",
         "Other",
         "FTC",
+        "Creditor",
       ],
       evidence_type: ["Report", "Portal", "Mail", "ClientStatement", "Unknown"],
       matter_state: [

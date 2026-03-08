@@ -71,6 +71,14 @@ describe('validateJsonImportBatch', () => {
     expect(result.validCount).toBe(1);
   });
 
+  it('accepts Creditor as a valid source in JSON import', () => {
+    const result = validateJsonImportBatch([makeValidEvent({ source: 'Creditor' })]);
+    expect(result.validCount).toBe(1);
+    expect(result.rows[0].valid).toBe(true);
+    expect(result.rows[0].warnings.length).toBe(0);
+    expect(result.rows[0].validated!.source).toBe('Creditor');
+  });
+
   it('warns on unknown source and maps to Other', () => {
     const result = validateJsonImportBatch([makeValidEvent({ source: 'UnknownCorp' })]);
     expect(result.rows[0].valid).toBe(true);

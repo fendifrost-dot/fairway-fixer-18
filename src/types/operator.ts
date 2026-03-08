@@ -10,6 +10,7 @@ export type EventSource =
   | 'Innovis' | 'LexisNexis' | 'Sagestream' | 'CoreLogic'
   | 'ChexSystems' | 'EWS' | 'NCTUE'
   | 'CFPB' | 'BBB' | 'AG' | 'FTC'
+  | 'Creditor'
   | 'Other';
 
 export type SimplePriority = 'Low' | 'Medium' | 'High';
@@ -86,6 +87,9 @@ export const DATA_BROKER_SOURCES: EventSource[] = ['Innovis', 'LexisNexis', 'Sag
 // Regulatory (4 sources in DB)  
 export const REGULATORY_SOURCES: EventSource[] = ['CFPB', 'BBB', 'AG', 'FTC'];
 
+// Direct Dispute Targets (creditors, furnishers, collectors, lenders, servicers)
+export const DIRECT_SOURCES: EventSource[] = ['Creditor'];
+
 // Fixed accordion structure - ALWAYS rendered
 export const SOURCE_ACCORDION_STRUCTURE = [
   {
@@ -100,6 +104,10 @@ export const SOURCE_ACCORDION_STRUCTURE = [
     group: 'Regulatory',
     sources: REGULATORY_SOURCES,
   },
+  {
+    group: 'Direct Disputes',
+    sources: DIRECT_SOURCES,
+  },
 ] as const;
 
 // All valid evidence sources (excludes 'Other' for placement)
@@ -107,6 +115,7 @@ export const ALL_EVIDENCE_SOURCES: EventSource[] = [
   ...CRA_SOURCES,
   ...DATA_BROKER_SOURCES,
   ...REGULATORY_SOURCES,
+  ...DIRECT_SOURCES,
 ];
 
 // All sources including Other
@@ -131,6 +140,7 @@ export const SOURCE_DISPLAY_NAMES: Record<EventSource, string> = {
   BBB: 'BBB',
   AG: 'Attorney General',
   FTC: 'FTC',
+  Creditor: 'Creditor / Furnisher',
   Other: 'Other',
 };
 

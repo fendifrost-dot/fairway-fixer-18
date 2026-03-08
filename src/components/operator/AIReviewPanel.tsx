@@ -178,7 +178,7 @@ export function AIReviewPanel({ suggestions, clientId, allUnroutedLines, onDone 
               onValueChange={(v) => {
                 setItems((prev) =>
                   prev.map((item) =>
-                    item.accepted !== true ? { ...item, source: v } : item
+                    item.accepted !== false ? { ...item, source: v } : item
                   )
                 );
                 toast.success(`All pending suggestions updated to ${v}`);

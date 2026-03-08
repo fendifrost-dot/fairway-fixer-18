@@ -45,6 +45,8 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
      event_kind: SmartImportEventKind;
      event_date: string | null;
    } | null>(null);
+   const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
+   const [aiProcessing, setAiProcessing] = useState(false);
   
   const createEvents = useBulkCreateTimelineEvents();
   const createTasks = useBulkCreateOperatorTasks();

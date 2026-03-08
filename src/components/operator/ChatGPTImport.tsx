@@ -30,6 +30,8 @@ import { selectImportMode, mapTimelineEventToDb } from '@/lib/importRouting';
 import { maskPIIBatch } from '@/lib/piiMasker';
 import { AIReviewPanel, AISuggestion } from '@/components/operator/AIReviewPanel';
 import { supabase } from '@/integrations/supabase/client';
+import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
+import { JsonImportReview } from '@/components/operator/JsonImportReview';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;

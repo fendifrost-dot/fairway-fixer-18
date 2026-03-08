@@ -37,6 +37,8 @@ export interface AISuggestion {
 interface AIReviewPanelProps {
   suggestions: AISuggestion[];
   clientId: string;
+  /** Full array of unrouted lines sent to AI — used to show surrounding context */
+  allUnroutedLines?: string[];
   onDone: () => void;
 }
 

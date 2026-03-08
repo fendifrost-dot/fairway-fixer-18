@@ -398,7 +398,7 @@ SUGGESTED NEXT ACTIONS:
         <div className="flex items-center justify-between gap-2">
           <Button 
             onClick={handleImport} 
-            disabled={!input.trim() || isLoading || !!smartPreview}
+            disabled={!input.trim() || isLoading || !!smartPreview || !!jsonValidation}
             size="sm"
           >
             {isLoading ? (

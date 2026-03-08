@@ -11,7 +11,7 @@ export function useTimelineEvents(clientId: string | undefined) {
       if (!clientId) return [];
       
       // Evidence Timeline: ONLY non-draft events with valid event_kind
-      // Enforces: is_draft = false AND event_kind IN ('action','response','outcome')
+      // Enforces: is_draft = false AND event_kind IN ('action','response','outcome','note')
       const { data, error } = await supabase
         .from('timeline_events')
         .select('*')

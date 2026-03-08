@@ -27,6 +27,9 @@ import { EventSource, EventCategory, RelatedAccount } from '@/types/operator';
  import { CalendarIcon } from 'lucide-react';
 
 import { selectImportMode, mapTimelineEventToDb } from '@/lib/importRouting';
+import { maskPIIBatch } from '@/lib/piiMasker';
+import { AIReviewPanel, AISuggestion } from '@/components/operator/AIReviewPanel';
+import { supabase } from '@/integrations/supabase/client';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;

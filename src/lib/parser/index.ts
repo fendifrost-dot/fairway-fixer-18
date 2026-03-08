@@ -158,7 +158,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
         
         const events = parseTimelineEventRow(parts, 'outcome', cleanLine);
         if (events.length === 0) {
-          result.unrouted_lines.push(`Line ${lineNumber}: Missing/invalid source - ${cleanLine.substring(0, 60)}...`);
+          result.unrouted_lines.push(cleanLine);
           result.notes_flags.push(createUnroutedWarning(lineNumber, cleanLine));
           result.counts.unrouted++;
         } else {

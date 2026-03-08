@@ -17,7 +17,7 @@ export function useTimelineEvents(clientId: string | undefined) {
         .select('*')
         .eq('client_id', clientId)
         .eq('is_draft', false)
-        .in('event_kind', ['action', 'response', 'outcome'])
+        .in('event_kind', ['action', 'response', 'outcome', 'note'])
         .order('event_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true });
       

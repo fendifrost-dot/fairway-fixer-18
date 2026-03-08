@@ -1,0 +1,2 @@
+ALTER TABLE timeline_events DROP CONSTRAINT IF EXISTS timeline_events_event_kind_allowed;
+ALTER TABLE timeline_events ADD CONSTRAINT timeline_events_event_kind_allowed CHECK (event_kind IN ('action','response','outcome','note','draft'));

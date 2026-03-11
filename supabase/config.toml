@@ -2,3 +2,6 @@ project_id = "gflvvzkiuleeochqcdeb"
 
 [functions.project-stats]
 verify_jwt = false
+
+[functions.cross-project-api]
+verify_jwt = false

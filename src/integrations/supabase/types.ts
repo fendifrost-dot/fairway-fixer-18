@@ -284,6 +284,47 @@ export type Database = {
           },
         ]
       }
+      client_summaries: {
+        Row: {
+          client_id: string
+          content: string
+          created_at: string | null
+          generated_by: string | null
+          id: string
+          metadata: Json | null
+          summary_type: string
+          title: string
+        }
+        Insert: {
+          client_id: string
+          content: string
+          created_at?: string | null
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          summary_type?: string
+          title: string
+        }
+        Update: {
+          client_id?: string
+          content?: string
+          created_at?: string | null
+          generated_by?: string | null
+          id?: string
+          metadata?: Json | null
+          summary_type?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_summaries_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           active_disputes: number | null

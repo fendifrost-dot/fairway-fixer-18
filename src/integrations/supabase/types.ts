@@ -159,6 +159,71 @@ export type Database = {
           },
         ]
       }
+      bureau_responses: {
+        Row: {
+          analysis_result: Json | null
+          bureau: string
+          client_id: string
+          created_at: string | null
+          follow_up_action: string | null
+          id: string
+          items_deleted: number | null
+          items_disputed: number | null
+          items_updated: number | null
+          items_verified: number | null
+          response_date: string
+          response_type: string | null
+          source_file_name: string | null
+          source_file_url: string | null
+          violation_count: number | null
+          violations_detected: Json | null
+        }
+        Insert: {
+          analysis_result?: Json | null
+          bureau: string
+          client_id: string
+          created_at?: string | null
+          follow_up_action?: string | null
+          id?: string
+          items_deleted?: number | null
+          items_disputed?: number | null
+          items_updated?: number | null
+          items_verified?: number | null
+          response_date: string
+          response_type?: string | null
+          source_file_name?: string | null
+          source_file_url?: string | null
+          violation_count?: number | null
+          violations_detected?: Json | null
+        }
+        Update: {
+          analysis_result?: Json | null
+          bureau?: string
+          client_id?: string
+          created_at?: string | null
+          follow_up_action?: string | null
+          id?: string
+          items_deleted?: number | null
+          items_disputed?: number | null
+          items_updated?: number | null
+          items_verified?: number | null
+          response_date?: string
+          response_type?: string | null
+          source_file_name?: string | null
+          source_file_url?: string | null
+          violation_count?: number | null
+          violations_detected?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bureau_responses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_actions: {
         Row: {
           case_id: string

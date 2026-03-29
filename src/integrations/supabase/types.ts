@@ -409,6 +409,75 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_reports: {
+        Row: {
+          account_count: number | null
+          analysis_result: Json | null
+          bureau: string | null
+          client_id: string
+          created_at: string | null
+          diff_summary: string | null
+          id: string
+          inquiry_count: number | null
+          negative_count: number | null
+          parsed_data: Json | null
+          previous_report_id: string | null
+          report_date: string
+          score_at_report: number | null
+          source_file_name: string | null
+          source_file_url: string | null
+        }
+        Insert: {
+          account_count?: number | null
+          analysis_result?: Json | null
+          bureau?: string | null
+          client_id: string
+          created_at?: string | null
+          diff_summary?: string | null
+          id?: string
+          inquiry_count?: number | null
+          negative_count?: number | null
+          parsed_data?: Json | null
+          previous_report_id?: string | null
+          report_date: string
+          score_at_report?: number | null
+          source_file_name?: string | null
+          source_file_url?: string | null
+        }
+        Update: {
+          account_count?: number | null
+          analysis_result?: Json | null
+          bureau?: string | null
+          client_id?: string
+          created_at?: string | null
+          diff_summary?: string | null
+          id?: string
+          inquiry_count?: number | null
+          negative_count?: number | null
+          parsed_data?: Json | null
+          previous_report_id?: string | null
+          report_date?: string
+          score_at_report?: number | null
+          source_file_name?: string | null
+          source_file_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_reports_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_reports_previous_report_id_fkey"
+            columns: ["previous_report_id"]
+            isOneToOne: false
+            referencedRelation: "credit_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deadlines: {
         Row: {
           created_at: string

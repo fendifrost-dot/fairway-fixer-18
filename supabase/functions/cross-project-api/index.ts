@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
   // Authenticate via shared secret
   const apiKey = req.headers.get("x-api-key");
   const expectedKey = Deno.env.get("CREDIT_GUARDIAN_KEY");
-
   if (!expectedKey || apiKey !== expectedKey) {
     return json({ error: "Unauthorized" }, 401);
   }
@@ -42,7 +41,7 @@ Deno.serve(async (req) => {
     }
   );
 
-  let body: { action?: string; params?: Record<string, unknown> };
+  let body: { action?: string; params?: Record<string, unknown>; client_name?: string; events?: any[] };
   try {
     body = await req.json();
   } catch {
@@ -51,7 +50,7 @@ Deno.serve(async (req) => {
 
   const { action, params } = body;
 
-  // ── 1. get_clients ────────────────────────────────────────────────
+  // ── 1. get_clients ──────────────────────────────────────────────────
   if (action === "get_clients") {
     const { data, error } = await supabase
       .from("clients")
@@ -59,11 +58,10 @@ Deno.serve(async (req) => {
         "id, legal_name, preferred_name, email, phone, status, created_at, updated_at"
       )
       .order("created_at", { ascending: false });
-
     return json({ data, error });
   }
 
-  // ── 2. get_client_detail ──────────────────────────────────────────
+  // ── 2. get_client_detail ────────────────────────────────────────────
   if (action === "get_client_detail") {
     const clientId = (params as Record<string, unknown>)?.client_id as string;
     if (!clientId) return json({ error: "client_id required" }, 400);
@@ -94,7 +92,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── 3. update_client_record ───────────────────────────────────────
+  // ── 3. update_client_record ─────────────────────────────────────────
   if (action === "update_client_record") {
     const p = params as Record<string, unknown> | undefined;
     const clientId = p?.client_id as string;
@@ -127,11 +125,10 @@ Deno.serve(async (req) => {
       .eq("id", clientId)
       .select()
       .single();
-
     return json({ data, error });
   }
 
-  // ── 4. get_documents ──────────────────────────────────────────────
+  // ── 4. get_documents ────────────────────────────────────────────────
   if (action === "get_documents") {
     const clientId = (params as Record<string, unknown>)?.client_id as string;
     if (!clientId) return json({ error: "client_id required" }, 400);
@@ -164,10 +161,10 @@ Deno.serve(async (req) => {
     return json({ actions: actions.data, responses: responses.data });
   }
 
-  // ── 5. get_recent_activity ────────────────────────────────────────
+  // ── 5. get_recent_activity ──────────────────────────────────────────
   if (action === "get_recent_activity") {
-    const limit = ((params as Record<string, unknown>)?.limit as number) ?? 25;
-
+    const limit =
+      ((params as Record<string, unknown>)?.limit as number) ?? 25;
     const { data, error } = await supabase
       .from("timeline_events")
       .select(
@@ -175,8 +172,87 @@ Deno.serve(async (req) => {
       )
       .order("created_at", { ascending: false })
       .limit(Math.min(limit, 100));
-
     return json({ data, error });
+  }
+
+  // ── 6. import_timeline_events ───────────────────────────────────────
+  // Called by Control Center ingest-drive-clients to push extracted events
+  if (action === "import_timeline_events") {
+    const clientName = body.client_name;
+    const events = body.events;
+
+    if (!clientName || !Array.isArray(events) || events.length === 0) {
+      return json({ error: "client_name and non-empty events array required" }, 400);
+    }
+
+    // Find or create client by name
+    let clientId: string;
+    const { data: existingClient } = await supabase
+      .from("clients")
+      .select("id")
+      .ilike("legal_name", clientName)
+      .maybeSingle();
+
+    if (existingClient) {
+      clientId = existingClient.id;
+    } else {
+      // Also try preferred_name
+      const { data: byPreferred } = await supabase
+        .from("clients")
+        .select("id")
+        .ilike("preferred_name", clientName)
+        .maybeSingle();
+
+      if (byPreferred) {
+        clientId = byPreferred.id;
+      } else {
+        // Create new client
+        const { data: newClient, error: createErr } = await supabase
+          .from("clients")
+          .insert({ legal_name: clientName, preferred_name: clientName, status: "active" })
+          .select("id")
+          .single();
+        if (createErr) return json({ error: `Failed to create client: ${createErr.message}` }, 500);
+        clientId = newClient.id;
+      }
+    }
+
+    // Insert timeline events
+    const rows = events.map((e: any) => ({
+      client_id: clientId,
+      event_date: e.date && e.date !== "unknown" ? e.date : null,
+      event_kind: e.event_type || e.event_kind || "other",
+      category: e.category || (e.event_type?.includes("response") ? "Response" : e.event_type?.includes("dispute") ? "Action" : "Other"),
+      source: e.bureau || e.source || "Other",
+      summary: e.description || e.summary || "",
+      title: e.account_name || e.description?.slice(0, 80) || "Imported Event",
+      confidence: e.confidence ?? 0.7,
+      source_file: e.source_file || null,
+      drive_file_id: e.drive_file_id || null,
+    }));
+
+    // Batch insert in groups of 50
+    let importedCount = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < rows.length; i += 50) {
+      const batch = rows.slice(i, i + 50);
+      const { error: insertErr } = await supabase
+        .from("timeline_events")
+        .insert(batch);
+      if (insertErr) {
+        errors.push(`Batch ${Math.floor(i/50)+1}: ${insertErr.message}`);
+      } else {
+        importedCount += batch.length;
+      }
+    }
+
+    return json({
+      imported_count: importedCount,
+      total_events: events.length,
+      client_id: clientId,
+      client_name: clientName,
+      errors: errors.length > 0 ? errors : undefined,
+    });
   }
 
   return json({ error: "Unknown action" }, 400);

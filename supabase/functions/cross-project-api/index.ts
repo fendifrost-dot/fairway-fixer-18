@@ -47,10 +47,9 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
-
   const { action, params } = body;
 
-  // ── 1. get_clients ──────────────────────────────────────────────────
+  // ââ 1. get_clients ââââââââââââââââââââââââââââââââââââââââââââââââââ
   if (action === "get_clients") {
     const { data, error } = await supabase
       .from("clients")
@@ -61,7 +60,7 @@ Deno.serve(async (req) => {
     return json({ data, error });
   }
 
-  // ── 2. get_client_detail ────────────────────────────────────────────
+  // ââ 2. get_client_detail ââââââââââââââââââââââââââââââââââââââââââââ
   if (action === "get_client_detail") {
     const clientId = (params as Record<string, unknown>)?.client_id as string;
     if (!clientId) return json({ error: "client_id required" }, 400);
@@ -92,16 +91,14 @@ Deno.serve(async (req) => {
     });
   }
 
-  // ── 3. update_client_record ─────────────────────────────────────────
+  // ââ 3. update_client_record âââââââââââââââââââââââââââââââââââââââââ
   if (action === "update_client_record") {
     const p = params as Record<string, unknown> | undefined;
     const clientId = p?.client_id as string;
     const fields = p?.fields as Record<string, unknown> | undefined;
-
     if (!clientId || !fields) {
       return json({ error: "client_id and fields required" }, 400);
     }
-
     const allowed = [
       "legal_name",
       "preferred_name",
@@ -114,7 +111,6 @@ Deno.serve(async (req) => {
     for (const k of Object.keys(fields)) {
       if (allowed.includes(k)) safe[k] = fields[k];
     }
-
     if (Object.keys(safe).length === 0) {
       return json({ error: "No valid fields provided" }, 400);
     }
@@ -128,7 +124,7 @@ Deno.serve(async (req) => {
     return json({ data, error });
   }
 
-  // ── 4. get_documents ────────────────────────────────────────────────
+  // ââ 4. get_documents ââââââââââââââââââââââââââââââââââââââââââââââââ
   if (action === "get_documents") {
     const clientId = (params as Record<string, unknown>)?.client_id as string;
     if (!clientId) return json({ error: "client_id required" }, 400);
@@ -137,7 +133,6 @@ Deno.serve(async (req) => {
       .from("matters")
       .select("id")
       .eq("client_id", clientId);
-
     const ids = (matterRows ?? []).map((m: { id: string }) => m.id);
     if (ids.length === 0) return json({ actions: [], responses: [] });
 
@@ -157,11 +152,10 @@ Deno.serve(async (req) => {
         .in("matter_id", ids)
         .not("attachment_url", "is", null),
     ]);
-
     return json({ actions: actions.data, responses: responses.data });
   }
 
-  // ── 5. get_recent_activity ──────────────────────────────────────────
+  // ââ 5. get_recent_activity ââââââââââââââââââââââââââââââââââââââââââ
   if (action === "get_recent_activity") {
     const limit =
       ((params as Record<string, unknown>)?.limit as number) ?? 25;
@@ -175,7 +169,7 @@ Deno.serve(async (req) => {
     return json({ data, error });
   }
 
-  // ── 6. import_timeline_events ───────────────────────────────────────
+  // ââ 6. import_timeline_events âââââââââââââââââââââââââââââââââââââââ
   // Called by Control Center ingest-drive-clients to push extracted events
   if (action === "import_timeline_events") {
     const clientName = body.client_name;
@@ -217,19 +211,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Insert timeline events
-    const rows = events.map((e: any) => ({
-      client_id: clientId,
-      event_date: e.date && e.date !== "unknown" ? e.date : null,
-      event_kind: e.event_type || e.event_kind || "other",
-      category: e.category || (e.event_type?.includes("response") ? "Response" : e.event_type?.includes("dispute") ? "Action" : "Other"),
-      source: e.bureau || e.source || "Other",
-      summary: e.description || e.summary || "",
-      title: e.account_name || e.description?.slice(0, 80) || "Imported Event",
-      confidence: e.confidence ?? 0.7,
-      source_file: e.source_file || null,
-      drive_file_id: e.drive_file_id || null,
-    }));
+    // Insert timeline events â validated against actual schema enums
+    const validCategories = ["Action", "Note", "Outcome", "Response"];
+    const validSources = ["AG", "BBB", "CFPB", "ChexSystems", "CoreLogic", "Creditor", "Equifax", "EWS", "Experian", "FTC", "Innovis", "LexisNexis", "NCTUE", "Other", "Sagestream", "TransUnion"];
+
+    const rows = events.map((e: any) => {
+      const rawCategory = e.category || (e.event_type?.includes("response") ? "Response" : e.event_type?.includes("dispute") ? "Action" : "Note");
+      const rawSource = e.bureau || e.source || "Other";
+      const dateIsUnknown = !e.date || e.date === "unknown";
+
+      return {
+        client_id: clientId,
+        event_date: dateIsUnknown ? null : e.date,
+        event_kind: e.event_type || e.event_kind || "other",
+        category: validCategories.includes(rawCategory) ? rawCategory : "Note",
+        source: validSources.includes(rawSource) ? rawSource : "Other",
+        summary: e.description || e.summary || "",
+        title: e.account_name || e.description?.slice(0, 80) || "Imported Event",
+        date_is_unknown: dateIsUnknown,
+        raw_line: e.raw_line || e.description || e.summary || "Imported from Control Center",
+        is_draft: true,
+      };
+    });
 
     // Batch insert in groups of 50
     let importedCount = 0;

@@ -210,6 +210,80 @@ export type Database = {
         }
         Relationships: []
       }
+      client_accounts: {
+        Row: {
+          account_number: string | null
+          account_type: string | null
+          balance: number | null
+          bureau: string | null
+          client_id: string
+          created_at: string | null
+          credit_limit: number | null
+          creditor_name: string
+          date_opened: string | null
+          dispute_date: string | null
+          dispute_reason: string | null
+          dispute_result: string | null
+          dispute_status: string | null
+          id: string
+          is_negative: boolean | null
+          notes: string | null
+          payment_status: string | null
+          reported_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          account_type?: string | null
+          balance?: number | null
+          bureau?: string | null
+          client_id: string
+          created_at?: string | null
+          credit_limit?: number | null
+          creditor_name: string
+          date_opened?: string | null
+          dispute_date?: string | null
+          dispute_reason?: string | null
+          dispute_result?: string | null
+          dispute_status?: string | null
+          id?: string
+          is_negative?: boolean | null
+          notes?: string | null
+          payment_status?: string | null
+          reported_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          account_type?: string | null
+          balance?: number | null
+          bureau?: string | null
+          client_id?: string
+          created_at?: string | null
+          credit_limit?: number | null
+          creditor_name?: string
+          date_opened?: string | null
+          dispute_date?: string | null
+          dispute_reason?: string | null
+          dispute_result?: string | null
+          dispute_status?: string | null
+          id?: string
+          is_negative?: boolean | null
+          notes?: string | null
+          payment_status?: string | null
+          reported_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           active_disputes: number | null

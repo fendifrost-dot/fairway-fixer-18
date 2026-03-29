@@ -752,6 +752,44 @@ export type Database = {
         }
         Relationships: []
       }
+      score_history: {
+        Row: {
+          bureau: string
+          client_id: string
+          created_at: string | null
+          id: string
+          score: number
+          score_date: string
+          source: string | null
+        }
+        Insert: {
+          bureau: string
+          client_id: string
+          created_at?: string | null
+          id?: string
+          score: number
+          score_date?: string
+          source?: string | null
+        }
+        Update: {
+          bureau?: string
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          score?: number
+          score_date?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "score_history_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_corrections: {
         Row: {
           corrected_at: string

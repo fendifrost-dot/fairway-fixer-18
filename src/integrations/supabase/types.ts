@@ -212,40 +212,85 @@ export type Database = {
       }
       clients: {
         Row: {
+          active_disputes: number | null
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
           created_at: string
+          date_of_birth: string | null
+          dispute_count: number | null
           email: string | null
+          equifax_score: number | null
+          experian_score: number | null
           id: string
+          intake_date: string | null
+          last_report_date: string | null
           legal_name: string
           notes: string | null
           owner_id: string | null
           phone: string | null
           preferred_name: string | null
+          scores_updated_at: string | null
+          ssn_last4: string | null
+          state: string | null
           status: Database["public"]["Enums"]["client_status"]
+          transunion_score: number | null
           updated_at: string
+          zip_code: string | null
         }
         Insert: {
+          active_disputes?: number | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          dispute_count?: number | null
           email?: string | null
+          equifax_score?: number | null
+          experian_score?: number | null
           id?: string
+          intake_date?: string | null
+          last_report_date?: string | null
           legal_name: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           preferred_name?: string | null
+          scores_updated_at?: string | null
+          ssn_last4?: string | null
+          state?: string | null
           status?: Database["public"]["Enums"]["client_status"]
+          transunion_score?: number | null
           updated_at?: string
+          zip_code?: string | null
         }
         Update: {
+          active_disputes?: number | null
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
           created_at?: string
+          date_of_birth?: string | null
+          dispute_count?: number | null
           email?: string | null
+          equifax_score?: number | null
+          experian_score?: number | null
           id?: string
+          intake_date?: string | null
+          last_report_date?: string | null
           legal_name?: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           preferred_name?: string | null
+          scores_updated_at?: string | null
+          ssn_last4?: string | null
+          state?: string | null
           status?: Database["public"]["Enums"]["client_status"]
+          transunion_score?: number | null
           updated_at?: string
+          zip_code?: string | null
         }
         Relationships: []
       }

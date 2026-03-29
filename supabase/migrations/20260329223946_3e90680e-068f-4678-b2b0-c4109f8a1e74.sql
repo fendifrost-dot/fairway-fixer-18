@@ -1,0 +1,15 @@
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS ssn_last4 text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS date_of_birth date;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS address_line1 text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS address_line2 text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS state text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS zip_code text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS equifax_score integer;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS experian_score integer;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS transunion_score integer;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS scores_updated_at timestamptz;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS dispute_count integer DEFAULT 0;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS active_disputes integer DEFAULT 0;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_report_date date;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS intake_date date;

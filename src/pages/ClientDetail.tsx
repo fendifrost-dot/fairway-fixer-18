@@ -9,11 +9,13 @@ import { ClientHeader } from '@/components/operator/ClientHeader';
 import { ChatGPTImport } from '@/components/operator/ChatGPTImport';
 import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline/index';
 import { NotesSection } from '@/components/operator/NotesSection';
-
 import { ScheduledEvents } from '@/components/operator/ScheduledEvents/index';
 import { UnresolvedStatePanel } from '@/components/operator/UnresolvedStatePanel';
 import { BaselinePanel } from '@/components/baseline/BaselinePanel';
 import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
+import { CreditScoresPanel } from '@/components/analyzer/CreditScoresPanel';
+import { BureauNarrative } from '@/components/analyzer/BureauNarrative';
+import { CreditAnalyzer } from '@/components/analyzer/CreditAnalyzer';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useOperatorTasks } from '@/hooks/useOperatorTasks';
 import { downloadPDF } from '@/lib/pdfExport';
@@ -32,7 +34,6 @@ export default function ClientDetail() {
         .select('*')
         .eq('id', clientId)
         .maybeSingle();
-      
       if (error) throw error;
       return data as DbClient | null;
     },
@@ -43,7 +44,6 @@ export default function ClientDetail() {
   const { data: tasks = [], isLoading: tasksLoading } = useOperatorTasks(clientId);
 
   const handleImportComplete = (result: ParseResult) => {
-    // Accumulate unresolved items from imports
     if (result.unresolved_items.length > 0) {
       setUnresolvedItems(prev => [...prev, ...result.unresolved_items]);
     }
@@ -83,7 +83,6 @@ export default function ClientDetail() {
               Back
             </Link>
           </Button>
-          
           <div className="flex items-center gap-2">
             <Button onClick={handleGeneratePDF} variant="outline" size="sm">
               <FileDown className="h-4 w-4 mr-1" />
@@ -104,24 +103,33 @@ export default function ClientDetail() {
         {/* Client Header */}
         <ClientHeader client={client} />
 
+        {/* Credit Scores */}
+        <CreditScoresPanel clientId={clientId!} />
+
         {/* ChatGPT Import */}
         <ChatGPTImport clientId={clientId!} onImportComplete={handleImportComplete} />
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column - Evidence Timeline + Notes */}
+          {/* Left Column - Timeline + Bureau Narrative + Notes */}
           <div className="lg:col-span-2 space-y-6">
             <EvidenceTimeline events={events} clientId={clientId!} />
+            <BureauNarrative clientId={clientId!} />
+            <CreditAnalyzer clientId={clientId!} />
             <BaselinePanel clientId={clientId!} />
             <NotesSection clientId={clientId!} />
           </div>
-          
-          {/* Right sidebar - Unresolved State + Scheduled Events + Drafts */}
+
+          {/* Right sidebar */}
           <div className="space-y-6">
             {unresolvedItems.length > 0 && (
               <UnresolvedStatePanel items={unresolvedItems} />
             )}
-            <ScheduledEvents tasks={tasks} clientId={clientId!} timelineEvents={events} />
+            <ScheduledEvents
+              tasks={tasks}
+              clientId={clientId!}
+              timelineEvents={events}
+            />
           </div>
         </div>
       </div>

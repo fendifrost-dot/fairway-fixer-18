@@ -13,22 +13,22 @@ import { useToast } from '@/hooks/use-toast';
 
 interface CreditReport {
   id: string;
-  bureau: string;
+  bureau: string | null;
   report_date: string;
-  raw_text: string | null;
-  parsed_summary: any;
+  parsed_data: any;
+  source_file_name: string | null;
   previous_report_id: string | null;
+  diff_summary: string | null;
 }
 
 interface BureauResponse {
   id: string;
   bureau: string;
   response_date: string;
-  response_type: string;
-  raw_text: string | null;
-  summary: string | null;
-  violations_detected: string[] | null;
-  violation_count: number;
+  response_type: string | null;
+  follow_up_action: string | null;
+  violations_detected: any[] | null;
+  violation_count: number | null;
 }
 
 function ReportAnalysisTab({ clientId }: { clientId: string }) {

@@ -22,19 +22,19 @@ interface BureauResponse {
   id: string;
   bureau: string;
   response_date: string;
-  response_type: string;
-  summary: string | null;
-  violations_detected: string[] | null;
-  violation_count: number;
+  response_type: string | null;
+  follow_up_action: string | null;
+  violations_detected: any[] | null;
+  violation_count: number | null;
 }
 
 interface ClientAccount {
   id: string;
-  bureau: string;
+  bureau: string | null;
   creditor_name: string;
-  account_number_masked: string | null;
+  account_number: string | null;
   account_type: string | null;
-  status: string;
+  payment_status: string | null;
   balance: number | null;
   dispute_status: string | null;
 }

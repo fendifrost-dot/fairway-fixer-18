@@ -126,8 +126,8 @@ function BureauTab({ bureau, events, responses, accounts }: {
                   key={`resp-${r.id}`}
                   date={r.response_date}
                   icon={hasViolations ? <AlertTriangle className="h-3 w-3 text-red-500" /> : <CheckCircle className="h-3 w-3 text-green-500" />}
-                  title={`${r.response_type} Response${hasViolations ? ` — ${r.violation_count} violation(s)` : ''}`}
-                  content={r.summary || 'No summary available'}
+                  title={`${r.response_type || 'Unknown'} Response${hasViolations ? ` — ${r.violation_count} violation(s)` : ''}`}
+                  content={r.follow_up_action || 'No details available'}
                   variant={hasViolations ? 'violation' : 'success'}
                 />
               );

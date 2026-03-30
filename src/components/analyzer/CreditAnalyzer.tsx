@@ -66,9 +66,9 @@ function ReportAnalysisTab({ clientId }: { clientId: string }) {
       setAnalysis(
         `## ${report.bureau} Credit Report Analysis\n` +
         `**Report Date:** ${new Date(report.report_date).toLocaleDateString()}\n\n` +
-        (report.parsed_summary
-          ? `### Summary\n${JSON.stringify(report.parsed_summary, null, 2)}\n\n`
-          : `### Raw Report\n${(report.raw_text || 'No content available').substring(0, 2000)}\n\n`) +
+        (report.parsed_data
+          ? `### Summary\n${JSON.stringify(report.parsed_data, null, 2)}\n\n`
+          : `### Raw Report\nNo parsed content available.\n\n`) +
         (prevReport
           ? `### Changes Since Previous Report (${new Date(prevReport.report_date).toLocaleDateString()})\nDiff analysis available when AI processing is enabled.\n`
           : '### No previous report found for comparison.\n')
@@ -162,7 +162,7 @@ function ViolationDetectionTab({ clientId }: { clientId: string }) {
                   {r.response_type}
                 </Badge>
               </div>
-              {r.summary && <p className="text-xs mt-1">{r.summary}</p>}
+              {r.follow_up_action && <p className="text-xs mt-1">{r.follow_up_action}</p>}
               {r.violations_detected && r.violations_detected.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {r.violations_detected.map((v, i) => (

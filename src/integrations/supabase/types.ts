@@ -1296,7 +1296,7 @@ export type Database = {
       app_role: "admin" | "staff"
       baseline_bureau: "Experian" | "TransUnion" | "Equifax"
       baseline_target_status: "pending" | "still_present" | "not_found"
-      client_status: "Active" | "Inactive" | "Pending"
+      client_status: "Active" | "Inactive" | "Pending" | "active"
       date_confidence: "Exact" | "Inferred" | "Unknown"
       deadline_status: "Open" | "DueSoon" | "Overdue" | "Closed"
       deadline_type:
@@ -1503,7 +1503,7 @@ export const Constants = {
       app_role: ["admin", "staff"],
       baseline_bureau: ["Experian", "TransUnion", "Equifax"],
       baseline_target_status: ["pending", "still_present", "not_found"],
-      client_status: ["Active", "Inactive", "Pending"],
+      client_status: ["Active", "Inactive", "Pending", "active"],
       date_confidence: ["Exact", "Inferred", "Unknown"],
       deadline_status: ["Open", "DueSoon", "Overdue", "Closed"],
       deadline_type: [

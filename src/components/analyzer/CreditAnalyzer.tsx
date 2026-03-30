@@ -13,22 +13,22 @@ import { useToast } from '@/hooks/use-toast';
 
 interface CreditReport {
   id: string;
-  bureau: string;
+  bureau: string | null;
   report_date: string;
-  raw_text: string | null;
-  parsed_summary: any;
+  parsed_data: any;
+  source_file_name: string | null;
   previous_report_id: string | null;
+  diff_summary: string | null;
 }
 
 interface BureauResponse {
   id: string;
   bureau: string;
   response_date: string;
-  response_type: string;
-  raw_text: string | null;
-  summary: string | null;
-  violations_detected: string[] | null;
-  violation_count: number;
+  response_type: string | null;
+  follow_up_action: string | null;
+  violations_detected: any[] | null;
+  violation_count: number | null;
 }
 
 function ReportAnalysisTab({ clientId }: { clientId: string }) {
@@ -66,9 +66,9 @@ function ReportAnalysisTab({ clientId }: { clientId: string }) {
       setAnalysis(
         `## ${report.bureau} Credit Report Analysis\n` +
         `**Report Date:** ${new Date(report.report_date).toLocaleDateString()}\n\n` +
-        (report.parsed_summary
-          ? `### Summary\n${JSON.stringify(report.parsed_summary, null, 2)}\n\n`
-          : `### Raw Report\n${(report.raw_text || 'No content available').substring(0, 2000)}\n\n`) +
+        (report.parsed_data
+          ? `### Summary\n${JSON.stringify(report.parsed_data, null, 2)}\n\n`
+          : `### Raw Report\nNo parsed content available.\n\n`) +
         (prevReport
           ? `### Changes Since Previous Report (${new Date(prevReport.report_date).toLocaleDateString()})\nDiff analysis available when AI processing is enabled.\n`
           : '### No previous report found for comparison.\n')
@@ -162,7 +162,7 @@ function ViolationDetectionTab({ clientId }: { clientId: string }) {
                   {r.response_type}
                 </Badge>
               </div>
-              {r.summary && <p className="text-xs mt-1">{r.summary}</p>}
+              {r.follow_up_action && <p className="text-xs mt-1">{r.follow_up_action}</p>}
               {r.violations_detected && r.violations_detected.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {r.violations_detected.map((v, i) => (

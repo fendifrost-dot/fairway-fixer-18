@@ -8,7 +8,8 @@ interface ScoreEntry {
   id: string;
   bureau: string;
   score: number;
-  recorded_at: string;
+  score_date: string;
+  created_at: string;
   source: string | null;
 }
 
@@ -68,7 +69,7 @@ export function CreditScoresPanel({ clientId }: { clientId: string }) {
         .from('score_history')
         .select('*')
         .eq('client_id', clientId)
-        .order('recorded_at', { ascending: false })
+        .order('score_date', { ascending: false })
         .limit(30);
       return (data ?? []) as ScoreEntry[];
     },

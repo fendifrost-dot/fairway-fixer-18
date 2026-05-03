@@ -489,6 +489,65 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     );
   };
 
+  const IdentitySection = () => (
+    <Collapsible open={identityOpen} onOpenChange={setIdentityOpen} className="border rounded-md">
+      <CollapsibleTrigger asChild>
+        <Button type="button" variant="ghost" className="w-full justify-between h-9 px-3">
+          <span className="text-sm font-medium">Identity (optional)</span>
+          <ChevronDown className={`h-4 w-4 transition-transform ${identityOpen ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="p-3 pt-1 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="ident-dob" className="text-xs">DOB</Label>
+            <Input id="ident-dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ident-ssn" className="text-xs">SSN (last 4)</Label>
+            <Input id="ident-ssn" maxLength={4} placeholder="1234" value={ssnLast4} onChange={(e) => setSsnLast4(e.target.value.replace(/\D/g, ''))} />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="ident-addr" className="text-xs">Current Address</Label>
+          <Input id="ident-addr" placeholder="123 Main St, City, ST 00000" value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="ident-phone" className="text-xs">Phone</Label>
+            <Input id="ident-phone" placeholder="(555) 123-4567" value={identPhone} onChange={(e) => setIdentPhone(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="ident-email" className="text-xs">Email</Label>
+            <Input id="ident-email" type="email" placeholder="name@example.com" value={identEmail} onChange={(e) => setIdentEmail(e.target.value)} />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Alternate Addresses</Label>
+          {alternateAddresses.map((addr, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <Input
+                value={addr}
+                onChange={(e) => {
+                  const next = [...alternateAddresses];
+                  next[i] = e.target.value;
+                  setAlternateAddresses(next);
+                }}
+                placeholder="Prior address"
+              />
+              <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={() => setAlternateAddresses(alternateAddresses.filter((_, j) => j !== i))}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button type="button" size="sm" variant="outline" onClick={() => setAlternateAddresses([...alternateAddresses, ''])}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add alternate address
+          </Button>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       if (!isOpen) resetForm();

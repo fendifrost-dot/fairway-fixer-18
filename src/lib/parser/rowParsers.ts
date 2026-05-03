@@ -17,6 +17,7 @@ import {
 } from '@/types/parser';
 import { parseDate, extractDueText } from './dateParser';
 import { normalizeSource, detectScope } from './sourceNormalizer';
+import { detectFurnisher, extractAccountLast4 } from './furnisherDetector';
 
 /**
  * Split a pipe-delimited line into parts
@@ -89,16 +90,45 @@ export function parseTimelineEventRow(
     sources = ['FTC' as NormalizedSource];
     scope = 'single';
   }
-  
-  // If still no valid source detected, return empty (caller routes to unrouted)
-  if (sources.length === 0) {
+
+  // B4: Furnisher detection — if no bureau/data-broker source matched but the
+  // source column looks like a creditor/collection agency, emit a single
+  // event with source=null + furnisher_name so the import pipeline can
+  // resolve it into a furnishers row before insert.
+  let furnisherRef = sources.length === 0 ? detectFurnisher(entityRaw) : null;
+
+  // If still no valid bureau source AND no furnisher detected, return empty
+  // (caller routes to unrouted).
+  if (sources.length === 0 && !furnisherRef) {
     return [];
   }
-  
+
   // Build description
   const description = [typeOrStatus, details].filter(Boolean).join(' - ') || typeOrStatus || 'No description';
-  
-  // Create event(s) - expand "all_cras" into 3 events
+  const cleanedAccount = accountRef && accountRef !== '-' && accountRef.toLowerCase() !== 'n/a' ? accountRef : null;
+
+  if (furnisherRef) {
+    // Upgrade furnisher last-4 from account_ref column when not already set
+    const last4 = furnisherRef.account_last4 ?? extractAccountLast4(cleanedAccount);
+    return [{
+      event_kind: eventKind,
+      event_date: dateParsed.date,
+      date_is_unknown: dateParsed.isUnknown,
+      source: null,
+      scope: 'single',
+      action_type: eventKind === 'action' ? typeOrStatus : null,
+      status_verb: eventKind === 'response' || eventKind === 'outcome' ? typeOrStatus : null,
+      counterparty: null,
+      account_ref: cleanedAccount,
+      description,
+      raw_line: rawLine,
+      furnisher_name: furnisherRef.name,
+      furnisher_account_last4: last4,
+    }];
+  }
+
+  // Bureau / data-broker / regulatory path (existing behaviour, possibly
+  // expanded for "all CRAs").
   return sources.map(source => ({
     event_kind: eventKind,
     event_date: dateParsed.date,
@@ -107,8 +137,8 @@ export function parseTimelineEventRow(
     scope,
     action_type: eventKind === 'action' ? typeOrStatus : null,
     status_verb: eventKind === 'response' || eventKind === 'outcome' ? typeOrStatus : null,
-    counterparty: null, // Could be parsed from details if structured
-    account_ref: accountRef && accountRef !== '-' && accountRef.toLowerCase() !== 'n/a' ? accountRef : null,
+    counterparty: null,
+    account_ref: cleanedAccount,
     description,
     raw_line: rawLine,
   }));
@@ -167,9 +197,10 @@ export function parseUnresolvedItemRow(
       raw_line: rawLine,
     }];
   }
-  
+
   if (sources.length === 0) {
-    // No source detected - still create item but with null source
+    // B4: try furnisher detection before falling back to a null-source item
+    const furnisherRef = detectFurnisher(entityRaw);
     return [{
       source_scope: 'single',
       source: null,
@@ -181,6 +212,8 @@ export function parseUnresolvedItemRow(
       date_is_unknown: dateParsed.isUnknown,
       description,
       raw_line: rawLine,
+      furnisher_name: furnisherRef?.name ?? null,
+      furnisher_account_last4: furnisherRef?.account_last4 ?? extractAccountLast4(counterpartyOrAccount),
     }];
   }
   

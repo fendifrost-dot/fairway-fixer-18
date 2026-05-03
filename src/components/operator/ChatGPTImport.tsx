@@ -35,6 +35,7 @@ import { JsonImportReview } from '@/components/operator/JsonImportReview';
 import { ensureRound } from '@/hooks/useDisputeRounds';
 import { extractScoresFromLines } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
+import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -247,7 +248,15 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
       } else {
         dbEvents.forEach(e => { delete e.round_number; });
       }
-      
+
+      // B4: Resolve furnisher_name → furnisher_id (creates rows on demand)
+      try {
+        const { errors: fErrs } = await resolveFurnishersForEvents(clientId, dbEvents);
+        if (fErrs.length > 0) console.warn('furnisher resolve warnings:', fErrs);
+      } catch (e) {
+        console.warn('furnisher resolution failed:', e);
+      }
+
       // Convert scheduled events to tasks
       const dbTasks = parsed.scheduled_events.map(e => mapScheduledEventToTask(e, clientId));
       

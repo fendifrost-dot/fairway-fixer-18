@@ -99,7 +99,7 @@ export interface TimelineEventParsed {
   event_kind: EventKind; // required
   event_date: string | null; // YYYY-MM-DD or null if unknown
   date_is_unknown: boolean; // true if date had XX or was unparseable
-  source: NormalizedSource; // required - if missing, NOT a timeline event
+  source: NormalizedSource | null; // null when row attaches to a furnisher only
   scope: ScopeValue; // single or all_cras
   action_type: string | null; // optional
   status_verb: string | null; // optional
@@ -108,6 +108,15 @@ export interface TimelineEventParsed {
   description: string; // required
   raw_line: string; // required - original input line
   round_number?: number | null; // optional [Round N] tag
+  /**
+   * B4: When the row's source column references a furnisher (creditor /
+   * collection agency) instead of a bureau, the parser surfaces the verbatim
+   * furnisher name here so the import pipeline can resolve it to a
+   * furnishers row before insert.
+   */
+  furnisher_name?: string | null;
+  /** Optional last-4 digits scraped from account_ref / details for furnisher dedupe. */
+  furnisher_account_last4?: string | null;
 }
 
 // ============================================================================
@@ -137,6 +146,8 @@ export interface UnresolvedItem {
   description: string; // required
   raw_line: string; // required
   round_number?: number | null;
+  furnisher_name?: string | null;
+  furnisher_account_last4?: string | null;
 }
 
 // ============================================================================

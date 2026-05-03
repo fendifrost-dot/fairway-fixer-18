@@ -63,6 +63,11 @@ export type DbTimelineEvent = {
   round_id?: string | null;
   /** Internal: parser-detected round number, resolved to round_id at import time. */
   round_number?: number | null;
+  furnisher_id?: string | null;
+  /** Internal: parser-detected furnisher name, resolved to furnisher_id at import time. */
+  furnisher_name?: string | null;
+  /** Internal: parser-detected furnisher account last 4, used for ensureFurnisher dedupe. */
+  furnisher_account_last4?: string | null;
 };
 
 /**
@@ -91,7 +96,11 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     ag: 'AG',
   };
 
-  const mappedSource = sourceMap[event.source] || 'Other';
+  // Furnisher events carry source=null; bureau events keep their mapped source.
+  // Unknown sources fall back to 'Other' so they're still visible.
+  const mappedSource: EventSource | null = event.source
+    ? (sourceMap[event.source] || 'Other')
+    : null;
 
   return {
     client_id: clientId,
@@ -107,5 +116,7 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     event_kind: event.event_kind,
     is_draft: false,
     round_number: event.round_number ?? null,
+    furnisher_name: event.furnisher_name ?? null,
+    furnisher_account_last4: event.furnisher_account_last4 ?? null,
   };
 }

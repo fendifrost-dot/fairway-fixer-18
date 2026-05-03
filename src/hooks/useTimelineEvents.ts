@@ -111,6 +111,8 @@ export function useBulkCreateTimelineEvents() {
           event_kind: e.event_kind || 'action',
           is_draft: false,
           ...(e.round_id ? { round_id: e.round_id } : {}),
+          ...(e.furnisher_id ? { furnisher_id: e.furnisher_id } : {}),
+          ...(e.tradeline_id ? { tradeline_id: e.tradeline_id } : {}),
         })))
         .select();
       

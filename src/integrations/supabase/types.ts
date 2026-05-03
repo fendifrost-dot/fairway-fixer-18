@@ -639,6 +639,50 @@ export type Database = {
         }
         Relationships: []
       }
+      dispute_rounds: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          round_number: number
+          status: Database["public"]["Enums"]["dispute_round_status"]
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          round_number: number
+          status?: Database["public"]["Enums"]["dispute_round_status"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          round_number?: number
+          status?: Database["public"]["Enums"]["dispute_round_status"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_rounds_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entity_cases: {
         Row: {
           created_at: string
@@ -1085,6 +1129,7 @@ export type Database = {
           is_draft: boolean
           raw_line: string
           related_accounts: Json | null
+          round_id: string | null
           source: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
@@ -1101,6 +1146,7 @@ export type Database = {
           is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
+          round_id?: string | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
@@ -1117,6 +1163,7 @@ export type Database = {
           is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
+          round_id?: string | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary?: string
           title?: string
@@ -1127,6 +1174,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timeline_events_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "dispute_rounds"
             referencedColumns: ["id"]
           },
         ]
@@ -1350,6 +1404,12 @@ export type Database = {
         | "CFPB_15"
         | "CFPB_60"
         | "FollowUp"
+      dispute_round_status:
+        | "planning"
+        | "mailed"
+        | "awaiting_response"
+        | "response_received"
+        | "closed"
       entity_type: "CRA" | "Furnisher" | "DataBroker" | "Agency"
       event_category: "Action" | "Response" | "Outcome" | "Note"
       event_source:
@@ -1557,6 +1617,13 @@ export const Constants = {
         "CFPB_15",
         "CFPB_60",
         "FollowUp",
+      ],
+      dispute_round_status: [
+        "planning",
+        "mailed",
+        "awaiting_response",
+        "response_received",
+        "closed",
       ],
       entity_type: ["CRA", "Furnisher", "DataBroker", "Agency"],
       event_category: ["Action", "Response", "Outcome", "Note"],

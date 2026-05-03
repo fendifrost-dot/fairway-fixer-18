@@ -733,6 +733,47 @@ export type Database = {
           },
         ]
       }
+      furnishers: {
+        Row: {
+          account_last4: string | null
+          account_type: string | null
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_last4?: string | null
+          account_type?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_last4?: string | null
+          account_type?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "furnishers_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matters: {
         Row: {
           client_id: string
@@ -1131,6 +1172,7 @@ export type Database = {
           details: string | null
           event_date: string | null
           event_kind: string
+          furnisher_id: string | null
           id: string
           is_draft: boolean
           raw_line: string
@@ -1148,6 +1190,7 @@ export type Database = {
           details?: string | null
           event_date?: string | null
           event_kind?: string
+          furnisher_id?: string | null
           id?: string
           is_draft?: boolean
           raw_line?: string
@@ -1165,6 +1208,7 @@ export type Database = {
           details?: string | null
           event_date?: string | null
           event_kind?: string
+          furnisher_id?: string | null
           id?: string
           is_draft?: boolean
           raw_line?: string
@@ -1180,6 +1224,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timeline_events_furnisher_id_fkey"
+            columns: ["furnisher_id"]
+            isOneToOne: false
+            referencedRelation: "furnishers"
             referencedColumns: ["id"]
           },
           {

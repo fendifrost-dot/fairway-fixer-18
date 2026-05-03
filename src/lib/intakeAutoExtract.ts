@@ -20,6 +20,9 @@ import type { OperatorTask, SimplePriority } from '@/types/operator';
 import { extractScoresFromLines, ExtractedScore, ScoreBureau } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
 import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
+import { resolveTradelinesForEvents } from '@/lib/resolveTradelines';
+import { ensureTradeline } from '@/hooks/useTradelines';
+import type { TradelineBureau } from '@/types/operator';
 
 export interface AutoExtractResult {
   events: number;
@@ -27,6 +30,7 @@ export interface AutoExtractResult {
   rounds: number;
   identityFieldsFilled: number;
   scoresUpdated: number;
+  tradelines: number;
   errors: string[];
 }
 
@@ -62,6 +66,7 @@ export async function autoExtractIntake(
     rounds: 0,
     identityFieldsFilled: 0,
     scoresUpdated: 0,
+    tradelines: 0,
     errors: [],
   };
 
@@ -93,6 +98,13 @@ export async function autoExtractIntake(
     string,
     { score?: number; as_of?: string | null } | undefined
   >;
+  const rawTradelines = Array.isArray(data?.tradelines)
+    ? (data.tradelines as Array<{
+        display_name?: string;
+        account_last4?: string | null;
+        bureaus?: Partial<Record<TradelineBureau, { present?: boolean; status_on_bureau?: string | null; last_seen_date?: string | null }>>;
+      }>)
+    : [];
 
   // 2) Patch client identity (only fields the model returned non-null)
   const updates: Record<string, unknown> = {};
@@ -156,6 +168,14 @@ export async function autoExtractIntake(
     result.errors.push('furnisher resolve: ' + (e as Error).message);
   }
 
+  // B5: Resolve [Tradeline: "..."] anchors from parsed events.
+  try {
+    const { errors: tErrs } = await resolveTradelinesForEvents(clientId, dbEvents);
+    if (tErrs.length > 0) result.errors.push(...tErrs);
+  } catch (e) {
+    result.errors.push('tradeline resolve: ' + (e as Error).message);
+  }
+
   // 5) Bulk insert events
   if (dbEvents.length > 0) {
     const valid = dbEvents.filter(e => e.raw_line && e.raw_line.trim().length > 0);
@@ -215,6 +235,41 @@ export async function autoExtractIntake(
     const { updated, errors: scoreErrs } = await applyExtractedScores(clientId, incoming, 'intake-auto-extract');
     result.scoresUpdated = updated;
     result.errors.push(...scoreErrs);
+  }
+
+  // B5: Persist any tradelines + per-bureau states the AI returned explicitly.
+  if (rawTradelines.length > 0) {
+    const tdb = (supabase as any).from('tradeline_bureau_states');
+    for (const tl of rawTradelines) {
+      const name = tl.display_name?.trim();
+      if (!name) continue;
+      try {
+        const tradeline = await ensureTradeline(clientId, name, tl.account_last4 ?? null);
+        result.tradelines++;
+        const bureaus = tl.bureaus || {};
+        const rows: Array<Record<string, unknown>> = [];
+        for (const b of ['equifax', 'experian', 'transunion'] as TradelineBureau[]) {
+          const entry = bureaus[b];
+          if (!entry) continue;
+          rows.push({
+            tradeline_id: tradeline.id,
+            bureau: b,
+            present: !!entry.present,
+            status_on_bureau: entry.status_on_bureau ?? null,
+            last_seen_date:
+              typeof entry.last_seen_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.last_seen_date)
+                ? entry.last_seen_date
+                : null,
+          });
+        }
+        if (rows.length > 0) {
+          const { error: bErr } = await tdb.upsert(rows, { onConflict: 'tradeline_id,bureau' });
+          if (bErr) result.errors.push(`tradeline_bureau_states "${name}": ${bErr.message}`);
+        }
+      } catch (e) {
+        result.errors.push(`tradeline "${name}": ${(e as Error).message}`);
+      }
+    }
   }
 
   return result;

@@ -47,6 +47,8 @@ export interface TimelineEvent {
   round_id?: string | null;
   /** Optional furnisher (creditor / collection agency) this event belongs to. */
   furnisher_id?: string | null;
+  /** Optional tradeline this event belongs to (B5). */
+  tradeline_id?: string | null;
   created_at: string;
 }
 

@@ -16,7 +16,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { FileText, Building2, Database, Shield, Bug, Plus, Layers } from 'lucide-react';
+import { FileText, Building2, Database, Shield, Bug, Plus, Layers, Sparkles } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/operator';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
@@ -50,6 +53,28 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const createCorrection = useCreateSourceCorrection();
   const { data: rounds = [] } = useDisputeRounds(clientId);
   const updateEvent = useUpdateTimelineEvent();
+
+  // 24h "Auto-extracted on intake" badge
+  const { data: autoExtractedAt } = useQuery({
+    queryKey: ['client-auto-extracted-at', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('intake_auto_extracted_at')
+        .eq('id', clientId)
+        .maybeSingle();
+      if (error) return null;
+      return (data as { intake_auto_extracted_at: string | null } | null)?.intake_auto_extracted_at ?? null;
+    },
+    enabled: !!clientId,
+    staleTime: 60_000,
+  });
+  const showAutoExtractBadge = useMemo(() => {
+    if (!autoExtractedAt) return false;
+    const ts = new Date(autoExtractedAt).getTime();
+    if (Number.isNaN(ts)) return false;
+    return Date.now() - ts < 24 * 60 * 60 * 1000;
+  }, [autoExtractedAt]);
 
   const sectionSources = useMemo(() => {
     return SOURCE_ACCORDION_STRUCTURE.flatMap(g => [...g.sources]);
@@ -168,6 +193,12 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
           <CardTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" />
             Evidence Timeline ({evidenceEvents.length})
+            {showAutoExtractBadge && (
+              <Badge variant="secondary" className="gap-1 text-[10px] font-normal">
+                <Sparkles className="h-3 w-3" />
+                Auto-extracted on intake
+              </Badge>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Add Entry button */}

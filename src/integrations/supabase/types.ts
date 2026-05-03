@@ -405,6 +405,7 @@ export type Database = {
           equifax_score: number | null
           experian_score: number | null
           id: string
+          intake_auto_extracted_at: string | null
           intake_date: string | null
           last_report_date: string | null
           legal_name: string
@@ -434,6 +435,7 @@ export type Database = {
           equifax_score?: number | null
           experian_score?: number | null
           id?: string
+          intake_auto_extracted_at?: string | null
           intake_date?: string | null
           last_report_date?: string | null
           legal_name: string
@@ -463,6 +465,7 @@ export type Database = {
           equifax_score?: number | null
           experian_score?: number | null
           id?: string
+          intake_auto_extracted_at?: string | null
           intake_date?: string | null
           last_report_date?: string | null
           legal_name?: string

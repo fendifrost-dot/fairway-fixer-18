@@ -41,7 +41,8 @@ export async function applyExtractedScores(
   const { error: updErr } = await supabase
     .from('clients')
     .update({
-      credit_scores: merged as unknown as Record<string, unknown>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      credit_scores: merged as any,
       scores_updated_at: new Date().toISOString(),
     })
     .eq('id', clientId);

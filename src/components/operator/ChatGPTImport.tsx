@@ -35,6 +35,7 @@ import { JsonImportReview } from '@/components/operator/JsonImportReview';
 import { ensureRound } from '@/hooks/useDisputeRounds';
 import { extractScoresFromLines } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
+import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;

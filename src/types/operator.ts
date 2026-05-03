@@ -45,6 +45,8 @@ export interface TimelineEvent {
   is_draft?: boolean;
   /** Optional dispute round this event belongs to. */
   round_id?: string | null;
+  /** Optional furnisher (creditor / collection agency) this event belongs to. */
+  furnisher_id?: string | null;
   created_at: string;
 }
 
@@ -86,6 +88,21 @@ export const DISPUTE_ROUND_STATUS_LABELS: Record<DisputeRoundStatus, string> = {
   response_received: 'Response received',
   closed: 'Closed',
 };
+
+// ============================================================================
+// FURNISHERS (B4 — first-class category alongside Bureaus / Data Brokers)
+// ============================================================================
+
+export interface Furnisher {
+  id: string;
+  client_id: string;
+  name: string;
+  account_last4: string | null;
+  account_type: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface OperatorTask {
   id: string;

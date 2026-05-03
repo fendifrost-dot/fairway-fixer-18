@@ -197,9 +197,10 @@ export function parseUnresolvedItemRow(
       raw_line: rawLine,
     }];
   }
-  
+
   if (sources.length === 0) {
-    // No source detected - still create item but with null source
+    // B4: try furnisher detection before falling back to a null-source item
+    const furnisherRef = detectFurnisher(entityRaw);
     return [{
       source_scope: 'single',
       source: null,
@@ -211,6 +212,8 @@ export function parseUnresolvedItemRow(
       date_is_unknown: dateParsed.isUnknown,
       description,
       raw_line: rawLine,
+      furnisher_name: furnisherRef?.name ?? null,
+      furnisher_account_last4: furnisherRef?.account_last4 ?? extractAccountLast4(counterpartyOrAccount),
     }];
   }
   

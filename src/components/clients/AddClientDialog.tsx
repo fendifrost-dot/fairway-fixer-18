@@ -605,6 +605,8 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
               </p>
             </div>
 
+            <IdentitySection />
+
             <Alert className="mt-2">
               <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
               <AlertDescription className="space-y-2">
@@ -704,6 +706,8 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
                 onChange={(e) => setIssueNote(e.target.value)}
               />
             </div>
+
+            <IdentitySection />
 
             <ErrorDisplay />
 

@@ -104,6 +104,42 @@ export interface Furnisher {
   updated_at: string;
 }
 
+// ============================================================================
+// TRADELINES (B5 — per-tradeline cross-bureau pivot)
+// ============================================================================
+
+export type TradelineStatus = 'active' | 'disputed' | 'deleted' | 'verified' | 'unknown';
+export const TRADELINE_STATUSES: TradelineStatus[] = ['active', 'disputed', 'deleted', 'verified', 'unknown'];
+
+export type TradelineBureau = 'equifax' | 'experian' | 'transunion';
+export const TRADELINE_BUREAUS: TradelineBureau[] = ['equifax', 'experian', 'transunion'];
+
+export interface Tradeline {
+  id: string;
+  client_id: string;
+  furnisher_id: string | null;
+  display_name: string;
+  account_last4: string | null;
+  balance: number | null;
+  opened_date: string | null;
+  status: TradelineStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TradelineBureauState {
+  id: string;
+  tradeline_id: string;
+  bureau: TradelineBureau;
+  present: boolean;
+  status_on_bureau: string | null;
+  last_seen_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OperatorTask {
   id: string;
   client_id: string;

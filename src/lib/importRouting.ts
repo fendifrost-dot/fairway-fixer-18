@@ -60,6 +60,9 @@ export type DbTimelineEvent = {
   raw_line: string;
   event_kind: string;
   is_draft: boolean;
+  round_id?: string | null;
+  /** Internal: parser-detected round number, resolved to round_id at import time. */
+  round_number?: number | null;
 };
 
 /**
@@ -103,5 +106,6 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     raw_line: event.raw_line,
     event_kind: event.event_kind,
     is_draft: false,
+    round_number: event.round_number ?? null,
   };
 }

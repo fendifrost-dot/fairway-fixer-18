@@ -16,9 +16,11 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { FileText, Building2, Database, Shield, Bug, Plus } from 'lucide-react';
+import { FileText, Building2, Database, Shield, Bug, Plus, Layers } from 'lucide-react';
 import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/operator';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
+import { useDisputeRounds } from '@/hooks/useDisputeRounds';
+import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
 import { ChronologicalView } from './ChronologicalView';
@@ -26,6 +28,13 @@ import { EvidenceItem } from './EvidenceItem';
 import { AddEntryDialog } from './AddEntryDialog';
 import { EditEntryDialog } from './EditEntryDialog';
 import { expandAllCrasEvents, isAllCrasSource } from '@/lib/allCrasExpander';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
@@ -34,10 +43,13 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
 
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showChronological, setShowChronological] = useState(false);
+  const [byRound, setByRound] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
+  const { data: rounds = [] } = useDisputeRounds(clientId);
+  const updateEvent = useUpdateTimelineEvent();
 
   const sectionSources = useMemo(() => {
     return SOURCE_ACCORDION_STRUCTURE.flatMap(g => [...g.sources]);
@@ -128,6 +140,27 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     });
   };
 
+  // By-Round grouping (built when byRound is on)
+  const eventsByRound = useMemo(() => {
+    if (!byRound) return null;
+    const map = new Map<string, TimelineEvent[]>(); // key = roundId or '__unassigned__'
+    for (const ev of evidenceEvents) {
+      const key = ev.round_id || '__unassigned__';
+      const arr = map.get(key) || [];
+      arr.push(ev);
+      map.set(key, arr);
+    }
+    return map;
+  }, [byRound, evidenceEvents]);
+
+  const handleAssignRound = (eventId: string, roundId: string | null) => {
+    updateEvent.mutate({
+      id: eventId,
+      clientId,
+      updates: { round_id: roundId },
+    });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -152,6 +185,21 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 className="scale-75"
               />
             </div>
+            {/* By Round toggle */}
+            <div className="flex items-center gap-2">
+              <Layers className="h-3 w-3 text-muted-foreground" />
+              <Label htmlFor="by-round-toggle" className="text-xs text-muted-foreground">
+                By Round
+              </Label>
+              <Switch
+                id="by-round-toggle"
+                checked={byRound}
+                onCheckedChange={(v) => {
+                  setByRound(v);
+                  if (v) setShowChronological(false);
+                }}
+              />
+            </div>
             {/* View toggle */}
             <div className="flex items-center gap-2">
               <Label htmlFor="view-toggle" className="text-xs text-muted-foreground">
@@ -160,7 +208,11 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
               <Switch
                 id="view-toggle"
                 checked={showChronological}
-                onCheckedChange={setShowChronological}
+                onCheckedChange={(v) => {
+                  setShowChronological(v);
+                  if (v) setByRound(false);
+                }}
+                disabled={byRound}
               />
             </div>
           </div>
@@ -205,7 +257,92 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
           </div>
         )}
 
-        {showChronological ? (
+        {byRound && eventsByRound ? (
+          <div className="space-y-6">
+            {/* Unassigned first */}
+            {(eventsByRound.get('__unassigned__') || []).length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+                  <Layers className="h-4 w-4" />
+                  <span>Unassigned ({(eventsByRound.get('__unassigned__') || []).length})</span>
+                </div>
+                <div className="space-y-3 border rounded-lg p-3 bg-muted/20">
+                  {(eventsByRound.get('__unassigned__') || []).map(ev => (
+                    <div key={ev.id} className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <EvidenceItem
+                          event={ev}
+                          clientId={clientId}
+                          showDebug={showDebug}
+                          onEdit={setEditingEvent}
+                        />
+                      </div>
+                      {rounds.length > 0 && (
+                        <Select
+                          value=""
+                          onValueChange={(v) => handleAssignRound(ev.id, v)}
+                        >
+                          <SelectTrigger className="h-7 w-[120px] text-xs">
+                            <SelectValue placeholder="Assign…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {rounds.map(r => (
+                              <SelectItem key={r.id} value={r.id} className="text-xs">
+                                Round {r.round_number}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rounds.map(round => {
+              const list = eventsByRound.get(round.id) || [];
+              return (
+                <div key={round.id}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Layers className="h-4 w-4" />
+                      <span>Round {round.round_number} ({list.length})</span>
+                    </div>
+                  </div>
+                  {list.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic px-3 py-2 border rounded-md">
+                      No events attached to this round yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 border rounded-lg p-3">
+                      {list.map(ev => (
+                        <div key={ev.id} className="flex items-start gap-2">
+                          <div className="flex-1">
+                            <EvidenceItem
+                              event={ev}
+                              clientId={clientId}
+                              showDebug={showDebug}
+                              onEdit={setEditingEvent}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => handleAssignRound(ev.id, null)}
+                          >
+                            Unassign
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : showChronological ? (
           <ChronologicalView 
             events={evidenceEvents} 
             clientId={clientId}

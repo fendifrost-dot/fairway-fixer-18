@@ -107,6 +107,7 @@ export interface TimelineEventParsed {
   account_ref: string | null; // optional
   description: string; // required
   raw_line: string; // required - original input line
+  round_number?: number | null; // optional [Round N] tag
 }
 
 // ============================================================================
@@ -135,6 +136,7 @@ export interface UnresolvedItem {
   date_is_unknown: boolean;
   description: string; // required
   raw_line: string; // required
+  round_number?: number | null;
 }
 
 // ============================================================================

@@ -127,7 +127,21 @@ export function UnresolvedStatePanel({ items }: UnresolvedStatePanelProps) {
       </Card>
     );
   }
-  
+
+  // Round grouping: when at least one item has a round_number, render
+  // a top-level grouping by round (Unassigned first, then Round N).
+  const hasAnyRound = items.some(i => typeof (i as any).round_number === 'number');
+  const itemsByRound = new Map<string, UnresolvedItem[]>();
+  if (hasAnyRound) {
+    for (const it of items) {
+      const rn = (it as any).round_number as number | undefined;
+      const key = typeof rn === 'number' ? `round_${rn}` : '__unassigned__';
+      const arr = itemsByRound.get(key) || [];
+      arr.push(it);
+      itemsByRound.set(key, arr);
+    }
+  }
+
   const groupedBySource = groupBySource(items);
   
   // Only show sources that have items
@@ -147,6 +161,30 @@ export function UnresolvedStatePanel({ items }: UnresolvedStatePanelProps) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
+        {hasAnyRound && (
+          <div className="px-4 py-2 border-b text-xs text-muted-foreground space-y-0.5">
+            <div className="font-medium text-foreground mb-1">By Round</div>
+            {Array.from(itemsByRound.keys())
+              .sort((a, b) => {
+                if (a === '__unassigned__') return -1;
+                if (b === '__unassigned__') return 1;
+                return a.localeCompare(b, undefined, { numeric: true });
+              })
+              .map(key => {
+                const list = itemsByRound.get(key) || [];
+                const label =
+                  key === '__unassigned__'
+                    ? 'Unassigned'
+                    : `Round ${key.replace('round_', '')}`;
+                return (
+                  <div key={key} className="flex justify-between">
+                    <span>{label}</span>
+                    <span>{list.length}</span>
+                  </div>
+                );
+              })}
+          </div>
+        )}
         <Accordion type="multiple" className="w-full">
           {activeSources.map(sourceKey => {
             const sourceItems = groupedBySource.get(sourceKey) || [];

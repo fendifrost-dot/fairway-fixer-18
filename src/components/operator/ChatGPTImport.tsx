@@ -32,6 +32,7 @@ import { AIReviewPanel, AISuggestion } from '@/components/operator/AIReviewPanel
 import { supabase } from '@/integrations/supabase/client';
 import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
 import { JsonImportReview } from '@/components/operator/JsonImportReview';
+import { ensureRound } from '@/hooks/useDisputeRounds';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -216,6 +217,34 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
     try {
       // Convert parsed timeline events to database format
       const dbEvents = parsed.timeline_events.map(e => mapTimelineEventToDb(e, clientId));
+
+      // Resolve [Round N] tags to dispute_round IDs (creating rounds if needed)
+      const uniqueRoundNumbers = Array.from(
+        new Set(
+          dbEvents
+            .map(e => e.round_number)
+            .filter((n): n is number => typeof n === 'number' && n > 0)
+        )
+      );
+      if (uniqueRoundNumbers.length > 0) {
+        const roundMap = new Map<number, string>();
+        for (const n of uniqueRoundNumbers) {
+          try {
+            const round = await ensureRound(clientId, n);
+            roundMap.set(n, round.id);
+          } catch (err) {
+            toast.error(`Failed to create Round ${n}: ${(err as Error).message}`);
+          }
+        }
+        for (const e of dbEvents) {
+          if (e.round_number && roundMap.has(e.round_number)) {
+            e.round_id = roundMap.get(e.round_number) ?? null;
+          }
+          delete e.round_number;
+        }
+      } else {
+        dbEvents.forEach(e => { delete e.round_number; });
+      }
       
       // Convert scheduled events to tasks
       const dbTasks = parsed.scheduled_events.map(e => mapScheduledEventToTask(e, clientId));

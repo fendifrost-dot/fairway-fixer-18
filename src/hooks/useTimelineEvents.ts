@@ -29,6 +29,7 @@ export function useTimelineEvents(clientId: string | undefined) {
         source: row.source as EventSource | null,
         related_accounts: (row.related_accounts as unknown) as RelatedAccount[] | null,
         is_draft: row.is_draft,
+        round_id: (row as any).round_id ?? null,
       })) as TimelineEvent[];
     },
     enabled: !!clientId,
@@ -60,6 +61,7 @@ export function useCreateTimelineEvent() {
           raw_line: event.raw_line,
           event_kind: event.event_kind || 'action',
           is_draft: false,
+          ...(event.round_id ? { round_id: event.round_id } : {}),
         })
         .select()
         .single();
@@ -104,6 +106,7 @@ export function useBulkCreateTimelineEvents() {
           raw_line: e.raw_line,
           event_kind: e.event_kind || 'action',
           is_draft: false,
+          ...(e.round_id ? { round_id: e.round_id } : {}),
         })))
         .select();
       
@@ -128,7 +131,7 @@ export function useUpdateTimelineEvent() {
     mutationFn: async ({ id, clientId, updates }: { 
       id: string; 
       clientId: string; 
-      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind'>>
+      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind' | 'round_id'>>
     }) => {
       const { error } = await supabase
         .from('timeline_events')

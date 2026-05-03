@@ -15,6 +15,7 @@ import { BaselinePanel } from '@/components/baseline/BaselinePanel';
 import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
 import { CreditScoresPanel } from '@/components/analyzer/CreditScoresPanel';
 import { IdentityCard } from '@/components/operator/IdentityCard';
+import { DisputeRoundsPanel } from '@/components/operator/DisputeRounds/DisputeRoundsPanel';
 import { BureauNarrative } from '@/components/analyzer/BureauNarrative';
 import { CreditAnalyzer } from '@/components/analyzer/CreditAnalyzer';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
@@ -106,6 +107,13 @@ export default function ClientDetail() {
 
         {/* Identity */}
         <IdentityCard client={client} />
+
+        {/* Dispute Rounds */}
+        <DisputeRoundsPanel
+          clientId={clientId!}
+          events={events}
+          unresolvedItems={unresolvedItems}
+        />
 
         {/* Credit Scores */}
         <CreditScoresPanel clientId={clientId!} />

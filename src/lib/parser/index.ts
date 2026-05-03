@@ -21,7 +21,7 @@ import {
   NoteFlag,
   ClientProfile,
 } from '@/types/parser';
-import { detectSection, isMetaLine, cleanContentLine } from './sectionDetector';
+import { detectSection, isMetaLine, cleanContentLine, detectRoundTag } from './sectionDetector';
 import { 
   splitPipeLine, 
   parseTimelineEventRow, 
@@ -66,6 +66,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
   const lines = input.split('\n');
   let currentSection: SectionType = 'none';
   let clientProfileLines: string[] = [];
+  let currentRound: number | null = null;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -84,6 +85,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
       }
       
       currentSection = detectedSection;
+      currentRound = null; // round tags do not carry across sections
       continue;
     }
     
@@ -91,6 +93,13 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
     const cleanLine = cleanContentLine(line);
     if (!cleanLine) continue;
     
+    // Detect [Round N] tag — affects subsequent lines within this section
+    const roundTag = detectRoundTag(cleanLine);
+    if (roundTag !== null) {
+      currentRound = roundTag;
+      continue;
+    }
+
     const lineNumber = i + 1;
     
     switch (currentSection) {
@@ -124,6 +133,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
           result.notes_flags.push(createUnroutedWarning(lineNumber, cleanLine));
           result.counts.unrouted++;
         } else {
+          if (currentRound !== null) events.forEach(e => { e.round_number = currentRound; });
           result.timeline_events.push(...events);
           result.counts.actions += events.length;
         }
@@ -143,6 +153,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
           result.notes_flags.push(createUnroutedWarning(lineNumber, cleanLine));
           result.counts.unrouted++;
         } else {
+          if (currentRound !== null) events.forEach(e => { e.round_number = currentRound; });
           result.timeline_events.push(...events);
           result.counts.responses += events.length;
         }
@@ -162,6 +173,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
           result.notes_flags.push(createUnroutedWarning(lineNumber, cleanLine));
           result.counts.unrouted++;
         } else {
+          if (currentRound !== null) events.forEach(e => { e.round_number = currentRound; });
           result.timeline_events.push(...events);
           result.counts.outcomes += events.length;
         }
@@ -171,6 +183,7 @@ export function parseUpdate(input: string, clientId: string): ParseResult {
       case 'open_unresolved': {
         const parts = splitPipeLine(cleanLine);
         const items = parseUnresolvedItemRow(parts, cleanLine);
+        if (currentRound !== null) items.forEach(it => { it.round_number = currentRound; });
         result.unresolved_items.push(...items);
         result.counts.unresolved += items.length;
         break;

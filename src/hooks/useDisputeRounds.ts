@@ -9,7 +9,7 @@ export function useDisputeRounds(clientId: string | undefined) {
     queryFn: async () => {
       if (!clientId) return [];
       const { data, error } = await supabase
-        .from('dispute_rounds' as any)
+        .from('dispute_rounds')
         .select('*')
         .eq('client_id', clientId)
         .order('round_number', { ascending: true });
@@ -30,7 +30,7 @@ export function useCreateDisputeRound() {
       notes?: string | null;
     }) => {
       const { data, error } = await supabase
-        .from('dispute_rounds' as any)
+        .from('dispute_rounds')
         .insert({
           client_id: input.client_id,
           round_number: input.round_number,
@@ -62,7 +62,7 @@ export function useUpdateDisputeRound() {
       updates: Partial<Pick<DisputeRound, 'status' | 'notes' | 'submitted_at' | 'completed_at'>>;
     }) => {
       const { error } = await supabase
-        .from('dispute_rounds' as any)
+        .from('dispute_rounds')
         .update(updates)
         .eq('id', id);
       if (error) throw error;
@@ -84,7 +84,7 @@ export async function ensureRound(
   roundNumber: number
 ): Promise<DisputeRound> {
   const { data: existing, error: selErr } = await supabase
-    .from('dispute_rounds' as any)
+    .from('dispute_rounds')
     .select('*')
     .eq('client_id', clientId)
     .eq('round_number', roundNumber)
@@ -93,7 +93,7 @@ export async function ensureRound(
   if (existing) return existing as unknown as DisputeRound;
 
   const { data: created, error: insErr } = await supabase
-    .from('dispute_rounds' as any)
+    .from('dispute_rounds')
     .insert({ client_id: clientId, round_number: roundNumber, status: 'planning' })
     .select()
     .single();

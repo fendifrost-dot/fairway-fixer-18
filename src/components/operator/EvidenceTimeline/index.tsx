@@ -182,6 +182,25 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     return map;
   }, [byRound, evidenceEvents]);
 
+  // Furnisher grouping (B4): bucket events by furnisher_id (only those with a furnisher)
+  const eventsByFurnisher = useMemo(() => {
+    const map = new Map<string, TimelineEvent[]>();
+    for (const ev of evidenceEvents) {
+      if (!ev.furnisher_id) continue;
+      const arr = map.get(ev.furnisher_id) || [];
+      arr.push(ev);
+      map.set(ev.furnisher_id, arr);
+    }
+    return map;
+  }, [evidenceEvents]);
+
+  const furnishersWithAny = useMemo(() => {
+    // Show furnishers that either have at least one attached event OR exist in
+    // the table for this client. Per spec: render the group only when the
+    // client has at least one furnisher row.
+    return furnishers;
+  }, [furnishers]);
+
   const handleAssignRound = (eventId: string, roundId: string | null) => {
     updateEvent.mutate({
       id: eventId,

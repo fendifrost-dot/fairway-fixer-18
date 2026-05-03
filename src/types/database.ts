@@ -39,6 +39,15 @@ export interface DbClient {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  date_of_birth?: string | null;
+  current_address?: string | null;
+  ssn_last4?: string | null;
+  alternate_addresses?: string[] | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
 }
 
 export interface DbMatter {

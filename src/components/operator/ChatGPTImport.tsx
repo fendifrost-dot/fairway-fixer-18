@@ -33,6 +33,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
 import { JsonImportReview } from '@/components/operator/JsonImportReview';
 import { ensureRound } from '@/hooks/useDisputeRounds';
+import { extractScoresFromLines } from '@/lib/scoreExtraction';
+import { applyExtractedScores } from '@/lib/applyExtractedScores';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;

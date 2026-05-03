@@ -17,12 +17,15 @@ import { mapTimelineEventToDb } from '@/lib/importRouting';
 import { ensureRound } from '@/hooks/useDisputeRounds';
 import type { ScheduledEvent } from '@/types/parser';
 import type { OperatorTask, SimplePriority } from '@/types/operator';
+import { extractScoresFromLines, ExtractedScore, ScoreBureau } from '@/lib/scoreExtraction';
+import { applyExtractedScores } from '@/lib/applyExtractedScores';
 
 export interface AutoExtractResult {
   events: number;
   tasks: number;
   rounds: number;
   identityFieldsFilled: number;
+  scoresUpdated: number;
   errors: string[];
 }
 
@@ -57,6 +60,7 @@ export async function autoExtractIntake(
     tasks: 0,
     rounds: 0,
     identityFieldsFilled: 0,
+    scoresUpdated: 0,
     errors: [],
   };
 
@@ -84,6 +88,10 @@ export async function autoExtractIntake(
     alternate_addresses?: string[];
   };
   const blob: string = typeof data?.structured_blob === 'string' ? data.structured_blob : '';
+  const rawScores = (data?.credit_scores ?? {}) as Record<
+    string,
+    { score?: number; as_of?: string | null } | undefined
+  >;
 
   // 2) Patch client identity (only fields the model returned non-null)
   const updates: Record<string, unknown> = {};
@@ -172,6 +180,33 @@ export async function autoExtractIntake(
     .from('clients')
     .update({ intake_auto_extracted_at: new Date().toISOString() })
     .eq('id', clientId);
+
+  // 8) Apply credit scores: prefer the AI-returned credit_scores, then
+  //    augment by scanning the parsed event raw_lines deterministically.
+  const incoming: ExtractedScore[] = [];
+  for (const bureau of ['equifax', 'experian', 'transunion'] as ScoreBureau[]) {
+    const entry = rawScores[bureau];
+    if (entry && typeof entry.score === 'number' && entry.score >= 300 && entry.score <= 900) {
+      incoming.push({
+        bureau,
+        score: Math.round(entry.score),
+        as_of: typeof entry.as_of === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.as_of)
+          ? entry.as_of
+          : null,
+      });
+    }
+  }
+  // Also scan parsed timeline raw_lines for any explicitly-stated scores.
+  const fromLines = extractScoresFromLines(parsed.timeline_events.map(e => e.raw_line).filter(Boolean));
+  for (const s of fromLines) {
+    // Only add if AI didn't already cover that bureau
+    if (!incoming.find(i => i.bureau === s.bureau)) incoming.push(s);
+  }
+  if (incoming.length > 0) {
+    const { updated, errors: scoreErrs } = await applyExtractedScores(clientId, incoming, 'intake-auto-extract');
+    result.scoresUpdated = updated;
+    result.errors.push(...scoreErrs);
+  }
 
   return result;
 }

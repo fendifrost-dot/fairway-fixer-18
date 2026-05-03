@@ -62,6 +62,7 @@ export function useCreateTimelineEvent() {
           event_kind: event.event_kind || 'action',
           is_draft: false,
           ...(event.round_id ? { round_id: event.round_id } : {}),
+          ...(event.furnisher_id ? { furnisher_id: event.furnisher_id } : {}),
         })
         .select()
         .single();

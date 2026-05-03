@@ -68,6 +68,10 @@ export type DbTimelineEvent = {
   furnisher_name?: string | null;
   /** Internal: parser-detected furnisher account last 4, used for ensureFurnisher dedupe. */
   furnisher_account_last4?: string | null;
+  /** B5: Optional tradeline this event is anchored to. */
+  tradeline_id?: string | null;
+  /** Internal: parser-detected [Tradeline: "..."] anchor name; resolved at import time. */
+  tradeline_anchor?: string | null;
 };
 
 /**
@@ -118,5 +122,6 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     round_number: event.round_number ?? null,
     furnisher_name: event.furnisher_name ?? null,
     furnisher_account_last4: event.furnisher_account_last4 ?? null,
+    tradeline_anchor: event.tradeline_anchor ?? null,
   };
 }

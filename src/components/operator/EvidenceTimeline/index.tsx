@@ -23,9 +23,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/operator';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
+import { useFurnishers } from '@/hooks/useFurnishers';
 import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
+import { FurnisherSection } from './FurnisherSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
 import { AddEntryDialog } from './AddEntryDialog';
@@ -42,6 +44,7 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
   'Regulatory': Shield,
+  'Furnishers': Building2,
 };
 
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
@@ -52,6 +55,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
   const { data: rounds = [] } = useDisputeRounds(clientId);
+  const { data: furnishers = [] } = useFurnishers(clientId);
   const updateEvent = useUpdateTimelineEvent();
 
   // 24h "Auto-extracted on intake" badge
@@ -177,6 +181,25 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     }
     return map;
   }, [byRound, evidenceEvents]);
+
+  // Furnisher grouping (B4): bucket events by furnisher_id (only those with a furnisher)
+  const eventsByFurnisher = useMemo(() => {
+    const map = new Map<string, TimelineEvent[]>();
+    for (const ev of evidenceEvents) {
+      if (!ev.furnisher_id) continue;
+      const arr = map.get(ev.furnisher_id) || [];
+      arr.push(ev);
+      map.set(ev.furnisher_id, arr);
+    }
+    return map;
+  }, [evidenceEvents]);
+
+  const furnishersWithAny = useMemo(() => {
+    // Show furnishers that either have at least one attached event OR exist in
+    // the table for this client. Per spec: render the group only when the
+    // client has at least one furnisher row.
+    return furnishers;
+  }, [furnishers]);
 
   const handleAssignRound = (eventId: string, roundId: string | null) => {
     updateEvent.mutate({
@@ -431,6 +454,31 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 </div>
               );
             })}
+
+            {/* Furnishers (B4) — only when at least one furnisher exists */}
+            {furnishersWithAny.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+                  <Building2 className="h-4 w-4" />
+                  <span>Furnishers</span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {furnishersWithAny.length}
+                  </Badge>
+                </div>
+                <Accordion type="multiple" className="w-full">
+                  {furnishersWithAny.map(f => (
+                    <FurnisherSection
+                      key={f.id}
+                      furnisher={f}
+                      events={eventsByFurnisher.get(f.id) || []}
+                      clientId={clientId}
+                      showDebug={showDebug}
+                      onEdit={setEditingEvent}
+                    />
+                  ))}
+                </Accordion>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

@@ -146,6 +146,19 @@ export function UnresolvedStatePanel({ items }: UnresolvedStatePanelProps) {
   
   // Only show sources that have items
   const activeSources = SOURCE_ORDER.filter(s => groupedBySource.has(s));
+
+  // Furnisher breakdown (B4): items with a furnisher_name set
+  const furnisherItems = items.filter(i => !!i.furnisher_name);
+  const furnisherBuckets = new Map<string, UnresolvedItem[]>();
+  for (const it of furnisherItems) {
+    const key = (it.furnisher_name || '').trim() || '(unnamed furnisher)';
+    const arr = furnisherBuckets.get(key) || [];
+    arr.push(it);
+    furnisherBuckets.set(key, arr);
+  }
+  const sortedFurnishers = Array.from(furnisherBuckets.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
   
   return (
     <Card>
@@ -268,6 +281,43 @@ export function UnresolvedStatePanel({ items }: UnresolvedStatePanelProps) {
               </AccordionItem>
             );
           })}
+
+          {/* Furnishers breakdown (B4) */}
+          {furnisherItems.length > 0 && (
+            <AccordionItem value="__furnishers__" className="border-b last:border-b-0">
+              <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">
+                <div className="flex items-center justify-between w-full pr-2">
+                  <span className="font-medium flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Furnishers
+                  </span>
+                  <Badge variant="outline" className="text-xs">
+                    {furnisherItems.length}
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-3">
+                <div className="space-y-1">
+                  {sortedFurnishers.map(([name, list]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded-md border border-border/50"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">{name}</span>
+                        {list[0].furnisher_account_last4 && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            …{list[0].furnisher_account_last4}
+                          </span>
+                        )}
+                      </div>
+                      <Badge variant="secondary" className="text-xs">{list.length}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
         </Accordion>
       </CardContent>
     </Card>

@@ -12,10 +12,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCreateTimelineEvent } from '@/hooks/useTimelineEvents';
+import { useFurnishers, useCreateFurnisher } from '@/hooks/useFurnishers';
 import { ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
 
 interface AddEntryDialogProps {
@@ -26,11 +27,17 @@ interface AddEntryDialogProps {
 
 export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogProps) {
   const createEvent = useCreateTimelineEvent();
+  const { data: furnishers = [] } = useFurnishers(clientId);
+  const createFurnisher = useCreateFurnisher();
   
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const [category, setCategory] = useState<EventCategory>('Action');
   const [eventKind, setEventKind] = useState<string>('action');
   const [source, setSource] = useState<string>('');
+  const [furnisherId, setFurnisherId] = useState<string>('');
+  const [showNewFurnisher, setShowNewFurnisher] = useState(false);
+  const [newFurnisherName, setNewFurnisherName] = useState('');
+  const [newFurnisherLast4, setNewFurnisherLast4] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [details, setDetails] = useState('');
@@ -53,17 +60,38 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
     setCategory('Action');
     setEventKind('action');
     setSource('');
+    setFurnisherId('');
+    setShowNewFurnisher(false);
+    setNewFurnisherName('');
+    setNewFurnisherLast4('');
     setTitle('');
     setSummary('');
     setDetails('');
     setRawLine('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const dateStr = eventDate ? format(eventDate, 'yyyy-MM-dd') : null;
     const effectiveRawLine = rawLine.trim() || summary.trim() || title.trim();
     
     if (!effectiveRawLine) return;
+
+    // If user filled the inline new-furnisher form but didn't click "Add",
+    // create it now so the event attaches to it.
+    let resolvedFurnisherId: string | null = furnisherId || null;
+    if (showNewFurnisher && newFurnisherName.trim()) {
+      try {
+        const created = await createFurnisher.mutateAsync({
+          client_id: clientId,
+          name: newFurnisherName.trim(),
+          account_last4: newFurnisherLast4.trim() || null,
+        });
+        resolvedFurnisherId = created.id;
+      } catch {
+        // Toast already handled by hook; abort submit so user can retry.
+        return;
+      }
+    }
 
     createEvent.mutate({
       client_id: clientId,
@@ -78,6 +106,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
       raw_line: effectiveRawLine,
       event_kind: eventKind,
       is_draft: false,
+      furnisher_id: resolvedFurnisherId,
     }, {
       onSuccess: () => {
         resetForm();
@@ -86,7 +115,8 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
     });
   };
 
-  const canSubmit = (title.trim() || summary.trim()) && !createEvent.isPending;
+  const canSubmit =
+    (title.trim() || summary.trim()) && !createEvent.isPending && !createFurnisher.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -398,6 +398,7 @@ export type Database = {
           alternate_addresses: string[]
           city: string | null
           created_at: string
+          credit_scores: Json
           current_address: string | null
           date_of_birth: string | null
           dispute_count: number | null
@@ -428,6 +429,7 @@ export type Database = {
           alternate_addresses?: string[]
           city?: string | null
           created_at?: string
+          credit_scores?: Json
           current_address?: string | null
           date_of_birth?: string | null
           dispute_count?: number | null
@@ -458,6 +460,7 @@ export type Database = {
           alternate_addresses?: string[]
           city?: string | null
           created_at?: string
+          credit_scores?: Json
           current_address?: string | null
           date_of_birth?: string | null
           dispute_count?: number | null

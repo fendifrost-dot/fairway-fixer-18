@@ -33,6 +33,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
 import { JsonImportReview } from '@/components/operator/JsonImportReview';
 import { ensureRound } from '@/hooks/useDisputeRounds';
+import { extractScoresFromLines } from '@/lib/scoreExtraction';
+import { applyExtractedScores } from '@/lib/applyExtractedScores';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -259,6 +261,23 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
       
       // Notify parent of import completion (for unresolved items, drafts, notes)
       onImportComplete?.(parsed);
+
+      // B6: Auto-populate Credit Scores from outcome lines containing scores.
+      try {
+        const outcomeLines = parsed.timeline_events
+          .filter(e => e.event_kind === 'outcome' || e.event_kind === 'response' || e.event_kind === 'action')
+          .map(e => e.raw_line)
+          .filter(Boolean);
+        const incoming = extractScoresFromLines(outcomeLines);
+        if (incoming.length > 0) {
+          const { updated } = await applyExtractedScores(clientId, incoming, 'chatgpt-import');
+          if (updated > 0) {
+            toast.success(`Updated ${updated} credit score${updated === 1 ? '' : 's'}`);
+          }
+        }
+      } catch (e) {
+        console.warn('Credit score extraction failed:', e);
+      }
       
       // Auto-process unrouted lines through AI
       if (parsed.unrouted_lines.length > 0) {

@@ -99,6 +99,8 @@ Return TWO things via the extract_intake tool:
 
    Date format: YYYY-MM-DD. Use YYYY-MM-XX if only month/year known. Omit the date column entirely (start the row with the source) if the date is fully unknown.
 
+3) credit_scores: structured snapshot of the most recently mentioned score per credit bureau. ONLY fill a bureau when the narrative explicitly states a numeric score for that bureau. Each entry is { score, as_of }. as_of is YYYY-MM-DD when an exact date is given; otherwise null. Omit bureaus that are not mentioned. Score range 300-900.
+
 Rules:
 - Only emit sections that have content. If no actions/responses/outcomes were performed, omit those sections.
 - Do NOT fabricate dates, sources, account numbers, or events. When ambiguous, omit the row entirely rather than guessing.
@@ -145,8 +147,42 @@ Rules:
                       type: "string",
                       description: "Pipe-delimited sectioned text in the parser's expected format. Empty string if nothing extractable.",
                     },
+                    credit_scores: {
+                      type: "object",
+                      description: "Most-recent credit score per bureau. Omit bureaus that aren't explicitly stated.",
+                      properties: {
+                        equifax: {
+                          type: "object",
+                          properties: {
+                            score: { type: "integer", description: "300-900" },
+                            as_of: { type: "string", nullable: true, description: "YYYY-MM-DD or null" },
+                          },
+                          required: ["score", "as_of"],
+                          additionalProperties: false,
+                        },
+                        experian: {
+                          type: "object",
+                          properties: {
+                            score: { type: "integer" },
+                            as_of: { type: "string", nullable: true },
+                          },
+                          required: ["score", "as_of"],
+                          additionalProperties: false,
+                        },
+                        transunion: {
+                          type: "object",
+                          properties: {
+                            score: { type: "integer" },
+                            as_of: { type: "string", nullable: true },
+                          },
+                          required: ["score", "as_of"],
+                          additionalProperties: false,
+                        },
+                      },
+                      additionalProperties: false,
+                    },
                   },
-                  required: ["identity", "structured_blob"],
+                  required: ["identity", "structured_blob", "credit_scores"],
                   additionalProperties: false,
                 },
               },
@@ -188,7 +224,7 @@ Rules:
       );
     }
 
-    let parsed: { identity?: Record<string, unknown>; structured_blob?: string };
+    let parsed: { identity?: Record<string, unknown>; structured_blob?: string; credit_scores?: Record<string, unknown> };
     try {
       parsed = JSON.parse(toolCall.function.arguments);
     } catch {
@@ -211,10 +247,26 @@ Rules:
         : [],
     };
 
+    // Sanitize credit_scores: enforce score range and date format.
+    const rawScores = (parsed.credit_scores || {}) as Record<string, unknown>;
+    const cleanScores: Record<string, { score: number; as_of: string | null }> = {};
+    for (const bureau of ["equifax", "experian", "transunion"] as const) {
+      const entry = rawScores[bureau] as { score?: unknown; as_of?: unknown } | undefined;
+      if (!entry || typeof entry !== "object") continue;
+      const score = typeof entry.score === "number" ? Math.round(entry.score) : NaN;
+      if (!(score >= 300 && score <= 900)) continue;
+      const asOf =
+        typeof entry.as_of === "string" && /^\d{4}-\d{2}-\d{2}$/.test(entry.as_of)
+          ? entry.as_of
+          : null;
+      cleanScores[bureau] = { score, as_of: asOf };
+    }
+
     return new Response(
       JSON.stringify({
         identity: cleanIdentity,
         structured_blob: typeof parsed.structured_blob === "string" ? parsed.structured_blob : "",
+        credit_scores: cleanScores,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

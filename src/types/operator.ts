@@ -43,8 +43,49 @@ export interface TimelineEvent {
   event_kind?: string;
   /** When true, this is a draft document (not sent) - excluded from Evidence Timeline. */
   is_draft?: boolean;
+  /** Optional dispute round this event belongs to. */
+  round_id?: string | null;
   created_at: string;
 }
+
+// ============================================================================
+// DISPUTE ROUNDS
+// ============================================================================
+
+export type DisputeRoundStatus =
+  | 'planning'
+  | 'mailed'
+  | 'awaiting_response'
+  | 'response_received'
+  | 'closed';
+
+export interface DisputeRound {
+  id: string;
+  client_id: string;
+  round_number: number;
+  submitted_at: string | null;
+  completed_at: string | null;
+  status: DisputeRoundStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const DISPUTE_ROUND_STATUSES: DisputeRoundStatus[] = [
+  'planning',
+  'mailed',
+  'awaiting_response',
+  'response_received',
+  'closed',
+];
+
+export const DISPUTE_ROUND_STATUS_LABELS: Record<DisputeRoundStatus, string> = {
+  planning: 'Planning',
+  mailed: 'Mailed',
+  awaiting_response: 'Awaiting response',
+  response_received: 'Response received',
+  closed: 'Closed',
+};
 
 export interface OperatorTask {
   id: string;

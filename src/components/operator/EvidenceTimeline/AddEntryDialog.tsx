@@ -173,6 +173,94 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
             </Select>
           </div>
 
+          {/* Furnisher (optional) — coexists with Source */}
+          <div className="space-y-1">
+            <Label htmlFor="add-furnisher">Furnisher (optional)</Label>
+            {!showNewFurnisher ? (
+              <div className="flex gap-2">
+                <Select
+                  value={furnisherId || '__none__'}
+                  onValueChange={(v) => setFurnisherId(v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger id="add-furnisher" className="flex-1">
+                    <SelectValue placeholder="No furnisher" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No furnisher</SelectItem>
+                    {furnishers.map(f => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                        {f.account_last4 ? ` (…${f.account_last4})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowNewFurnisher(true);
+                    setFurnisherId('');
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  New
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-md border p-2 bg-muted/30">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Furnisher name"
+                    value={newFurnisherName}
+                    onChange={(e) => setNewFurnisherName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Last 4"
+                    value={newFurnisherLast4}
+                    onChange={(e) => setNewFurnisherLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="w-20 font-mono"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewFurnisher(false);
+                      setNewFurnisherName('');
+                      setNewFurnisherLast4('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={!newFurnisherName.trim() || createFurnisher.isPending}
+                    onClick={async () => {
+                      const created = await createFurnisher.mutateAsync({
+                        client_id: clientId,
+                        name: newFurnisherName.trim(),
+                        account_last4: newFurnisherLast4.trim() || null,
+                      });
+                      setFurnisherId(created.id);
+                      setShowNewFurnisher(false);
+                      setNewFurnisherName('');
+                      setNewFurnisherLast4('');
+                    }}
+                  >
+                    Add furnisher
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Title */}
           <div className="space-y-1">
             <Label htmlFor="add-title">Title</Label>

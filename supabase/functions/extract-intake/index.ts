@@ -97,6 +97,8 @@ Return TWO things via the extract_intake tool:
 
    Valid sources (case-sensitive): Experian, TransUnion, Equifax, Innovis, LexisNexis, Sagestream, CoreLogic, FTC, CFPB, BBB, AG, Other. If a row applies to all credit bureaus, use "All CRAs" as the source.
 
+   Furnishers (B4): If a row's correspondence is from a creditor / collection agency / lender / servicer (e.g. "OneMain Financial", "Discover Bank", "LVNV Funding", "Capital One"), put the furnisher's name verbatim in the source column with a "(furnisher)" tag, e.g. "OneMain Financial (furnisher)". The in-app pipeline will resolve it. Use the furnisher form ONLY when the source is clearly a non-bureau entity.
+
    Date format: YYYY-MM-DD. Use YYYY-MM-XX if only month/year known. Omit the date column entirely (start the row with the source) if the date is fully unknown.
 
 3) credit_scores: structured snapshot of the most recently mentioned score per credit bureau. ONLY fill a bureau when the narrative explicitly states a numeric score for that bureau. Each entry is { score, as_of }. as_of is YYYY-MM-DD when an exact date is given; otherwise null. Omit bureaus that are not mentioned. Score range 300-900.

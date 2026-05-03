@@ -36,6 +36,7 @@ import { ensureRound } from '@/hooks/useDisputeRounds';
 import { extractScoresFromLines } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
 import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
+import { resolveTradelinesForEvents } from '@/lib/resolveTradelines';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -255,6 +256,14 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
         if (fErrs.length > 0) console.warn('furnisher resolve warnings:', fErrs);
       } catch (e) {
         console.warn('furnisher resolution failed:', e);
+      }
+
+      // B5: Resolve [Tradeline: "..."] anchors → tradeline_id (create on demand)
+      try {
+        const { errors: tErrs } = await resolveTradelinesForEvents(clientId, dbEvents);
+        if (tErrs.length > 0) console.warn('tradeline resolve warnings:', tErrs);
+      } catch (e) {
+        console.warn('tradeline resolution failed:', e);
       }
 
       // Convert scheduled events to tasks

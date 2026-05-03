@@ -117,6 +117,11 @@ export interface TimelineEventParsed {
   furnisher_name?: string | null;
   /** Optional last-4 digits scraped from account_ref / details for furnisher dedupe. */
   furnisher_account_last4?: string | null;
+  /**
+   * B5: Optional [Tradeline: "Display name"] anchor parsed from the row tail.
+   * Resolved to tradeline_id at import time via ensureTradeline.
+   */
+  tradeline_anchor?: string | null;
 }
 
 // ============================================================================

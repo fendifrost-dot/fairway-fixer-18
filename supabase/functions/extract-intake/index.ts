@@ -103,6 +103,10 @@ Return TWO things via the extract_intake tool:
 
 3) credit_scores: structured snapshot of the most recently mentioned score per credit bureau. ONLY fill a bureau when the narrative explicitly states a numeric score for that bureau. Each entry is { score, as_of }. as_of is YYYY-MM-DD when an exact date is given; otherwise null. Omit bureaus that are not mentioned. Score range 300-900.
 
+4) tradelines: array of tradelines explicitly mentioned in the narrative. ONLY emit a tradeline when the narrative names a specific account (e.g. "Discover $439 charge-off", "MOHELA student loan #5"). Each item: { display_name, account_last4 (nullable), bureaus: { equifax|experian|transunion: { present, status_on_bureau (nullable), last_seen_date (YYYY-MM-DD or null) } } }. Only include bureau entries the narrative explicitly addresses. Omit the array entirely (return []) if no tradelines are explicitly named.
+
+   Tradeline anchors in structured_blob: when an event row clearly belongs to a named tradeline, append [Tradeline: "Display name"] at the end of that row (after all pipe columns). Use the SAME display_name string as in the tradelines array.
+
 Rules:
 - Only emit sections that have content. If no actions/responses/outcomes were performed, omit those sections.
 - Do NOT fabricate dates, sources, account numbers, or events. When ambiguous, omit the row entirely rather than guessing.
@@ -183,8 +187,57 @@ Rules:
                       },
                       additionalProperties: false,
                     },
+                    tradelines: {
+                      type: "array",
+                      description: "Explicitly named tradelines. Empty array if none.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          display_name: { type: "string" },
+                          account_last4: { type: "string", nullable: true },
+                          bureaus: {
+                            type: "object",
+                            properties: {
+                              equifax: {
+                                type: "object",
+                                properties: {
+                                  present: { type: "boolean" },
+                                  status_on_bureau: { type: "string", nullable: true },
+                                  last_seen_date: { type: "string", nullable: true },
+                                },
+                                required: ["present", "status_on_bureau", "last_seen_date"],
+                                additionalProperties: false,
+                              },
+                              experian: {
+                                type: "object",
+                                properties: {
+                                  present: { type: "boolean" },
+                                  status_on_bureau: { type: "string", nullable: true },
+                                  last_seen_date: { type: "string", nullable: true },
+                                },
+                                required: ["present", "status_on_bureau", "last_seen_date"],
+                                additionalProperties: false,
+                              },
+                              transunion: {
+                                type: "object",
+                                properties: {
+                                  present: { type: "boolean" },
+                                  status_on_bureau: { type: "string", nullable: true },
+                                  last_seen_date: { type: "string", nullable: true },
+                                },
+                                required: ["present", "status_on_bureau", "last_seen_date"],
+                                additionalProperties: false,
+                              },
+                            },
+                            additionalProperties: false,
+                          },
+                        },
+                        required: ["display_name", "account_last4", "bureaus"],
+                        additionalProperties: false,
+                      },
+                    },
                   },
-                  required: ["identity", "structured_blob", "credit_scores"],
+                  required: ["identity", "structured_blob", "credit_scores", "tradelines"],
                   additionalProperties: false,
                 },
               },
@@ -226,7 +279,12 @@ Rules:
       );
     }
 
-    let parsed: { identity?: Record<string, unknown>; structured_blob?: string; credit_scores?: Record<string, unknown> };
+    let parsed: {
+      identity?: Record<string, unknown>;
+      structured_blob?: string;
+      credit_scores?: Record<string, unknown>;
+      tradelines?: unknown;
+    };
     try {
       parsed = JSON.parse(toolCall.function.arguments);
     } catch {
@@ -269,6 +327,7 @@ Rules:
         identity: cleanIdentity,
         structured_blob: typeof parsed.structured_blob === "string" ? parsed.structured_blob : "",
         credit_scores: cleanScores,
+        tradelines: Array.isArray(parsed.tradelines) ? parsed.tradelines : [],
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

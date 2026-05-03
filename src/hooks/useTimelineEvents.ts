@@ -30,6 +30,8 @@ export function useTimelineEvents(clientId: string | undefined) {
         related_accounts: (row.related_accounts as unknown) as RelatedAccount[] | null,
         is_draft: row.is_draft,
         round_id: (row as any).round_id ?? null,
+        tradeline_id: (row as any).tradeline_id ?? null,
+        furnisher_id: (row as any).furnisher_id ?? null,
       })) as TimelineEvent[];
     },
     enabled: !!clientId,
@@ -63,6 +65,7 @@ export function useCreateTimelineEvent() {
           is_draft: false,
           ...(event.round_id ? { round_id: event.round_id } : {}),
           ...(event.furnisher_id ? { furnisher_id: event.furnisher_id } : {}),
+          ...(event.tradeline_id ? { tradeline_id: event.tradeline_id } : {}),
         })
         .select()
         .single();
@@ -108,6 +111,8 @@ export function useBulkCreateTimelineEvents() {
           event_kind: e.event_kind || 'action',
           is_draft: false,
           ...(e.round_id ? { round_id: e.round_id } : {}),
+          ...(e.furnisher_id ? { furnisher_id: e.furnisher_id } : {}),
+          ...(e.tradeline_id ? { tradeline_id: e.tradeline_id } : {}),
         })))
         .select();
       
@@ -132,7 +137,7 @@ export function useUpdateTimelineEvent() {
     mutationFn: async ({ id, clientId, updates }: { 
       id: string; 
       clientId: string; 
-      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind' | 'round_id'>>
+      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind' | 'round_id' | 'tradeline_id' | 'furnisher_id'>>
     }) => {
       const { error } = await supabase
         .from('timeline_events')

@@ -1181,6 +1181,7 @@ export type Database = {
           source: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
+          tradeline_id: string | null
         }
         Insert: {
           category: Database["public"]["Enums"]["event_category"]
@@ -1199,6 +1200,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
+          tradeline_id?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["event_category"]
@@ -1217,6 +1219,7 @@ export type Database = {
           source?: Database["public"]["Enums"]["event_source"] | null
           summary?: string
           title?: string
+          tradeline_id?: string | null
         }
         Relationships: [
           {
@@ -1238,6 +1241,114 @@ export type Database = {
             columns: ["round_id"]
             isOneToOne: false
             referencedRelation: "dispute_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timeline_events_tradeline_id_fkey"
+            columns: ["tradeline_id"]
+            isOneToOne: false
+            referencedRelation: "tradelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tradeline_bureau_states: {
+        Row: {
+          bureau: Database["public"]["Enums"]["tradeline_bureau"]
+          created_at: string
+          id: string
+          last_seen_date: string | null
+          notes: string | null
+          present: boolean
+          status_on_bureau: string | null
+          tradeline_id: string
+          updated_at: string
+        }
+        Insert: {
+          bureau: Database["public"]["Enums"]["tradeline_bureau"]
+          created_at?: string
+          id?: string
+          last_seen_date?: string | null
+          notes?: string | null
+          present?: boolean
+          status_on_bureau?: string | null
+          tradeline_id: string
+          updated_at?: string
+        }
+        Update: {
+          bureau?: Database["public"]["Enums"]["tradeline_bureau"]
+          created_at?: string
+          id?: string
+          last_seen_date?: string | null
+          notes?: string | null
+          present?: boolean
+          status_on_bureau?: string | null
+          tradeline_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tradeline_bureau_states_tradeline_id_fkey"
+            columns: ["tradeline_id"]
+            isOneToOne: false
+            referencedRelation: "tradelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tradelines: {
+        Row: {
+          account_last4: string | null
+          balance: number | null
+          client_id: string
+          created_at: string
+          display_name: string
+          furnisher_id: string | null
+          id: string
+          notes: string | null
+          opened_date: string | null
+          status: Database["public"]["Enums"]["tradeline_status"]
+          updated_at: string
+        }
+        Insert: {
+          account_last4?: string | null
+          balance?: number | null
+          client_id: string
+          created_at?: string
+          display_name: string
+          furnisher_id?: string | null
+          id?: string
+          notes?: string | null
+          opened_date?: string | null
+          status?: Database["public"]["Enums"]["tradeline_status"]
+          updated_at?: string
+        }
+        Update: {
+          account_last4?: string | null
+          balance?: number | null
+          client_id?: string
+          created_at?: string
+          display_name?: string
+          furnisher_id?: string | null
+          id?: string
+          notes?: string | null
+          opened_date?: string | null
+          status?: Database["public"]["Enums"]["tradeline_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tradelines_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tradelines_furnisher_id_fkey"
+            columns: ["furnisher_id"]
+            isOneToOne: false
+            referencedRelation: "furnishers"
             referencedColumns: ["id"]
           },
         ]
@@ -1524,6 +1635,13 @@ export type Database = {
       simple_status: "Open" | "Done"
       task_priority: "P0" | "P1" | "P2" | "P3"
       task_status: "Pending" | "InProgress" | "Done" | "Blocked"
+      tradeline_bureau: "equifax" | "experian" | "transunion"
+      tradeline_status:
+        | "active"
+        | "disputed"
+        | "deleted"
+        | "verified"
+        | "unknown"
       violation_trigger:
         | "Missed611Deadline"
         | "Reinsertion611a5B"
@@ -1738,6 +1856,14 @@ export const Constants = {
       simple_status: ["Open", "Done"],
       task_priority: ["P0", "P1", "P2", "P3"],
       task_status: ["Pending", "InProgress", "Done", "Blocked"],
+      tradeline_bureau: ["equifax", "experian", "transunion"],
+      tradeline_status: [
+        "active",
+        "disputed",
+        "deleted",
+        "verified",
+        "unknown",
+      ],
       violation_trigger: [
         "Missed611Deadline",
         "Reinsertion611a5B",

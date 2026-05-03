@@ -20,6 +20,22 @@ import { normalizeSource, detectScope } from './sourceNormalizer';
 import { detectFurnisher, extractAccountLast4 } from './furnisherDetector';
 
 /**
+ * Detect a [Tradeline: "Display name"] anchor anywhere in the raw line.
+ * Returns { displayName, strippedLine } where strippedLine has the tag removed
+ * (so downstream pipe parsing isn't disturbed). Match is non-greedy and
+ * tolerates straight or curly quotes.
+ */
+export function detectTradelineAnchor(rawLine: string): { displayName: string | null; strippedLine: string } {
+  const re = /\[\s*Tradeline\s*:\s*["“]([^"”]+)["”]\s*\]/i;
+  const m = rawLine.match(re);
+  if (!m) return { displayName: null, strippedLine: rawLine };
+  return {
+    displayName: m[1].trim(),
+    strippedLine: rawLine.replace(re, '').replace(/\s{2,}/g, ' ').trim(),
+  };
+}
+
+/**
  * Split a pipe-delimited line into parts
  */
 export function splitPipeLine(line: string): string[] {
@@ -76,6 +92,22 @@ export function parseTimelineEventRow(
   if (parts.length < 2) return [];
   
   const dateParsed = parseDate(parts[0]);
+  // B5: extract any [Tradeline: "..."] anchor from the trailing column(s)
+  // before per-column processing so the tag never leaks into details/account.
+  const tradelineFromLastPart = (() => {
+    if (parts.length === 0) return null;
+    const lastIdx = parts.length - 1;
+    const last = parts[lastIdx] || '';
+    const { displayName, strippedLine } = detectTradelineAnchor(last);
+    if (displayName) {
+      parts[lastIdx] = strippedLine;
+      return displayName;
+    }
+    return null;
+  })();
+  const tradelineAnchor =
+    tradelineFromLastPart ?? detectTradelineAnchor(rawLine).displayName;
+
   const entityRaw = parts[1] || '';
   const typeOrStatus = parts[2]?.trim() || '';
   const details = parts[3]?.trim() || '';
@@ -124,6 +156,7 @@ export function parseTimelineEventRow(
       raw_line: rawLine,
       furnisher_name: furnisherRef.name,
       furnisher_account_last4: last4,
+      tradeline_anchor: tradelineAnchor,
     }];
   }
 
@@ -141,6 +174,7 @@ export function parseTimelineEventRow(
     account_ref: cleanedAccount,
     description,
     raw_line: rawLine,
+    tradeline_anchor: tradelineAnchor,
   }));
 }
 

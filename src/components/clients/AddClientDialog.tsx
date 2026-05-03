@@ -29,6 +29,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { autoExtractIntake } from '@/lib/intakeAutoExtract';
 
 import type { Database } from '@/integrations/supabase/types';
 
@@ -333,12 +334,28 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       );
 
       if (result && result.client.id) {
-        toast.success('Client created. Use ChatGPT Import to add timeline events.');
+        const clientId = result.client.id;
+        // Auto-extract identity + timeline from the verbatim narrative (B3).
+        // Failure is non-fatal: the client is already saved, operator can
+        // still use the manual Paste-ChatGPT-Update flow on the client page.
+        let extractToast = 'Client created.';
+        if (intakeText.trim()) {
+          try {
+            const ex = await autoExtractIntake(clientId, intakeText.trim());
+            extractToast = `Imported ${ex.events} events, ${ex.tasks} tasks, ${ex.rounds} rounds from intake`;
+            if (ex.errors.length > 0) {
+              console.warn('auto-extract warnings:', ex.errors);
+            }
+          } catch (e) {
+            console.error('auto-extract failed:', e);
+            extractToast = 'Client created. Auto-extract failed — use Import on the client page.';
+          }
+        }
+        toast.success(extractToast);
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        // Navigate to client page (the main operator console)
-        navigate(`/clients/${result.client.id}`);
+        navigate(`/clients/${clientId}`);
       }
     } catch (error) {
       const anyErr = error as any;

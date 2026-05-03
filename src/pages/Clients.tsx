@@ -145,11 +145,9 @@ export default function Clients() {
                   >
                     {client.preferred_name || client.legal_name}
                   </CardTitle>
-                  {client.preferred_name && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {client.legal_name}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {(client as any).current_address || 'Address pending'}
+                  </p>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

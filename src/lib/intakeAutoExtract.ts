@@ -19,6 +19,7 @@ import type { ScheduledEvent } from '@/types/parser';
 import type { OperatorTask, SimplePriority } from '@/types/operator';
 import { extractScoresFromLines, ExtractedScore, ScoreBureau } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
+import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
 
 export interface AutoExtractResult {
   events: number;
@@ -145,6 +146,14 @@ export async function autoExtractIntake(
     }
   } else {
     dbEvents.forEach(e => { delete e.round_number; });
+  }
+
+  // B4: Resolve furnisher_name → furnisher_id before insert.
+  try {
+    const { errors: fErrs } = await resolveFurnishersForEvents(clientId, dbEvents);
+    if (fErrs.length > 0) result.errors.push(...fErrs);
+  } catch (e) {
+    result.errors.push('furnisher resolve: ' + (e as Error).message);
   }
 
   // 5) Bulk insert events

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -62,6 +63,15 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const [matterType, setMatterType] = useState<MatterType>('Credit');
   const [issueNote, setIssueNote] = useState('');
 
+  // Identity (optional) - shared across both tabs
+  const [identityOpen, setIdentityOpen] = useState(false);
+  const [dob, setDob] = useState('');
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [ssnLast4, setSsnLast4] = useState('');
+  const [identPhone, setIdentPhone] = useState('');
+  const [identEmail, setIdentEmail] = useState('');
+  const [alternateAddresses, setAlternateAddresses] = useState<string[]>([]);
+
   // Auto-focus textarea when dialog opens in paste mode
   useEffect(() => {
     if (open && mode === 'paste') {
@@ -97,6 +107,13 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setMode('paste');
     setSubmitError(null);
     setShowErrorDetails(false);
+    setIdentityOpen(false);
+    setDob('');
+    setCurrentAddress('');
+    setSsnLast4('');
+    setIdentPhone('');
+    setIdentEmail('');
+    setAlternateAddresses([]);
   };
 
 
@@ -198,6 +215,22 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return null;
     }
 
+    // Validate identity fields client-side
+    const ssnTrim = ssnLast4.trim();
+    if (ssnTrim && !/^[0-9]{4}$/.test(ssnTrim)) {
+      const friendly = 'SSN must be exactly 4 digits.';
+      setSubmitError({ friendly });
+      toast.error(friendly);
+      return null;
+    }
+    const emailTrim = identEmail.trim().toLowerCase();
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      const friendly = 'Invalid email format.';
+      setSubmitError({ friendly });
+      toast.error(friendly);
+      return null;
+    }
+
     // Call the patched debug RPC (now returns jsonb)
     const { data, error } = await supabase.rpc('debug_create_client_and_matter', {
       _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
@@ -205,6 +238,12 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       _intake_raw_text: rawIntakeText || '',
       _intake_source: source,
       _client_notes: noteText || null,
+      _dob: dob || null,
+      _current_address: currentAddress.trim() || null,
+      _ssn_last4: ssnTrim || null,
+      _phone: identPhone.replace(/\D/g, '') || null,
+      _email: emailTrim || null,
+      _alternate_addresses: alternateAddresses.map((s) => s.trim()).filter(Boolean),
     });
 
     const debugPayload = JSON.stringify({ rpc_response: data, rpc_error: error, whoami: who.text }, null, 2);

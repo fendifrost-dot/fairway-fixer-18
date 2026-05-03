@@ -23,9 +23,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/operator';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
+import { useFurnishers } from '@/hooks/useFurnishers';
 import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
+import { FurnisherSection } from './FurnisherSection';
 import { ChronologicalView } from './ChronologicalView';
 import { EvidenceItem } from './EvidenceItem';
 import { AddEntryDialog } from './AddEntryDialog';
@@ -42,6 +44,7 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   'Credit Bureaus': Building2,
   'Data Brokers': Database,
   'Regulatory': Shield,
+  'Furnishers': Building2,
 };
 
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
@@ -52,6 +55,7 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
   const { data: rounds = [] } = useDisputeRounds(clientId);
+  const { data: furnishers = [] } = useFurnishers(clientId);
   const updateEvent = useUpdateTimelineEvent();
 
   // 24h "Auto-extracted on intake" badge

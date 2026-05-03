@@ -454,6 +454,31 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 </div>
               );
             })}
+
+            {/* Furnishers (B4) — only when at least one furnisher exists */}
+            {furnishersWithAny.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+                  <Building2 className="h-4 w-4" />
+                  <span>Furnishers</span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {furnishersWithAny.length}
+                  </Badge>
+                </div>
+                <Accordion type="multiple" className="w-full">
+                  {furnishersWithAny.map(f => (
+                    <FurnisherSection
+                      key={f.id}
+                      furnisher={f}
+                      events={eventsByFurnisher.get(f.id) || []}
+                      clientId={clientId}
+                      showDebug={showDebug}
+                      onEdit={setEditingEvent}
+                    />
+                  ))}
+                </Accordion>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

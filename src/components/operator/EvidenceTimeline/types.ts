@@ -2,7 +2,7 @@
  * Evidence Timeline Types
  */
 
-import { TimelineEvent, EventSource } from '@/types/operator';
+import { TimelineEvent, EventSource, TimelineEventAttachment } from '@/types/operator';
 
 export type EvidenceCategory = 'Action' | 'Response' | 'Outcome' | 'Note';
 
@@ -19,6 +19,7 @@ export interface EvidenceItemProps {
   showDebug?: boolean;
   onDragStart?: (event: TimelineEvent) => void;
   onEdit?: (event: TimelineEvent) => void;
+  attachments?: TimelineEventAttachment[];
 }
 
 export interface SourceSectionProps {

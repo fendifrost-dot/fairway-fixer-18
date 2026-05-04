@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { FileText, Building2, Database, Shield, Bug, Plus, Layers, Sparkles } from 'lucide-react';
+import { FileText, Building2, Database, Shield, Bug, Plus, Layers, Sparkles, CreditCard } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,6 +24,7 @@ import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
 import { useFurnishers } from '@/hooks/useFurnishers';
+import { useTradelines, useCreateTradeline } from '@/hooks/useTradelines';
 import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
@@ -50,13 +51,19 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showChronological, setShowChronological] = useState(false);
   const [byRound, setByRound] = useState(false);
+  const [byTradeline, setByTradeline] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
   const { data: rounds = [] } = useDisputeRounds(clientId);
   const { data: furnishers = [] } = useFurnishers(clientId);
+  const { data: tradelines = [] } = useTradelines(clientId);
+  const createTradeline = useCreateTradeline();
   const updateEvent = useUpdateTimelineEvent();
+  const [newTradelineName, setNewTradelineName] = useState('');
+  const [newTradelineLast4, setNewTradelineLast4] = useState('');
+  const [showNewTradelineFor, setShowNewTradelineFor] = useState<string | null>(null);
 
   // 24h "Auto-extracted on intake" badge
   const { data: autoExtractedAt } = useQuery({
@@ -209,6 +216,34 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     });
   };
 
+  const handleAssignTradeline = (eventId: string, tradelineId: string | null) => {
+    updateEvent.mutate({
+      id: eventId,
+      clientId,
+      updates: { tradeline_id: tradelineId },
+    });
+  };
+
+  // By-Tradeline grouping
+  const eventsByTradelineMap = useMemo(() => {
+    if (!byTradeline) return null;
+    const map = new Map<string, TimelineEvent[]>(); // key = tradelineId or '__unattached__'
+    for (const ev of evidenceEvents) {
+      const key = ev.tradeline_id || '__unattached__';
+      const arr = map.get(key) || [];
+      arr.push(ev);
+      map.set(key, arr);
+    }
+    // Sort each group by date desc
+    for (const [k, arr] of map) {
+      arr.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+    }
+    return map;
+  }, [byTradeline, evidenceEvents]);
+
+  const hasAnyTradelineUsage =
+    tradelines.length > 0 || evidenceEvents.some(e => !!e.tradeline_id);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -250,10 +285,33 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 checked={byRound}
                 onCheckedChange={(v) => {
                   setByRound(v);
-                  if (v) setShowChronological(false);
+                  if (v) {
+                    setShowChronological(false);
+                    setByTradeline(false);
+                  }
                 }}
               />
             </div>
+            {/* By Tradeline toggle (B5) — only show when feature is in use */}
+            {hasAnyTradelineUsage && (
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-3 w-3 text-muted-foreground" />
+                <Label htmlFor="by-tradeline-toggle" className="text-xs text-muted-foreground">
+                  By Tradeline
+                </Label>
+                <Switch
+                  id="by-tradeline-toggle"
+                  checked={byTradeline}
+                  onCheckedChange={(v) => {
+                    setByTradeline(v);
+                    if (v) {
+                      setShowChronological(false);
+                      setByRound(false);
+                    }
+                  }}
+                />
+              </div>
+            )}
             {/* View toggle */}
             <div className="flex items-center gap-2">
               <Label htmlFor="view-toggle" className="text-xs text-muted-foreground">
@@ -264,9 +322,12 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 checked={showChronological}
                 onCheckedChange={(v) => {
                   setShowChronological(v);
-                  if (v) setByRound(false);
+                  if (v) {
+                    setByRound(false);
+                    setByTradeline(false);
+                  }
                 }}
-                disabled={byRound}
+                disabled={byRound || byTradeline}
               />
             </div>
           </div>

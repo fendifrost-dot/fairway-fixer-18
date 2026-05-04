@@ -72,6 +72,13 @@ export type DbTimelineEvent = {
   tradeline_id?: string | null;
   /** Internal: parser-detected [Tradeline: "..."] anchor name; resolved at import time. */
   tradeline_anchor?: string | null;
+  /** B7: parser-detected attachments; persisted after event insert. */
+  parsed_attachments?: Array<{
+    drive_path: string;
+    file_url: string | null;
+    mime_type: string;
+    file_name: string;
+  }>;
 };
 
 /**
@@ -123,5 +130,6 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     furnisher_name: event.furnisher_name ?? null,
     furnisher_account_last4: event.furnisher_account_last4 ?? null,
     tradeline_anchor: event.tradeline_anchor ?? null,
+    parsed_attachments: event.parsed_attachments,
   };
 }

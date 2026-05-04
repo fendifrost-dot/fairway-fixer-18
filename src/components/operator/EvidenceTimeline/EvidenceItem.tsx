@@ -13,7 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronDown, MessageSquare, CheckCircle2, FileText, Trash2, GripVertical, Pencil, Copy, Eye, EyeOff, Paperclip } from 'lucide-react';
 import { useDeleteTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { ALL_EVIDENCE_SOURCES, TimelineEvent, SOURCE_DISPLAY_NAMES, EventSource } from '@/types/operator';
+import type { TimelineEventAttachment } from '@/types/operator';
 import { EvidenceItemProps, EvidenceCategory, PlacementDebug } from './types';
 import { AttachmentChips } from './AttachmentChips';
 import { toast } from 'sonner';
@@ -50,11 +53,29 @@ function getPlacementDebug(event: TimelineEvent): PlacementDebug {
   return { source, kind, date, placedIn };
 }
 
-export function EvidenceItem({ event, clientId, showDebug = false, onDragStart, onEdit, attachments = [] }: EvidenceItemProps) {
+export function EvidenceItem({ event, clientId, showDebug = false, onDragStart, onEdit, attachments: attachmentsProp }: EvidenceItemProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showRawLine, setShowRawLine] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const createCorrection = useCreateSourceCorrection();
+
+  // B7: load attachments for this single event (cached per event_id).
+  // Skipped if a parent already passed them in.
+  const { data: fetched = [] } = useQuery({
+    queryKey: ['event-attachments-single', event.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('timeline_event_attachments')
+        .select('*')
+        .eq('event_id', event.id)
+        .order('created_at', { ascending: true });
+      if (error) return [] as TimelineEventAttachment[];
+      return (data ?? []) as TimelineEventAttachment[];
+    },
+    enabled: !attachmentsProp,
+    staleTime: 30_000,
+  });
+  const attachments = attachmentsProp ?? fetched;
   
   const selectValue = useMemo(() => {
     const source = event.source;

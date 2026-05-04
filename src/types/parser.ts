@@ -122,6 +122,16 @@ export interface TimelineEventParsed {
    * Resolved to tradeline_id at import time via ensureTradeline.
    */
   tradeline_anchor?: string | null;
+  /**
+   * B7: Drive paths / URLs detected in the row's free-text columns.
+   * Persisted to timeline_event_attachments after the event is inserted.
+   */
+  parsed_attachments?: Array<{
+    drive_path: string;
+    file_url: string | null;
+    mime_type: string;
+    file_name: string;
+  }>;
 }
 
 // ============================================================================

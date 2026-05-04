@@ -37,6 +37,7 @@ import { extractScoresFromLines } from '@/lib/scoreExtraction';
 import { applyExtractedScores } from '@/lib/applyExtractedScores';
 import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
 import { resolveTradelinesForEvents } from '@/lib/resolveTradelines';
+import { persistAttachmentsForEvents } from '@/hooks/useEventAttachments';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -274,6 +275,33 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
         dbEvents.length > 0 ? createEvents.mutateAsync(dbEvents) : Promise.resolve(),
         dbTasks.length > 0 ? createTasks.mutateAsync(dbTasks) : Promise.resolve(),
       ]);
+
+      // B7: persist any parser-detected attachments. Re-fetch the just-inserted
+      // events to pair them with parsed_attachments by matching raw_line.
+      try {
+        const eventsWithAtt = dbEvents.filter(e => e.parsed_attachments && e.parsed_attachments.length > 0);
+        if (eventsWithAtt.length > 0) {
+          const rawLines = Array.from(new Set(eventsWithAtt.map(e => e.raw_line)));
+          const { data: rows } = await supabase
+            .from('timeline_events')
+            .select('id, raw_line')
+            .eq('client_id', clientId)
+            .in('raw_line', rawLines);
+          const byRaw = new Map<string, string>();
+          (rows ?? []).forEach((r: { id: string; raw_line: string }) => byRaw.set(r.raw_line, r.id));
+          const byEventId: Record<string, typeof eventsWithAtt[number]['parsed_attachments']> = {};
+          for (const e of eventsWithAtt) {
+            const id = byRaw.get(e.raw_line);
+            if (!id || !e.parsed_attachments) continue;
+            byEventId[id] = (byEventId[id] || []).concat(e.parsed_attachments);
+          }
+          if (Object.keys(byEventId).length > 0) {
+            await persistAttachmentsForEvents(clientId, byEventId as any);
+          }
+        }
+      } catch (e) {
+        console.warn('attachment persist failed:', e);
+      }
       
       setResult(parsed);
       

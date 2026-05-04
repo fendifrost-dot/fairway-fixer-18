@@ -53,6 +53,21 @@ export interface TimelineEvent {
 }
 
 // ============================================================================
+// TIMELINE EVENT ATTACHMENTS (B7)
+// ============================================================================
+
+export interface TimelineEventAttachment {
+  id: string;
+  event_id: string;
+  drive_path: string;
+  file_url: string | null;
+  mime_type: string;
+  file_name: string;
+  size_bytes: number | null;
+  created_at: string;
+}
+
+// ============================================================================
 // DISPUTE ROUNDS
 // ============================================================================
 

@@ -18,6 +18,7 @@ import {
 import { parseDate, extractDueText } from './dateParser';
 import { normalizeSource, detectScope } from './sourceNormalizer';
 import { detectFurnisher, extractAccountLast4 } from './furnisherDetector';
+import { detectAttachmentsInText } from '@/lib/attachmentDetector';
 
 /**
  * Detect a [Tradeline: "Display name"] anchor anywhere in the raw line.
@@ -139,6 +140,10 @@ export function parseTimelineEventRow(
   const description = [typeOrStatus, details].filter(Boolean).join(' - ') || typeOrStatus || 'No description';
   const cleanedAccount = accountRef && accountRef !== '-' && accountRef.toLowerCase() !== 'n/a' ? accountRef : null;
 
+  // B7: scan all free-text columns + the raw line for Drive path / URL refs.
+  const attachmentScanText = [typeOrStatus, details, accountRef, rawLine].filter(Boolean).join(' \n ');
+  const parsed_attachments = detectAttachmentsInText(attachmentScanText);
+
   if (furnisherRef) {
     // Upgrade furnisher last-4 from account_ref column when not already set
     const last4 = furnisherRef.account_last4 ?? extractAccountLast4(cleanedAccount);
@@ -157,6 +162,7 @@ export function parseTimelineEventRow(
       furnisher_name: furnisherRef.name,
       furnisher_account_last4: last4,
       tradeline_anchor: tradelineAnchor,
+      parsed_attachments: parsed_attachments.length > 0 ? parsed_attachments : undefined,
     }];
   }
 
@@ -175,6 +181,7 @@ export function parseTimelineEventRow(
     description,
     raw_line: rawLine,
     tradeline_anchor: tradelineAnchor,
+    parsed_attachments: parsed_attachments.length > 0 ? parsed_attachments : undefined,
   }));
 }
 

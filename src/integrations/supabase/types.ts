@@ -1163,6 +1163,47 @@ export type Database = {
           },
         ]
       }
+      timeline_event_attachments: {
+        Row: {
+          created_at: string
+          drive_path: string
+          event_id: string
+          file_name: string
+          file_url: string | null
+          id: string
+          mime_type: string
+          size_bytes: number | null
+        }
+        Insert: {
+          created_at?: string
+          drive_path: string
+          event_id: string
+          file_name: string
+          file_url?: string | null
+          id?: string
+          mime_type: string
+          size_bytes?: number | null
+        }
+        Update: {
+          created_at?: string
+          drive_path?: string
+          event_id?: string
+          file_name?: string
+          file_url?: string | null
+          id?: string
+          mime_type?: string
+          size_bytes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timeline_event_attachments_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "timeline_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       timeline_events: {
         Row: {
           category: Database["public"]["Enums"]["event_category"]

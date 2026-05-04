@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Accordion } from '@/components/ui/accordion';
-import { FileText, Building2, Database, Shield, Bug, Plus, Layers, Sparkles } from 'lucide-react';
+import { FileText, Building2, Database, Shield, Bug, Plus, Layers, Sparkles, CreditCard } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,6 +24,7 @@ import { TimelineEvent, EventSource, SOURCE_ACCORDION_STRUCTURE } from '@/types/
 import { useCreateSourceCorrection } from '@/hooks/useSourceCorrections';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
 import { useFurnishers } from '@/hooks/useFurnishers';
+import { useTradelines, useCreateTradeline } from '@/hooks/useTradelines';
 import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { EvidenceTimelineProps } from './types';
 import { SourceSection } from './SourceSection';
@@ -50,13 +51,19 @@ const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
 export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
   const [showChronological, setShowChronological] = useState(false);
   const [byRound, setByRound] = useState(false);
+  const [byTradeline, setByTradeline] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<TimelineEvent | null>(null);
   const createCorrection = useCreateSourceCorrection();
   const { data: rounds = [] } = useDisputeRounds(clientId);
   const { data: furnishers = [] } = useFurnishers(clientId);
+  const { data: tradelines = [] } = useTradelines(clientId);
+  const createTradeline = useCreateTradeline();
   const updateEvent = useUpdateTimelineEvent();
+  const [newTradelineName, setNewTradelineName] = useState('');
+  const [newTradelineLast4, setNewTradelineLast4] = useState('');
+  const [showNewTradelineFor, setShowNewTradelineFor] = useState<string | null>(null);
 
   // 24h "Auto-extracted on intake" badge
   const { data: autoExtractedAt } = useQuery({
@@ -209,6 +216,34 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
     });
   };
 
+  const handleAssignTradeline = (eventId: string, tradelineId: string | null) => {
+    updateEvent.mutate({
+      id: eventId,
+      clientId,
+      updates: { tradeline_id: tradelineId },
+    });
+  };
+
+  // By-Tradeline grouping
+  const eventsByTradelineMap = useMemo(() => {
+    if (!byTradeline) return null;
+    const map = new Map<string, TimelineEvent[]>(); // key = tradelineId or '__unattached__'
+    for (const ev of evidenceEvents) {
+      const key = ev.tradeline_id || '__unattached__';
+      const arr = map.get(key) || [];
+      arr.push(ev);
+      map.set(key, arr);
+    }
+    // Sort each group by date desc
+    for (const [k, arr] of map) {
+      arr.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+    }
+    return map;
+  }, [byTradeline, evidenceEvents]);
+
+  const hasAnyTradelineUsage =
+    tradelines.length > 0 || evidenceEvents.some(e => !!e.tradeline_id);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -250,10 +285,33 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 checked={byRound}
                 onCheckedChange={(v) => {
                   setByRound(v);
-                  if (v) setShowChronological(false);
+                  if (v) {
+                    setShowChronological(false);
+                    setByTradeline(false);
+                  }
                 }}
               />
             </div>
+            {/* By Tradeline toggle (B5) — only show when feature is in use */}
+            {hasAnyTradelineUsage && (
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-3 w-3 text-muted-foreground" />
+                <Label htmlFor="by-tradeline-toggle" className="text-xs text-muted-foreground">
+                  By Tradeline
+                </Label>
+                <Switch
+                  id="by-tradeline-toggle"
+                  checked={byTradeline}
+                  onCheckedChange={(v) => {
+                    setByTradeline(v);
+                    if (v) {
+                      setShowChronological(false);
+                      setByRound(false);
+                    }
+                  }}
+                />
+              </div>
+            )}
             {/* View toggle */}
             <div className="flex items-center gap-2">
               <Label htmlFor="view-toggle" className="text-xs text-muted-foreground">
@@ -264,9 +322,12 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
                 checked={showChronological}
                 onCheckedChange={(v) => {
                   setShowChronological(v);
-                  if (v) setByRound(false);
+                  if (v) {
+                    setByRound(false);
+                    setByTradeline(false);
+                  }
                 }}
-                disabled={byRound}
+                disabled={byRound || byTradeline}
               />
             </div>
           </div>
@@ -311,7 +372,156 @@ export function EvidenceTimeline({ events, clientId }: EvidenceTimelineProps) {
           </div>
         )}
 
-        {byRound && eventsByRound ? (
+        {byTradeline && eventsByTradelineMap ? (
+          <div className="space-y-6">
+            {/* Unattached first */}
+            {(eventsByTradelineMap.get('__unattached__') || []).length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+                  <CreditCard className="h-4 w-4" />
+                  <span>Unattached ({(eventsByTradelineMap.get('__unattached__') || []).length})</span>
+                </div>
+                <div className="space-y-3 border rounded-lg p-3 bg-muted/20">
+                  {(eventsByTradelineMap.get('__unattached__') || []).map(ev => (
+                    <div key={ev.id} className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <EvidenceItem
+                          event={ev}
+                          clientId={clientId}
+                          showDebug={showDebug}
+                          onEdit={setEditingEvent}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Select
+                          value=""
+                          onValueChange={(v) => {
+                            if (v === '__new__') {
+                              setShowNewTradelineFor(ev.id);
+                            } else {
+                              handleAssignTradeline(ev.id, v);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-7 w-[160px] text-xs">
+                            <SelectValue placeholder="Assign tradeline…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tradelines.map(t => (
+                              <SelectItem key={t.id} value={t.id} className="text-xs">
+                                {t.display_name}
+                                {t.account_last4 ? ` …${t.account_last4}` : ''}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="__new__" className="text-xs">+ New tradeline</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {showNewTradelineFor === ev.id && (
+                          <div className="flex flex-col gap-1 p-2 border rounded bg-background">
+                            <input
+                              className="h-6 px-1 text-xs border rounded"
+                              placeholder="Display name"
+                              value={newTradelineName}
+                              onChange={(e) => setNewTradelineName(e.target.value)}
+                            />
+                            <input
+                              className="h-6 px-1 text-xs border rounded font-mono"
+                              placeholder="Last 4 (optional)"
+                              value={newTradelineLast4}
+                              maxLength={4}
+                              onChange={(e) => setNewTradelineLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 text-[10px]"
+                                onClick={() => {
+                                  setShowNewTradelineFor(null);
+                                  setNewTradelineName('');
+                                  setNewTradelineLast4('');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="h-6 text-[10px]"
+                                disabled={!newTradelineName.trim() || createTradeline.isPending}
+                                onClick={async () => {
+                                  try {
+                                    const created = await createTradeline.mutateAsync({
+                                      client_id: clientId,
+                                      display_name: newTradelineName.trim(),
+                                      account_last4: newTradelineLast4.trim() || null,
+                                    });
+                                    handleAssignTradeline(ev.id, created.id);
+                                    setShowNewTradelineFor(null);
+                                    setNewTradelineName('');
+                                    setNewTradelineLast4('');
+                                  } catch { /* hook toasts */ }
+                                }}
+                              >
+                                Create & assign
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {tradelines.map(tl => {
+              const list = eventsByTradelineMap.get(tl.id) || [];
+              return (
+                <div key={tl.id}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CreditCard className="h-4 w-4" />
+                      <span>{tl.display_name}</span>
+                      {tl.account_last4 && (
+                        <span className="text-xs text-muted-foreground font-mono">…{tl.account_last4}</span>
+                      )}
+                      <Badge variant="secondary" className="text-[10px]">{list.length}</Badge>
+                    </div>
+                  </div>
+                  {list.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic px-3 py-2 border rounded-md">
+                      No events attached to this tradeline yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 border rounded-lg p-3">
+                      {list.map(ev => (
+                        <div key={ev.id} className="flex items-start gap-2">
+                          <div className="flex-1">
+                            <EvidenceItem
+                              event={ev}
+                              clientId={clientId}
+                              showDebug={showDebug}
+                              onEdit={setEditingEvent}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => handleAssignTradeline(ev.id, null)}
+                          >
+                            Detach
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : byRound && eventsByRound ? (
           <div className="space-y-6">
             {/* Unassigned first */}
             {(eventsByRound.get('__unassigned__') || []).length > 0 && (

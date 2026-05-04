@@ -16,6 +16,7 @@ import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
 import { CreditScoresPanel } from '@/components/analyzer/CreditScoresPanel';
 import { IdentityCard } from '@/components/operator/IdentityCard';
 import { DisputeRoundsPanel } from '@/components/operator/DisputeRounds/DisputeRoundsPanel';
+import { TradelinesPanel } from '@/components/operator/Tradelines/TradelinesPanel';
 import { BureauNarrative } from '@/components/analyzer/BureauNarrative';
 import { CreditAnalyzer } from '@/components/analyzer/CreditAnalyzer';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
@@ -114,6 +115,9 @@ export default function ClientDetail() {
           events={events}
           unresolvedItems={unresolvedItems}
         />
+
+        {/* Tradelines (B5) */}
+        <TradelinesPanel clientId={clientId!} />
 
         {/* Credit Scores */}
         <CreditScoresPanel clientId={clientId!} />

@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCreateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useFurnishers, useCreateFurnisher } from '@/hooks/useFurnishers';
+import { useTradelines, useCreateTradeline } from '@/hooks/useTradelines';
 import { ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
 
 interface AddEntryDialogProps {
@@ -29,6 +30,8 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   const createEvent = useCreateTimelineEvent();
   const { data: furnishers = [] } = useFurnishers(clientId);
   const createFurnisher = useCreateFurnisher();
+  const { data: tradelines = [] } = useTradelines(clientId);
+  const createTradeline = useCreateTradeline();
   
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const [category, setCategory] = useState<EventCategory>('Action');
@@ -38,6 +41,10 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   const [showNewFurnisher, setShowNewFurnisher] = useState(false);
   const [newFurnisherName, setNewFurnisherName] = useState('');
   const [newFurnisherLast4, setNewFurnisherLast4] = useState('');
+  const [tradelineId, setTradelineId] = useState<string>('');
+  const [showNewTradeline, setShowNewTradeline] = useState(false);
+  const [newTradelineName, setNewTradelineName] = useState('');
+  const [newTradelineLast4, setNewTradelineLast4] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [details, setDetails] = useState('');
@@ -64,6 +71,10 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
     setShowNewFurnisher(false);
     setNewFurnisherName('');
     setNewFurnisherLast4('');
+    setTradelineId('');
+    setShowNewTradeline(false);
+    setNewTradelineName('');
+    setNewTradelineLast4('');
     setTitle('');
     setSummary('');
     setDetails('');
@@ -93,6 +104,20 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
       }
     }
 
+    let resolvedTradelineId: string | null = tradelineId || null;
+    if (showNewTradeline && newTradelineName.trim()) {
+      try {
+        const created = await createTradeline.mutateAsync({
+          client_id: clientId,
+          display_name: newTradelineName.trim(),
+          account_last4: newTradelineLast4.trim() || null,
+        });
+        resolvedTradelineId = created.id;
+      } catch {
+        return;
+      }
+    }
+
     createEvent.mutate({
       client_id: clientId,
       event_date: dateStr,
@@ -107,6 +132,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
       event_kind: eventKind,
       is_draft: false,
       furnisher_id: resolvedFurnisherId,
+      tradeline_id: resolvedTradelineId,
     }, {
       onSuccess: () => {
         resetForm();
@@ -116,7 +142,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   };
 
   const canSubmit =
-    (title.trim() || summary.trim()) && !createEvent.isPending && !createFurnisher.isPending;
+    (title.trim() || summary.trim()) && !createEvent.isPending && !createFurnisher.isPending && !createTradeline.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -255,6 +281,94 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
                     }}
                   >
                     Add furnisher
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tradeline (optional) — coexists with Source and Furnisher */}
+          <div className="space-y-1">
+            <Label htmlFor="add-tradeline">Tradeline (optional)</Label>
+            {!showNewTradeline ? (
+              <div className="flex gap-2">
+                <Select
+                  value={tradelineId || '__none__'}
+                  onValueChange={(v) => setTradelineId(v === '__none__' ? '' : v)}
+                >
+                  <SelectTrigger id="add-tradeline" className="flex-1">
+                    <SelectValue placeholder="No tradeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No tradeline</SelectItem>
+                    {tradelines.map(t => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.display_name}
+                        {t.account_last4 ? ` (…${t.account_last4})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowNewTradeline(true);
+                    setTradelineId('');
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  New
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-md border p-2 bg-muted/30">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Tradeline display name"
+                    value={newTradelineName}
+                    onChange={(e) => setNewTradelineName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Last 4"
+                    value={newTradelineLast4}
+                    onChange={(e) => setNewTradelineLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="w-20 font-mono"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowNewTradeline(false);
+                      setNewTradelineName('');
+                      setNewTradelineLast4('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={!newTradelineName.trim() || createTradeline.isPending}
+                    onClick={async () => {
+                      const created = await createTradeline.mutateAsync({
+                        client_id: clientId,
+                        display_name: newTradelineName.trim(),
+                        account_last4: newTradelineLast4.trim() || null,
+                      });
+                      setTradelineId(created.id);
+                      setShowNewTradeline(false);
+                      setNewTradelineName('');
+                      setNewTradelineLast4('');
+                    }}
+                  >
+                    Add tradeline
                   </Button>
                 </div>
               </div>

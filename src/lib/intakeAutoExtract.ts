@@ -23,6 +23,8 @@ import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
 import { resolveTradelinesForEvents } from '@/lib/resolveTradelines';
 import { ensureTradeline } from '@/hooks/useTradelines';
 import type { TradelineBureau } from '@/types/operator';
+import { parseAttachmentLines } from '@/lib/attachmentDetector';
+import { persistAttachmentsForEvents } from '@/hooks/useEventAttachments';
 
 export interface AutoExtractResult {
   events: number;
@@ -31,6 +33,7 @@ export interface AutoExtractResult {
   identityFieldsFilled: number;
   scoresUpdated: number;
   tradelines: number;
+  attachmentsCreated: number;
   errors: string[];
 }
 
@@ -67,6 +70,7 @@ export async function autoExtractIntake(
     identityFieldsFilled: 0,
     scoresUpdated: 0,
     tradelines: 0,
+    attachmentsCreated: 0,
     errors: [],
   };
 
@@ -104,6 +108,9 @@ export async function autoExtractIntake(
         account_last4?: string | null;
         bureaus?: Partial<Record<TradelineBureau, { present?: boolean; status_on_bureau?: string | null; last_seen_date?: string | null }>>;
       }>)
+    : [];
+  const rawEventAttachments = Array.isArray(data?.event_attachments)
+    ? (data.event_attachments as Array<{ raw_line?: string; attachments?: string[] }>)
     : [];
 
   // 2) Patch client identity (only fields the model returned non-null)
@@ -187,6 +194,65 @@ export async function autoExtractIntake(
         result.errors.push('events insert: ' + evErr.message);
       } else {
         result.events = valid.length;
+      }
+
+      // B7: Persist parser-detected + AI-returned attachments per event.
+      try {
+        // Build attachments-by-raw_line map, merging parser + AI sources.
+        const byRawLine = new Map<string, Array<{
+          drive_path: string;
+          file_url: string | null;
+          mime_type: string;
+          file_name: string;
+        }>>();
+        for (const e of valid) {
+          if (e.parsed_attachments && e.parsed_attachments.length > 0) {
+            byRawLine.set(e.raw_line, [...(byRawLine.get(e.raw_line) || []), ...e.parsed_attachments]);
+          }
+        }
+        for (const entry of rawEventAttachments) {
+          const rl = entry.raw_line?.trim();
+          if (!rl || !Array.isArray(entry.attachments) || entry.attachments.length === 0) continue;
+          const parsed = parseAttachmentLines(entry.attachments.join('\n'));
+          if (parsed.length === 0) continue;
+          byRawLine.set(rl, [...(byRawLine.get(rl) || []), ...parsed]);
+        }
+        if (byRawLine.size > 0) {
+          const rawLines = Array.from(byRawLine.keys());
+          const { data: rows } = await supabase
+            .from('timeline_events')
+            .select('id, raw_line')
+            .eq('client_id', clientId)
+            .in('raw_line', rawLines);
+          const rawToId = new Map<string, string>();
+          (rows ?? []).forEach((r: { id: string; raw_line: string }) => rawToId.set(r.raw_line, r.id));
+          const byEventId: Record<string, Array<{
+            drive_path: string;
+            file_url: string | null;
+            mime_type: string;
+            file_name: string;
+          }>> = {};
+          for (const [rl, atts] of byRawLine.entries()) {
+            const id = rawToId.get(rl);
+            if (!id) continue;
+            // dedupe by drive_path|file_url
+            const seen = new Set<string>();
+            const unique = atts.filter(a => {
+              const k = `${a.drive_path}|${a.file_url ?? ''}`;
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            });
+            byEventId[id] = unique;
+          }
+          if (Object.keys(byEventId).length > 0) {
+            const { inserted, errors: aErrs } = await persistAttachmentsForEvents(clientId, byEventId);
+            result.attachmentsCreated = inserted;
+            if (aErrs.length > 0) result.errors.push(...aErrs);
+          }
+        }
+      } catch (e) {
+        result.errors.push('attachments persist: ' + (e as Error).message);
       }
     }
   }

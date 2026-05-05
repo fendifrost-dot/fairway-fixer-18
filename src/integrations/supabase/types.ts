@@ -645,6 +645,53 @@ export type Database = {
         }
         Relationships: []
       }
+      diagnostic_signals: {
+        Row: {
+          client_id: string
+          created_at: string
+          detected_at: string
+          dismissed_at: string | null
+          evidence: Json
+          id: string
+          severity: string
+          signal_type: string
+          subject_ids: Json
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          detected_at?: string
+          dismissed_at?: string | null
+          evidence?: Json
+          id?: string
+          severity?: string
+          signal_type: string
+          subject_ids?: Json
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          detected_at?: string
+          dismissed_at?: string | null
+          evidence?: Json
+          id?: string
+          severity?: string
+          signal_type?: string
+          subject_ids?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diagnostic_signals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispute_rounds: {
         Row: {
           client_id: string

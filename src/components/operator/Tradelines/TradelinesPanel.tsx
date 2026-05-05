@@ -21,7 +21,10 @@ import {
 import { CreditCard, Plus, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import { useTradelines, useTradelineBureauStates, useCreateTradeline } from '@/hooks/useTradelines';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
+import { useDiagnosticSignals, useDismissDiagnosticSignal } from '@/hooks/useDiagnosticSignals';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Tradeline, TradelineBureau, TradelineBureauState } from '@/types/operator';
+import type { DiagnosticSignal, FurnisherRenameSubjectIds, FurnisherRenameEvidence } from '@/types/operator';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -44,6 +47,7 @@ export function TradelinesPanel({ clientId }: Props) {
   const { data: tradelines = [] } = useTradelines(clientId);
   const { data: bureauStates = [] } = useTradelineBureauStates(clientId);
   const { data: events = [] } = useTimelineEvents(clientId);
+  const { data: signals = [] } = useDiagnosticSignals(clientId);
   const [showAdd, setShowAdd] = useState(false);
 
   const statesByTradeline = useMemo(() => {
@@ -67,6 +71,23 @@ export function TradelinesPanel({ clientId }: Props) {
     }
     return m;
   }, [events]);
+
+  // Map tradeline_id -> furnisher_rename signals where it's a subject (old or new).
+  const renameSignalsByTradeline = useMemo(() => {
+    const m = new Map<string, DiagnosticSignal[]>();
+    for (const s of signals) {
+      if (s.dismissed_at) continue;
+      if (s.signal_type !== 'furnisher_rename') continue;
+      const subj = s.subject_ids as FurnisherRenameSubjectIds;
+      for (const tid of [subj.tradeline_old, subj.tradeline_new]) {
+        if (!tid) continue;
+        const arr = m.get(tid) || [];
+        arr.push(s);
+        m.set(tid, arr);
+      }
+    }
+    return m;
+  }, [signals]);
 
   return (
     <Card>
@@ -98,8 +119,11 @@ export function TradelinesPanel({ clientId }: Props) {
             {tradelines.map(tl => (
               <TradelineRow
                 key={tl.id}
+                clientId={clientId}
                 tradeline={tl}
                 states={statesByTradeline.get(tl.id) || []}
+                renameSignals={renameSignalsByTradeline.get(tl.id) || []}
+                tlById={new Map(tradelines.map(t => [t.id, t] as const))}
                 recentEvents={(eventsByTradeline.get(tl.id) || [])
                   .slice()
                   .sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''))
@@ -114,13 +138,17 @@ export function TradelinesPanel({ clientId }: Props) {
 }
 
 function TradelineRow({
-  tradeline, states, recentEvents,
+  clientId, tradeline, states, recentEvents, renameSignals, tlById,
 }: {
+  clientId: string;
   tradeline: Tradeline;
   states: TradelineBureauState[];
   recentEvents: { id: string; title: string; event_date: string | null; source: string | null }[];
+  renameSignals: DiagnosticSignal[];
+  tlById: Map<string, Tradeline>;
 }) {
   const [open, setOpen] = useState(false);
+  const dismiss = useDismissDiagnosticSignal();
   const stateByBureau = new Map(states.map(s => [s.bureau, s] as const));
 
   // Cross-bureau check: flag if presence differs across bureaus (any present + any explicitly absent).
@@ -145,6 +173,52 @@ function TradelineRow({
               <Badge variant="destructive" className="text-[10px] gap-1">
                 <AlertTriangle className="h-3 w-3" /> Cross-bureau check
               </Badge>
+            )}
+            {renameSignals.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex"
+                    aria-label="Possible furnisher substitution"
+                  >
+                    <Badge className="text-[10px] gap-1 bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200">
+                      🚨 Possible furnisher substitution
+                    </Badge>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-80 text-sm space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {renameSignals.map(sig => {
+                    const subj = sig.subject_ids as FurnisherRenameSubjectIds;
+                    const ev = sig.evidence as FurnisherRenameEvidence;
+                    const otherId = subj.tradeline_old === tradeline.id ? subj.tradeline_new : subj.tradeline_old;
+                    const other = tlById.get(otherId);
+                    return (
+                      <div key={sig.id} className="space-y-1">
+                        <div className="text-xs">
+                          <span className="capitalize font-medium">{subj.bureau}</span>
+                          {' · matched against '}
+                          <span className="font-medium">{other?.display_name || ev.old_display_name}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3">
+                          {ev.matched_account_last4 && <span>account …{ev.matched_account_last4}</span>}
+                          {ev.opened_date_delta_days != null && <span>opened ±{ev.opened_date_delta_days}d</span>}
+                          {ev.balance_delta_pct != null && <span>balance Δ {(ev.balance_delta_pct * 100).toFixed(1)}%</span>}
+                        </div>
+                        <div className="flex justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => dismiss.mutate({ id: sig.id, clientId })}>
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />

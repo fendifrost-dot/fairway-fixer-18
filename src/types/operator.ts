@@ -268,3 +268,37 @@ export interface SourceCorrection {
   corrected_at: string;
   notes: string | null;
 }
+
+// ============================================================================
+// DIAGNOSTIC SIGNALS (C-series)
+// ============================================================================
+
+export type DiagnosticSignalType = 'furnisher_rename';
+export type DiagnosticSignalSeverity = 'info' | 'warning' | 'critical';
+
+export interface FurnisherRenameSubjectIds {
+  bureau: TradelineBureau;
+  tradeline_old: string;
+  tradeline_new: string;
+}
+
+export interface FurnisherRenameEvidence {
+  matched_account_last4: string | null;
+  opened_date_delta_days: number | null;
+  balance_delta_pct: number | null;
+  old_display_name: string;
+  new_display_name: string;
+}
+
+export interface DiagnosticSignal {
+  id: string;
+  client_id: string;
+  signal_type: DiagnosticSignalType;
+  subject_ids: FurnisherRenameSubjectIds | Record<string, unknown>;
+  evidence: FurnisherRenameEvidence | Record<string, unknown>;
+  severity: DiagnosticSignalSeverity;
+  detected_at: string;
+  dismissed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

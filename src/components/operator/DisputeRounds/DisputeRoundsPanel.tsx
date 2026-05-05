@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Layers, Plus, Pencil, Mail, Lock, Check, X } from 'lucide-react';
+import { Layers, Plus, Pencil, Mail, Lock, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import {
   DisputeRound,
@@ -18,12 +18,18 @@ import {
   DISPUTE_ROUND_STATUSES,
   DISPUTE_ROUND_STATUS_LABELS,
   TimelineEvent,
+  DiagnosticSignal,
+  PostRoundNewHarmSubjectIds,
+  PostRoundNewHarmEvidence,
 } from '@/types/operator';
 import {
   useDisputeRounds,
   useCreateDisputeRound,
   useUpdateDisputeRound,
 } from '@/hooks/useDisputeRounds';
+import { useDiagnosticSignals } from '@/hooks/useDiagnosticSignals';
+import { useTradelines } from '@/hooks/useTradelines';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { UnresolvedItem } from '@/types/parser';
 import { toast } from 'sonner';
 
@@ -56,10 +62,30 @@ function todayISO(): string {
 
 export function DisputeRoundsPanel({ clientId, events, unresolvedItems = [] }: Props) {
   const { data: rounds = [], isLoading } = useDisputeRounds(clientId);
+  const { data: signals = [] } = useDiagnosticSignals(clientId);
+  const { data: tradelines = [] } = useTradelines(clientId);
   const createRound = useCreateDisputeRound();
   const updateRound = useUpdateDisputeRound();
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+
+  const harmSignalsByRound = useMemo(() => {
+    const m = new Map<string, DiagnosticSignal[]>();
+    for (const s of signals) {
+      if (s.dismissed_at) continue;
+      if (s.signal_type !== 'post_round_new_harm') continue;
+      const subj = s.subject_ids as PostRoundNewHarmSubjectIds;
+      if (!subj.round_id) continue;
+      const arr = m.get(subj.round_id) || [];
+      arr.push(s);
+      m.set(subj.round_id, arr);
+    }
+    return m;
+  }, [signals]);
+  const tlNameById = useMemo(
+    () => new Map(tradelines.map(t => [t.id, t.display_name] as const)),
+    [tradelines]
+  );
 
   const statsByRound = useMemo(() => {
     const m = new Map<
@@ -160,6 +186,7 @@ export function DisputeRoundsPanel({ clientId, events, unresolvedItems = [] }: P
                 unresolved: 0,
               };
               const isEditing = editingNotesId === round.id;
+              const harmSignals = harmSignalsByRound.get(round.id) || [];
               return (
                 <div
                   key={round.id}
@@ -185,6 +212,10 @@ export function DisputeRoundsPanel({ clientId, events, unresolvedItems = [] }: P
                     <Stat label="Outcomes" value={stats.outcomes} />
                     <Stat label="Open" value={stats.unresolved} />
                   </div>
+
+                  {harmSignals.length > 0 && (
+                    <PostRoundHarmAlert signals={harmSignals} tlNameById={tlNameById} />
+                  )}
 
                   {/* Notes */}
                   <div>
@@ -286,5 +317,45 @@ function Stat({ label, value }: { label: string; value: number }) {
         {label}
       </div>
     </div>
+  );
+}
+
+function PostRoundHarmAlert({
+  signals,
+  tlNameById,
+}: {
+  signals: DiagnosticSignal[];
+  tlNameById: Map<string, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-md border border-orange-300 bg-orange-50/60 dark:bg-orange-950/10">
+        <CollapsibleTrigger className="w-full px-2.5 py-1.5 flex items-center justify-between gap-2 text-left">
+          <span className="text-xs font-medium text-orange-800 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {signals.length} new derogatory item{signals.length === 1 ? '' : 's'} appeared post-submission
+          </span>
+          <ChevronDown className={`h-3.5 w-3.5 text-orange-700 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-2.5 pb-2 space-y-1">
+            {signals.map(sig => {
+              const subj = sig.subject_ids as PostRoundNewHarmSubjectIds;
+              const ev = sig.evidence as PostRoundNewHarmEvidence;
+              const name = tlNameById.get(subj.tradeline_id) || ev.display_name;
+              return (
+                <div key={sig.id} className="text-xs">
+                  <span className="font-medium">{name}</span>
+                  <span className="text-muted-foreground">
+                    {' '}— opened {ev.opened_date || 'unknown'} · +{ev.days_after_round_submission}d
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }

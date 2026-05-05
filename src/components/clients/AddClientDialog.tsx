@@ -342,7 +342,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
         if (intakeText.trim()) {
           try {
             const ex = await autoExtractIntake(clientId, intakeText.trim());
-            extractToast = `Imported ${ex.events} events, ${ex.tasks} tasks, ${ex.rounds} rounds from intake` +
+            extractToast = `Imported ${ex.events} events, ${ex.tasks} tasks, ${ex.rounds} rounds, ${ex.attachmentsCreated} attachments from intake` +
               (ex.scoresUpdated > 0 ? ` (+${ex.scoresUpdated} credit score${ex.scoresUpdated === 1 ? '' : 's'})` : '');
             if (ex.errors.length > 0) {
               console.warn('auto-extract warnings:', ex.errors);

@@ -8,7 +8,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { DiagnosticSignal } from '@/types/operator';
 import { detectFurnisherRenames } from '@/lib/diagnostics/furnisherRenames';
+import { detectPostRoundNewHarm } from '@/lib/diagnostics/postRoundNewHarm';
 import { useTradelines, useTradelineBureauStates } from '@/hooks/useTradelines';
+import { useDisputeRounds } from '@/hooks/useDisputeRounds';
+import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 
 const tbl = (name: string) => (supabase as any).from(name);
 
@@ -75,6 +78,44 @@ export function useAutoDetectFurnisherRenames(clientId: string | undefined) {
       } catch (e) {
         // Non-fatal — diagnostics are best-effort.
         console.warn('[diagnostics] furnisher-rename detection failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, fingerprint]);
+}
+
+/**
+ * C2 — Auto-runs the post-round new-harm detector when rounds, tradelines,
+ * bureau states, or timeline events change.
+ */
+export function useAutoDetectPostRoundNewHarm(clientId: string | undefined) {
+  const qc = useQueryClient();
+  const { data: tradelines } = useTradelines(clientId);
+  const { data: states } = useTradelineBureauStates(clientId);
+  const { data: rounds } = useDisputeRounds(clientId);
+  const { data: events } = useTimelineEvents(clientId);
+
+  const fingerprint = JSON.stringify({
+    r: (rounds || []).map(r => [r.id, r.submitted_at, r.round_number]),
+    t: (tradelines || []).map(t => [t.id, t.created_at, t.opened_date, t.status, t.display_name]),
+    s: (states || []).map(s => [s.tradeline_id, s.bureau, s.status_on_bureau]),
+    e: (events || []).filter(e => e.event_kind === 'action').map(e => [e.id, e.round_id, e.tradeline_id]),
+  });
+
+  useEffect(() => {
+    if (!clientId) return;
+    if (!tradelines || !states || !rounds || !events) return;
+    if (rounds.length === 0 || tradelines.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const n = await detectPostRoundNewHarm(clientId);
+        if (!cancelled && n > 0) {
+          qc.invalidateQueries({ queryKey: ['diagnostic-signals', clientId] });
+        }
+      } catch (e) {
+        console.warn('[diagnostics] post-round new-harm detection failed', e);
       }
     })();
     return () => { cancelled = true; };

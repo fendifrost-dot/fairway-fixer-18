@@ -273,7 +273,7 @@ export interface SourceCorrection {
 // DIAGNOSTIC SIGNALS (C-series)
 // ============================================================================
 
-export type DiagnosticSignalType = 'furnisher_rename';
+export type DiagnosticSignalType = 'furnisher_rename' | 'post_round_new_harm';
 export type DiagnosticSignalSeverity = 'info' | 'warning' | 'critical';
 
 export interface FurnisherRenameSubjectIds {
@@ -290,12 +290,33 @@ export interface FurnisherRenameEvidence {
   new_display_name: string;
 }
 
+// C2 — Post-round new harm
+export interface PostRoundNewHarmSubjectIds {
+  round_id: string;
+  tradeline_id: string;
+}
+
+export interface PostRoundNewHarmEvidence {
+  opened_date: string | null;
+  first_seen_at: string;            // tradeline.created_at (ISO)
+  round_submitted_at: string;       // round.submitted_at (ISO date)
+  days_after_round_submission: number;
+  display_name: string;
+  round_number: number;
+}
+
 export interface DiagnosticSignal {
   id: string;
   client_id: string;
   signal_type: DiagnosticSignalType;
-  subject_ids: FurnisherRenameSubjectIds | Record<string, unknown>;
-  evidence: FurnisherRenameEvidence | Record<string, unknown>;
+  subject_ids:
+    | FurnisherRenameSubjectIds
+    | PostRoundNewHarmSubjectIds
+    | Record<string, unknown>;
+  evidence:
+    | FurnisherRenameEvidence
+    | PostRoundNewHarmEvidence
+    | Record<string, unknown>;
   severity: DiagnosticSignalSeverity;
   detected_at: string;
   dismissed_at: string | null;

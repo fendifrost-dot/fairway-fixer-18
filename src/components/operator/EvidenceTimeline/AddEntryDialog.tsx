@@ -19,6 +19,8 @@ import { useCreateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { useFurnishers, useCreateFurnisher } from '@/hooks/useFurnishers';
 import { useTradelines, useCreateTradeline } from '@/hooks/useTradelines';
 import { ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
+import { parseAttachmentLines } from '@/lib/attachmentDetector';
+import { persistAttachmentsForEvents } from '@/hooks/useEventAttachments';
 
 interface AddEntryDialogProps {
   open: boolean;
@@ -49,6 +51,8 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   const [summary, setSummary] = useState('');
   const [details, setDetails] = useState('');
   const [rawLine, setRawLine] = useState('');
+  const [attachmentsText, setAttachmentsText] = useState('');
+  const [attachmentsWarning, setAttachmentsWarning] = useState<string | null>(null);
 
   const categoryToKind: Record<EventCategory, string> = {
     Action: 'action',
@@ -79,6 +83,8 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
     setSummary('');
     setDetails('');
     setRawLine('');
+    setAttachmentsText('');
+    setAttachmentsWarning(null);
   };
 
   const handleSubmit = async () => {
@@ -118,27 +124,46 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
       }
     }
 
-    createEvent.mutate({
-      client_id: clientId,
-      event_date: dateStr,
-      date_is_unknown: !dateStr,
-      category: category,
-      source: (source || null) as EventSource | null,
-      title: title || category,
-      summary: summary || title,
-      details: details || null,
-      related_accounts: null,
-      raw_line: effectiveRawLine,
-      event_kind: eventKind,
-      is_draft: false,
-      furnisher_id: resolvedFurnisherId,
-      tradeline_id: resolvedTradelineId,
-    }, {
-      onSuccess: () => {
-        resetForm();
-        onOpenChange(false);
-      },
-    });
+    // Validate attachments first so we can warn before insert.
+    const attachmentsRaw = attachmentsText.trim();
+    let parsedAttachments: ReturnType<typeof parseAttachmentLines> = [];
+    if (attachmentsRaw) {
+      parsedAttachments = parseAttachmentLines(attachmentsRaw).filter(
+        (a) => a.drive_path && (a.drive_path.includes('/') || /^https?:\/\//i.test(a.drive_path)),
+      );
+      if (parsedAttachments.length === 0) {
+        setAttachmentsWarning('No valid attachments detected — paste Drive paths or share URLs');
+        return;
+      }
+    }
+    setAttachmentsWarning(null);
+
+    try {
+      const created = await createEvent.mutateAsync({
+        client_id: clientId,
+        event_date: dateStr,
+        date_is_unknown: !dateStr,
+        category: category,
+        source: (source || null) as EventSource | null,
+        title: title || category,
+        summary: summary || title,
+        details: details || null,
+        related_accounts: null,
+        raw_line: effectiveRawLine,
+        event_kind: eventKind,
+        is_draft: false,
+        furnisher_id: resolvedFurnisherId,
+        tradeline_id: resolvedTradelineId,
+      });
+      const newId = (created as { id?: string } | null)?.id;
+      if (newId && parsedAttachments.length > 0) {
+        await persistAttachmentsForEvents(clientId, { [newId]: parsedAttachments });
+      }
+      resetForm();
+      onOpenChange(false);
+    } catch {
+      // toast handled inside hook; keep dialog open
+    }
   };
 
   const canSubmit =
@@ -397,6 +422,25 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
           <div className="space-y-1">
             <Label htmlFor="add-rawline">Raw Evidence Text</Label>
             <Textarea id="add-rawline" value={rawLine} onChange={e => setRawLine(e.target.value)} placeholder="Verbatim source text (auto-filled from summary if empty)" rows={3} className="font-mono text-xs" />
+          </div>
+
+          {/* Attachments (optional) */}
+          <div className="space-y-1">
+            <Label htmlFor="add-attachments">Attachments (optional)</Label>
+            <Textarea
+              id="add-attachments"
+              value={attachmentsText}
+              onChange={(e) => { setAttachmentsText(e.target.value); if (attachmentsWarning) setAttachmentsWarning(null); }}
+              placeholder={'SAM CREDIT/responses/2026-03-25-innovis-response.png\nhttps://drive.google.com/file/d/...'}
+              rows={2}
+              className="font-mono text-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              One Drive path or share URL per line. Examples: SAM CREDIT/responses/2026-03-25-innovis-response.png, https://drive.google.com/file/d/...
+            </p>
+            {attachmentsWarning && (
+              <p className="text-xs text-destructive">{attachmentsWarning}</p>
+            )}
           </div>
         </div>
 

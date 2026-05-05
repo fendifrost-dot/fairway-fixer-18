@@ -107,6 +107,8 @@ Return TWO things via the extract_intake tool:
 
    Tradeline anchors in structured_blob: when an event row clearly belongs to a named tradeline, append [Tradeline: "Display name"] at the end of that row (after all pipe columns). Use the SAME display_name string as in the tradelines array.
 
+5) event_attachments: array of { raw_line, attachments: string[] }. For each event row in structured_blob that the narrative explicitly associates with a Drive path or file URL (e.g. "saved to SAM CREDIT/responses/...png", "https://drive.google.com/file/d/..."), include an entry whose raw_line EXACTLY matches the corresponding row in structured_blob and whose attachments lists the verbatim paths/URLs. Include attachments only when the narrative explicitly names a Drive path or file URL — do not fabricate paths. Strip wrapping quotes. Omit the array entirely (return []) if no attachments are mentioned.
+
 Rules:
 - Only emit sections that have content. If no actions/responses/outcomes were performed, omit those sections.
 - Do NOT fabricate dates, sources, account numbers, or events. When ambiguous, omit the row entirely rather than guessing.
@@ -236,8 +238,21 @@ Rules:
                         additionalProperties: false,
                       },
                     },
+                    event_attachments: {
+                      type: "array",
+                      description: "Per-event attachment references. Empty array if none.",
+                      items: {
+                        type: "object",
+                        properties: {
+                          raw_line: { type: "string", description: "Must match a row in structured_blob verbatim" },
+                          attachments: { type: "array", items: { type: "string" } },
+                        },
+                        required: ["raw_line", "attachments"],
+                        additionalProperties: false,
+                      },
+                    },
                   },
-                  required: ["identity", "structured_blob", "credit_scores", "tradelines"],
+                  required: ["identity", "structured_blob", "credit_scores", "tradelines", "event_attachments"],
                   additionalProperties: false,
                 },
               },
@@ -284,6 +299,7 @@ Rules:
       structured_blob?: string;
       credit_scores?: Record<string, unknown>;
       tradelines?: unknown;
+      event_attachments?: unknown;
     };
     try {
       parsed = JSON.parse(toolCall.function.arguments);
@@ -322,12 +338,29 @@ Rules:
       cleanScores[bureau] = { score, as_of: asOf };
     }
 
+    // Sanitize event_attachments: keep only entries with non-empty raw_line and
+    // attachment strings that look like a path (contain '/') or URL (http(s)://).
+    const rawAttachments = Array.isArray(parsed.event_attachments) ? parsed.event_attachments : [];
+    const cleanAttachments: Array<{ raw_line: string; attachments: string[] }> = [];
+    for (const entry of rawAttachments as Array<{ raw_line?: unknown; attachments?: unknown }>) {
+      if (!entry || typeof entry !== "object") continue;
+      const rl = typeof entry.raw_line === "string" ? entry.raw_line.trim() : "";
+      if (!rl) continue;
+      const list = Array.isArray(entry.attachments) ? entry.attachments : [];
+      const cleaned = (list as unknown[])
+        .filter((s): s is string => typeof s === "string")
+        .map((s) => s.trim().replace(/^["']|["']$/g, ""))
+        .filter((s) => s.length > 0 && (s.includes("/") || /^https?:\/\//i.test(s)));
+      if (cleaned.length > 0) cleanAttachments.push({ raw_line: rl, attachments: cleaned });
+    }
+
     return new Response(
       JSON.stringify({
         identity: cleanIdentity,
         structured_blob: typeof parsed.structured_blob === "string" ? parsed.structured_blob : "",
         credit_scores: cleanScores,
         tradelines: Array.isArray(parsed.tradelines) ? parsed.tradelines : [],
+        event_attachments: cleanAttachments,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

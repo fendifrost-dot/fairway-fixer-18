@@ -24,7 +24,13 @@ import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useDiagnosticSignals, useDismissDiagnosticSignal } from '@/hooks/useDiagnosticSignals';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Tradeline, TradelineBureau, TradelineBureauState } from '@/types/operator';
-import type { DiagnosticSignal, FurnisherRenameSubjectIds, FurnisherRenameEvidence } from '@/types/operator';
+import type {
+  DiagnosticSignal,
+  FurnisherRenameSubjectIds,
+  FurnisherRenameEvidence,
+  PostRoundNewHarmSubjectIds,
+  PostRoundNewHarmEvidence,
+} from '@/types/operator';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -89,6 +95,21 @@ export function TradelinesPanel({ clientId }: Props) {
     return m;
   }, [signals]);
 
+  // Map tradeline_id -> post_round_new_harm signals.
+  const harmSignalsByTradeline = useMemo(() => {
+    const m = new Map<string, DiagnosticSignal[]>();
+    for (const s of signals) {
+      if (s.dismissed_at) continue;
+      if (s.signal_type !== 'post_round_new_harm') continue;
+      const subj = s.subject_ids as PostRoundNewHarmSubjectIds;
+      if (!subj.tradeline_id) continue;
+      const arr = m.get(subj.tradeline_id) || [];
+      arr.push(s);
+      m.set(subj.tradeline_id, arr);
+    }
+    return m;
+  }, [signals]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -123,6 +144,7 @@ export function TradelinesPanel({ clientId }: Props) {
                 tradeline={tl}
                 states={statesByTradeline.get(tl.id) || []}
                 renameSignals={renameSignalsByTradeline.get(tl.id) || []}
+                harmSignals={harmSignalsByTradeline.get(tl.id) || []}
                 tlById={new Map(tradelines.map(t => [t.id, t] as const))}
                 recentEvents={(eventsByTradeline.get(tl.id) || [])
                   .slice()
@@ -138,13 +160,14 @@ export function TradelinesPanel({ clientId }: Props) {
 }
 
 function TradelineRow({
-  clientId, tradeline, states, recentEvents, renameSignals, tlById,
+  clientId, tradeline, states, recentEvents, renameSignals, harmSignals, tlById,
 }: {
   clientId: string;
   tradeline: Tradeline;
   states: TradelineBureauState[];
   recentEvents: { id: string; title: string; event_date: string | null; source: string | null }[];
   renameSignals: DiagnosticSignal[];
+  harmSignals: DiagnosticSignal[];
   tlById: Map<string, Tradeline>;
 }) {
   const [open, setOpen] = useState(false);
@@ -208,6 +231,47 @@ function TradelineRow({
                           {ev.matched_account_last4 && <span>account …{ev.matched_account_last4}</span>}
                           {ev.opened_date_delta_days != null && <span>opened ±{ev.opened_date_delta_days}d</span>}
                           {ev.balance_delta_pct != null && <span>balance Δ {(ev.balance_delta_pct * 100).toFixed(1)}%</span>}
+                        </div>
+                        <div className="flex justify-end">
+                          <Button size="sm" variant="ghost" onClick={() => dismiss.mutate({ id: sig.id, clientId })}>
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            )}
+            {harmSignals.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex"
+                    aria-label="Post-round harm"
+                  >
+                    <Badge className="text-[10px] gap-1 bg-orange-100 text-orange-800 border-orange-300 hover:bg-orange-200">
+                      ⚠️ Post-Round Harm
+                    </Badge>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-80 text-sm space-y-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {harmSignals.map(sig => {
+                    const ev = sig.evidence as PostRoundNewHarmEvidence;
+                    return (
+                      <div key={sig.id} className="space-y-1">
+                        <div className="text-xs">
+                          Appeared{' '}
+                          <span className="font-medium">{ev.days_after_round_submission}d</span>{' '}
+                          after Round {ev.round_number} submission.
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          opened {ev.opened_date || 'unknown'}
                         </div>
                         <div className="flex justify-end">
                           <Button size="sm" variant="ghost" onClick={() => dismiss.mutate({ id: sig.id, clientId })}>

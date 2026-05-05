@@ -17,6 +17,10 @@ import { CreditScoresPanel } from '@/components/analyzer/CreditScoresPanel';
 import { IdentityCard } from '@/components/operator/IdentityCard';
 import { DisputeRoundsPanel } from '@/components/operator/DisputeRounds/DisputeRoundsPanel';
 import { TradelinesPanel } from '@/components/operator/Tradelines/TradelinesPanel';
+import { DiagnosticSignalsCard } from '@/components/operator/DiagnosticSignals/DiagnosticSignalsCard';
+import { useDiagnosticSignals } from '@/hooks/useDiagnosticSignals';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle } from 'lucide-react';
 import { BureauNarrative } from '@/components/analyzer/BureauNarrative';
 import { CreditAnalyzer } from '@/components/analyzer/CreditAnalyzer';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
@@ -45,6 +49,8 @@ export default function ClientDetail() {
 
   const { data: events = [], isLoading: eventsLoading } = useTimelineEvents(clientId);
   const { data: tasks = [], isLoading: tasksLoading } = useOperatorTasks(clientId);
+  const { data: diagnosticSignals = [] } = useDiagnosticSignals(clientId);
+  const undismissedSignalCount = diagnosticSignals.filter(s => !s.dismissed_at).length;
 
   const handleImportComplete = (result: ParseResult) => {
     if (result.unresolved_items.length > 0) {
@@ -87,6 +93,12 @@ export default function ClientDetail() {
             </Link>
           </Button>
           <div className="flex items-center gap-2">
+            {undismissedSignalCount > 0 && (
+              <Badge variant="outline" className="gap-1 border-amber-300 text-amber-700 bg-amber-50">
+                <AlertTriangle className="h-3 w-3" />
+                {undismissedSignalCount} signal{undismissedSignalCount === 1 ? '' : 's'}
+              </Badge>
+            )}
             <Button onClick={handleGeneratePDF} variant="outline" size="sm">
               <FileDown className="h-4 w-4 mr-1" />
               Generate PDF
@@ -118,6 +130,9 @@ export default function ClientDetail() {
 
         {/* Tradelines (B5) */}
         <TradelinesPanel clientId={clientId!} />
+
+        {/* Diagnostic Signals (C1+) */}
+        <DiagnosticSignalsCard clientId={clientId!} />
 
         {/* Credit Scores */}
         <CreditScoresPanel clientId={clientId!} />

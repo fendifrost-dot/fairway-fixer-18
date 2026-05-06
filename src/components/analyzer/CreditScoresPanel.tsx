@@ -14,6 +14,9 @@ import {
   bureauDisplayName,
   mergeCreditScores,
 } from '@/lib/scoreExtraction';
+import { interpretScoreTrend } from '@/lib/diagnostics/scoreTrendInterpretation';
+import { ScoreTrendWhy } from '@/components/analyzer/ScoreTrendWhy';
+import type { ScoreTrendInterpretation } from '@/types/operator';
 
 function scoreColor(score: number | null | undefined): string {
   if (!score) return 'text-muted-foreground';
@@ -148,6 +151,17 @@ function ScoreCard({
   const TrendIcon = delta === null ? null : delta > 0 ? TrendingUp : TrendingDown;
   const trendColor = delta === null ? '' : delta > 0 ? 'text-emerald-500' : 'text-red-500';
 
+  // C4 — score-trend interpretation (heuristic). Recomputed on score updates.
+  const { data: interp } = useQuery<ScoreTrendInterpretation | null>({
+    queryKey: ['score-trend-interp', clientId, bureau, score, entry?.as_of],
+    queryFn: () =>
+      score == null
+        ? Promise.resolve(null)
+        : interpretScoreTrend(clientId, bureau, score, entry?.as_of ?? null),
+    enabled: score != null,
+    staleTime: 60_000,
+  });
+
   return (
     <div className="relative text-center p-4 rounded-lg border bg-card">
       <div className="flex items-center justify-center gap-1 mb-1">
@@ -204,6 +218,7 @@ function ScoreCard({
           <span>{delta > 0 ? '+' : ''}{delta} pts since intake</span>
         </div>
       )}
+      {delta !== null && <ScoreTrendWhy interp={interp ?? null} />}
     </div>
   );
 }

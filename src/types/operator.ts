@@ -345,3 +345,32 @@ export interface DiagnosticSignal {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================================
+// SCORE TREND INTERPRETATION (C4)
+// ============================================================================
+
+export type ScoreAttributionType =
+  | 'tradeline_removed'
+  | 'tradeline_added'
+  | 'inquiry'
+  | 'other';
+
+export interface ScoreAttribution {
+  type: ScoreAttributionType;
+  est_pts: number; // signed: positive = score-up driver, negative = score-down driver
+  label: string;
+  tradeline_id?: string;
+  signal_id?: string;
+  bureau_status?: string | null;
+}
+
+export interface ScoreTrendInterpretation {
+  bureau: 'equifax' | 'experian' | 'transunion';
+  current_score: number;
+  current_as_of: string | null;
+  prior_score: number | null;
+  prior_as_of: string | null;
+  delta: number | null; // current - prior, null when no prior
+  attributions: ScoreAttribution[]; // sorted by abs(est_pts) desc
+}

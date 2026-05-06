@@ -6,7 +6,7 @@
  * can be added as additional groups below.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +55,25 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
     [signals]
   );
 
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Listen for cross-component focus events (e.g. score-trend "Why?" link).
+  useEffect(() => {
+    function onFocus(e: Event) {
+      const detail = (e as CustomEvent<{ signalId: string }>).detail;
+      if (!detail?.signalId) return;
+      const root = cardRef.current;
+      if (!root) return;
+      const row = root.querySelector(`[data-signal-id="${detail.signalId}"]`) as HTMLElement | null;
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('ring-2', 'ring-amber-400');
+      window.setTimeout(() => row.classList.remove('ring-2', 'ring-amber-400'), 2200);
+    }
+    window.addEventListener('guardian:focus-signal', onFocus as EventListener);
+    return () => window.removeEventListener('guardian:focus-signal', onFocus as EventListener);
+  }, []);
+
   if (undismissed.length === 0) return null;
 
   const tlById = new Map(tradelines.map(t => [t.id, t] as const));
@@ -66,7 +85,7 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
   const arvSignals = undismissed.filter(s => s.signal_type === 'automated_reverification');
 
   return (
-    <Card className="border-amber-300 bg-amber-50/40 dark:bg-amber-950/10">
+    <Card ref={cardRef} className="border-amber-300 bg-amber-50/40 dark:bg-amber-950/10">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -142,7 +161,7 @@ function RenameSignalRow({
   const newName = tNew?.display_name || ev.new_display_name || 'unknown';
 
   return (
-    <div className="border rounded-md p-2.5 bg-background">
+    <div data-signal-id={signal.id} className="border rounded-md p-2.5 bg-background transition-shadow">
       <div className="text-sm">
         <Badge variant="outline" className="text-[10px] mr-2 capitalize">{subj.bureau}</Badge>
         <span className="font-medium">"{oldName}"</span>
@@ -179,7 +198,7 @@ function HarmSignalRow({
   const openedDate = ev.opened_date || 'unknown';
 
   return (
-    <div className="border rounded-md p-2.5 bg-background border-orange-300">
+    <div data-signal-id={signal.id} className="border rounded-md p-2.5 bg-background border-orange-300 transition-shadow">
       <div className="text-sm">
         <Badge variant="outline" className="text-[10px] mr-2 border-orange-400 text-orange-700">
           Round {roundNum}
@@ -227,7 +246,7 @@ function AutomatedReverificationRow({
   const days = ev.days_since_dispute;
 
   return (
-    <div className="border rounded-md p-2.5 bg-background">
+    <div data-signal-id={signal.id} className="border rounded-md p-2.5 bg-background transition-shadow">
       <div className="text-sm">
         <Badge variant="outline" className="text-[10px] mr-2">{subj.bureau}</Badge>
         <span>marked </span>

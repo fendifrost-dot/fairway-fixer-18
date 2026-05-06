@@ -209,3 +209,49 @@ function HarmSignalRow({
     </div>
   );
 }
+
+function AutomatedReverificationRow({
+  signal, tlById, evById, onDismiss,
+}: {
+  signal: DiagnosticSignal;
+  tlById: Map<string, Tradeline>;
+  evById: Map<string, TimelineEvent>;
+  onDismiss: () => void;
+}) {
+  const subj = signal.subject_ids as AutomatedReverificationSubjectIds;
+  const ev = signal.evidence as AutomatedReverificationEvidence;
+  const tl = subj.tradeline_id ? tlById.get(subj.tradeline_id) : null;
+  const event = evById.get(subj.event_id);
+  const label = tl?.display_name || ev.event_title || 'item';
+  const date = ev.response_date || (event?.event_date ?? 'unknown date');
+  const days = ev.days_since_dispute;
+
+  return (
+    <div className="border rounded-md p-2.5 bg-background">
+      <div className="text-sm">
+        <Badge variant="outline" className="text-[10px] mr-2">{subj.bureau}</Badge>
+        <span>marked </span>
+        <span className="font-medium">"{label}"</span>
+        <span> as </span>
+        <span className="font-medium capitalize">"{ev.status_verb_matched}"</span>
+        <span> on {date} — short response ({ev.summary_length} chars), no documentation cited
+          {days != null ? `, ${days} day${days === 1 ? '' : 's'} after dispute mailing` : ''}.
+          Likely §1681i(a)(7) automated reverification — supports a method-of-verification
+          demand letter.</span>
+      </div>
+      <div className="mt-2 flex justify-end gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            // eslint-disable-next-line no-alert
+            alert('Draft §1681i(a)(7) MOV letter — coming in C5');
+          }}
+        >
+          Draft §1681i(a)(7) MOV letter
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>
+      </div>
+    </div>
+  );
+}

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type { DiagnosticSignal } from '@/types/operator';
 import { detectFurnisherRenames } from '@/lib/diagnostics/furnisherRenames';
 import { detectPostRoundNewHarm } from '@/lib/diagnostics/postRoundNewHarm';
+import { detectAutomatedReverification } from '@/lib/diagnostics/automatedReverification';
 import { useTradelines, useTradelineBureauStates } from '@/hooks/useTradelines';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
@@ -116,6 +117,40 @@ export function useAutoDetectPostRoundNewHarm(clientId: string | undefined) {
         }
       } catch (e) {
         console.warn('[diagnostics] post-round new-harm detection failed', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, fingerprint]);
+}
+
+/**
+ * C3 — Auto-runs the automated-reverification detector when timeline events change.
+ */
+export function useAutoDetectAutomatedReverification(clientId: string | undefined) {
+  const qc = useQueryClient();
+  const { data: events } = useTimelineEvents(clientId);
+
+  const fingerprint = JSON.stringify(
+    (events || []).map(e => [
+      e.id, e.category, e.source, e.event_date, e.title?.length || 0,
+      (e.summary || '').length, (e.details || '').length, e.tradeline_id,
+    ])
+  );
+
+  useEffect(() => {
+    if (!clientId) return;
+    if (!events) return;
+    if (events.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const n = await detectAutomatedReverification(clientId);
+        if (!cancelled && n > 0) {
+          qc.invalidateQueries({ queryKey: ['diagnostic-signals', clientId] });
+        }
+      } catch (e) {
+        console.warn('[diagnostics] automated-reverification detection failed', e);
       }
     })();
     return () => { cancelled = true; };

@@ -16,17 +16,22 @@ import {
   useDismissDiagnosticSignal,
   useAutoDetectFurnisherRenames,
   useAutoDetectPostRoundNewHarm,
+  useAutoDetectAutomatedReverification,
 } from '@/hooks/useDiagnosticSignals';
 import { useTradelines } from '@/hooks/useTradelines';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
+import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import type {
   DiagnosticSignal,
   FurnisherRenameSubjectIds,
   FurnisherRenameEvidence,
   PostRoundNewHarmSubjectIds,
   PostRoundNewHarmEvidence,
+  AutomatedReverificationSubjectIds,
+  AutomatedReverificationEvidence,
   Tradeline,
   DisputeRound,
+  TimelineEvent,
 } from '@/types/operator';
 
 interface Props {
@@ -37,10 +42,12 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
   // Kick off detection on first mount + whenever underlying tradelines change.
   useAutoDetectFurnisherRenames(clientId);
   useAutoDetectPostRoundNewHarm(clientId);
+  useAutoDetectAutomatedReverification(clientId);
 
   const { data: signals = [] } = useDiagnosticSignals(clientId);
   const { data: tradelines = [] } = useTradelines(clientId);
   const { data: rounds = [] } = useDisputeRounds(clientId);
+  const { data: events = [] } = useTimelineEvents(clientId);
   const dismiss = useDismissDiagnosticSignal();
 
   const undismissed = useMemo(
@@ -52,9 +59,11 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
 
   const tlById = new Map(tradelines.map(t => [t.id, t] as const));
   const roundById = new Map(rounds.map(r => [r.id, r] as const));
+  const evById = new Map(events.map(e => [e.id, e] as const));
 
   const renameSignals = undismissed.filter(s => s.signal_type === 'furnisher_rename');
   const harmSignals = undismissed.filter(s => s.signal_type === 'post_round_new_harm');
+  const arvSignals = undismissed.filter(s => s.signal_type === 'automated_reverification');
 
   return (
     <Card className="border-amber-300 bg-amber-50/40 dark:bg-amber-950/10">
@@ -92,6 +101,22 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
                 signal={sig}
                 tlById={tlById}
                 roundById={roundById}
+                onDismiss={() => dismiss.mutate({ id: sig.id, clientId })}
+              />
+            ))}
+          </div>
+        )}
+        {arvSignals.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Likely automated reverification
+            </div>
+            {arvSignals.map(sig => (
+              <AutomatedReverificationRow
+                key={sig.id}
+                signal={sig}
+                tlById={tlById}
+                evById={evById}
                 onDismiss={() => dismiss.mutate({ id: sig.id, clientId })}
               />
             ))}

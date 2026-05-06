@@ -30,6 +30,8 @@ import type {
   FurnisherRenameEvidence,
   PostRoundNewHarmSubjectIds,
   PostRoundNewHarmEvidence,
+  AutomatedReverificationSubjectIds,
+  AutomatedReverificationEvidence,
 } from '@/types/operator';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
@@ -39,6 +41,13 @@ const BUREAUS: { key: TradelineBureau; label: string }[] = [
   { key: 'experian', label: 'Experian' },
   { key: 'transunion', label: 'TransUnion' },
 ];
+
+// Map bureau key → matching EventSource string used on timeline events.
+const BUREAU_TO_SOURCE: Record<TradelineBureau, string> = {
+  equifax: 'Equifax',
+  experian: 'Experian',
+  transunion: 'TransUnion',
+};
 
 function fmtDate(d: string | null): string {
   if (!d) return '—';
@@ -110,6 +119,21 @@ export function TradelinesPanel({ clientId }: Props) {
     return m;
   }, [signals]);
 
+  // C3: undismissed automated_reverification signals keyed by tradeline_id.
+  const arvSignalsByTradeline = useMemo(() => {
+    const m = new Map<string, DiagnosticSignal[]>();
+    for (const s of signals) {
+      if (s.dismissed_at) continue;
+      if (s.signal_type !== 'automated_reverification') continue;
+      const subj = s.subject_ids as AutomatedReverificationSubjectIds;
+      if (!subj.tradeline_id) continue;
+      const arr = m.get(subj.tradeline_id) || [];
+      arr.push(s);
+      m.set(subj.tradeline_id, arr);
+    }
+    return m;
+  }, [signals]);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -145,6 +169,7 @@ export function TradelinesPanel({ clientId }: Props) {
                 states={statesByTradeline.get(tl.id) || []}
                 renameSignals={renameSignalsByTradeline.get(tl.id) || []}
                 harmSignals={harmSignalsByTradeline.get(tl.id) || []}
+                arvSignals={arvSignalsByTradeline.get(tl.id) || []}
                 tlById={new Map(tradelines.map(t => [t.id, t] as const))}
                 recentEvents={(eventsByTradeline.get(tl.id) || [])
                   .slice()
@@ -160,7 +185,7 @@ export function TradelinesPanel({ clientId }: Props) {
 }
 
 function TradelineRow({
-  clientId, tradeline, states, recentEvents, renameSignals, harmSignals, tlById,
+  clientId, tradeline, states, recentEvents, renameSignals, harmSignals, arvSignals, tlById,
 }: {
   clientId: string;
   tradeline: Tradeline;
@@ -168,11 +193,21 @@ function TradelineRow({
   recentEvents: { id: string; title: string; event_date: string | null; source: string | null }[];
   renameSignals: DiagnosticSignal[];
   harmSignals: DiagnosticSignal[];
+  arvSignals: DiagnosticSignal[];
   tlById: Map<string, Tradeline>;
 }) {
   const [open, setOpen] = useState(false);
   const dismiss = useDismissDiagnosticSignal();
   const stateByBureau = new Map(states.map(s => [s.bureau, s] as const));
+
+  // Group ARV signals by bureau (matching the EventSource strings).
+  const arvByBureau = new Map<string, DiagnosticSignal[]>();
+  for (const s of arvSignals) {
+    const subj = s.subject_ids as AutomatedReverificationSubjectIds;
+    const arr = arvByBureau.get(subj.bureau) || [];
+    arr.push(s);
+    arvByBureau.set(subj.bureau, arr);
+  }
 
   // Cross-bureau check: flag if presence differs across bureaus (any present + any explicitly absent).
   const anyPresent = states.some(s => s.present);
@@ -292,10 +327,49 @@ function TradelineRow({
             <div className="grid grid-cols-3 gap-2">
               {BUREAUS.map(({ key, label }) => {
                 const s = stateByBureau.get(key);
+                const arv = arvByBureau.get(BUREAU_TO_SOURCE[key]) || [];
                 return (
                   <div key={key} className="border rounded-md p-2 text-xs space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">{label}</span>
+                      <span className="font-medium flex items-center gap-1">
+                        {label}
+                        {arv.length > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Possible automated reverification"
+                                className="text-amber-600"
+                              >
+                                ⚠️
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="w-72 text-xs space-y-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {arv.map(sig => {
+                                const ev = sig.evidence as AutomatedReverificationEvidence;
+                                return (
+                                  <div key={sig.id} className="space-y-0.5">
+                                    <div>
+                                      Marked <span className="font-medium capitalize">"{ev.status_verb_matched}"</span>{' '}
+                                      ({ev.summary_length} chars)
+                                      {ev.days_since_dispute != null
+                                        ? `, ${ev.days_since_dispute}d after dispute`
+                                        : ''}.
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      No documentation cited.
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </span>
                       {s?.present ? (
                         <Check className="h-3 w-3 text-green-600" />
                       ) : s?.present === false ? (

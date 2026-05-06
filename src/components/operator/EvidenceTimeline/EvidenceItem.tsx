@@ -20,6 +20,12 @@ import type { TimelineEventAttachment } from '@/types/operator';
 import { EvidenceItemProps, EvidenceCategory, PlacementDebug } from './types';
 import { AttachmentChips } from './AttachmentChips';
 import { toast } from 'sonner';
+import { useDiagnosticSignals } from '@/hooks/useDiagnosticSignals';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type {
+  AutomatedReverificationSubjectIds,
+  AutomatedReverificationEvidence,
+} from '@/types/operator';
 
 const categoryConfig: Record<EvidenceCategory, { 
   icon: React.ComponentType<{ className?: string }>; 
@@ -58,6 +64,16 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart, 
   const [showRawLine, setShowRawLine] = useState(false);
   const deleteEvent = useDeleteTimelineEvent();
   const createCorrection = useCreateSourceCorrection();
+
+  // C3: find any automated_reverification signal attached to this event.
+  const { data: signals = [] } = useDiagnosticSignals(clientId);
+  const arvSignal = useMemo(() => {
+    return signals.find(s =>
+      s.signal_type === 'automated_reverification' &&
+      !s.dismissed_at &&
+      (s.subject_ids as AutomatedReverificationSubjectIds).event_id === event.id
+    );
+  }, [signals, event.id]);
 
   // B7: load attachments for this single event (cached per event_id).
   // Skipped if a parent already passed them in.
@@ -159,6 +175,57 @@ export function EvidenceItem({ event, clientId, showDebug = false, onDragStart, 
                     <Paperclip className="h-2.5 w-2.5" />
                     {attachments.length}
                   </span>
+                )}
+                {arvSignal && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex"
+                        title="Possible §1681i(a)(7) automated reverification"
+                      >
+                        <Badge className="text-[10px] gap-1 bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200">
+                          🤖 Automated reverification?
+                        </Badge>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 text-sm space-y-2">
+                      {(() => {
+                        const ev = arvSignal.evidence as AutomatedReverificationEvidence;
+                        return (
+                          <>
+                            <div className="text-xs">
+                              Marked <span className="font-medium capitalize">"{ev.status_verb_matched}"</span>{' '}
+                              with a short response ({ev.summary_length} chars).
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {ev.days_since_dispute != null
+                                ? <>Response received {ev.days_since_dispute} day{ev.days_since_dispute === 1 ? '' : 's'} after dispute mailing.</>
+                                : <>No prior dispute mailing matched on this bureau.</>}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              No reinvestigation indicators found
+                              {ev.missing_indicators.length > 0
+                                ? ` (e.g., "${ev.missing_indicators.slice(0, 3).join('", "')}")`
+                                : ''}.
+                            </div>
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  // eslint-disable-next-line no-alert
+                                  alert('Draft §1681i(a)(7) MOV letter — coming in C5');
+                                }}
+                              >
+                                Draft §1681i(a)(7) MOV letter
+                              </Button>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </PopoverContent>
+                  </Popover>
                 )}
                 <span className="text-xs text-muted-foreground">
                   {isDateUnknown ? 'Date unknown' : format(parseISO(event.event_date!), 'MMM d, yyyy')}

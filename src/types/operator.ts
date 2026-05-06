@@ -273,7 +273,10 @@ export interface SourceCorrection {
 // DIAGNOSTIC SIGNALS (C-series)
 // ============================================================================
 
-export type DiagnosticSignalType = 'furnisher_rename' | 'post_round_new_harm';
+export type DiagnosticSignalType =
+  | 'furnisher_rename'
+  | 'post_round_new_harm'
+  | 'automated_reverification';
 export type DiagnosticSignalSeverity = 'info' | 'warning' | 'critical';
 
 export interface FurnisherRenameSubjectIds {
@@ -305,6 +308,23 @@ export interface PostRoundNewHarmEvidence {
   round_number: number;
 }
 
+// C3 — Automated reverification
+export interface AutomatedReverificationSubjectIds {
+  event_id: string;
+  tradeline_id: string | null;
+  bureau: string; // EventSource string, e.g. 'Experian'
+}
+
+export interface AutomatedReverificationEvidence {
+  summary_length: number;
+  days_since_dispute: number | null;
+  missing_indicators: string[];
+  status_verb_matched: string;
+  response_date: string | null;
+  related_action_event_id: string | null;
+  event_title: string;
+}
+
 export interface DiagnosticSignal {
   id: string;
   client_id: string;
@@ -312,10 +332,12 @@ export interface DiagnosticSignal {
   subject_ids:
     | FurnisherRenameSubjectIds
     | PostRoundNewHarmSubjectIds
+    | AutomatedReverificationSubjectIds
     | Record<string, unknown>;
   evidence:
     | FurnisherRenameEvidence
     | PostRoundNewHarmEvidence
+    | AutomatedReverificationEvidence
     | Record<string, unknown>;
   severity: DiagnosticSignalSeverity;
   detected_at: string;

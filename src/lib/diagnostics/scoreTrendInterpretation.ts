@@ -103,7 +103,11 @@ export function interpretScoreTrendPure(input: InterpretInput): ScoreTrendInterp
   for (let i = bureauHist.length - 1; i >= 0; i--) {
     const h = bureauHist[i];
     const hMs = new Date(h.score_date).getTime();
-    if (hMs < currentMs && h.score !== currentScore) { prior = h; break; }
+    if (!Number.isFinite(hMs)) continue;
+    if (hMs >= currentMs) continue;
+    if (currentAsOf && h.score_date === currentAsOf) continue;
+    prior = h;
+    break;
   }
 
   const result: ScoreTrendInterpretation = {
@@ -184,7 +188,7 @@ export function interpretScoreTrendPure(input: InterpretInput): ScoreTrendInterp
   const sign = Math.sign(delta);
   const absDelta = Math.abs(delta);
   for (const c of candidates) {
-    if (Math.sign(c.est_pts) !== sign) { capped.push(c); continue; }
+    if (c.est_pts === 0 || Math.sign(c.est_pts) !== sign) { capped.push(c); continue; }
     const remaining = absDelta - Math.abs(running);
     if (remaining <= 0) {
       // Keep but zero the contribution beyond the cap

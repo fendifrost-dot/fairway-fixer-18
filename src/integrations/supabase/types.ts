@@ -1347,6 +1347,8 @@ export type Database = {
           id: string
           last_seen_date: string | null
           notes: string | null
+          operator_disputed: boolean
+          operator_disputed_reason: string | null
           present: boolean
           status_on_bureau: string | null
           tradeline_id: string
@@ -1358,6 +1360,8 @@ export type Database = {
           id?: string
           last_seen_date?: string | null
           notes?: string | null
+          operator_disputed?: boolean
+          operator_disputed_reason?: string | null
           present?: boolean
           status_on_bureau?: string | null
           tradeline_id: string
@@ -1369,6 +1373,8 @@ export type Database = {
           id?: string
           last_seen_date?: string | null
           notes?: string | null
+          operator_disputed?: boolean
+          operator_disputed_reason?: string | null
           present?: boolean
           status_on_bureau?: string | null
           tradeline_id?: string

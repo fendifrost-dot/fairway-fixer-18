@@ -155,6 +155,10 @@ export interface TradelineBureauState {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Operator manually rejected an automated change suggested by report ingest (C6). */
+  operator_disputed?: boolean;
+  /** Optional reason for the operator override (C6). */
+  operator_disputed_reason?: string | null;
 }
 
 export interface OperatorTask {
@@ -276,7 +280,9 @@ export interface SourceCorrection {
 export type DiagnosticSignalType =
   | 'furnisher_rename'
   | 'post_round_new_harm'
-  | 'automated_reverification';
+  | 'automated_reverification'
+  | 'item_appeared'
+  | 'item_disappeared';
 export type DiagnosticSignalSeverity = 'info' | 'warning' | 'critical';
 
 export interface FurnisherRenameSubjectIds {

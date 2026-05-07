@@ -21,6 +21,7 @@ import {
 import { useTradelines } from '@/hooks/useTradelines';
 import { useDisputeRounds } from '@/hooks/useDisputeRounds';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
+import { useGenerateDisputeLetter } from '@/hooks/useGenerateDisputeLetter';
 import type {
   DiagnosticSignal,
   FurnisherRenameSubjectIds,
@@ -49,6 +50,7 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
   const { data: rounds = [] } = useDisputeRounds(clientId);
   const { data: events = [] } = useTimelineEvents(clientId);
   const dismiss = useDismissDiagnosticSignal();
+  const generate = useGenerateDisputeLetter();
 
   const undismissed = useMemo(
     () => signals.filter(s => !s.dismissed_at),
@@ -105,6 +107,18 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
                 signal={sig}
                 tlById={tlById}
                 onDismiss={() => dismiss.mutate({ id: sig.id, clientId })}
+                onDraft={() => {
+                  const subj = sig.subject_ids as FurnisherRenameSubjectIds;
+                  const rn = (rounds[rounds.length - 1]?.round_number) ?? 1;
+                  generate.mutate({
+                    client_id: clientId,
+                    round_number: rn,
+                    letter_type: 'verify_or_delete',
+                    bureau: subj.bureau.charAt(0).toUpperCase() + subj.bureau.slice(1),
+                    signal_id: sig.id,
+                  });
+                }}
+                busy={generate.isPending}
               />
             ))}
           </div>
@@ -121,6 +135,16 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
                 tlById={tlById}
                 roundById={roundById}
                 onDismiss={() => dismiss.mutate({ id: sig.id, clientId })}
+                onDraft={(roundNum) => {
+                  generate.mutate({
+                    client_id: clientId,
+                    round_number: roundNum,
+                    letter_type: 'round_n_initial',
+                    bureau: 'Experian',
+                    signal_id: sig.id,
+                  });
+                }}
+                busy={generate.isPending}
               />
             ))}
           </div>
@@ -137,6 +161,18 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
                 tlById={tlById}
                 evById={evById}
                 onDismiss={() => dismiss.mutate({ id: sig.id, clientId })}
+                onDraft={() => {
+                  const subj = sig.subject_ids as AutomatedReverificationSubjectIds;
+                  const rn = (rounds[rounds.length - 1]?.round_number) ?? 1;
+                  generate.mutate({
+                    client_id: clientId,
+                    round_number: rn,
+                    letter_type: 'verify_or_delete',
+                    bureau: subj.bureau,
+                    signal_id: sig.id,
+                  });
+                }}
+                busy={generate.isPending}
               />
             ))}
           </div>
@@ -147,11 +183,13 @@ export function DiagnosticSignalsCard({ clientId }: Props) {
 }
 
 function RenameSignalRow({
-  signal, tlById, onDismiss,
+  signal, tlById, onDismiss, onDraft, busy,
 }: {
   signal: DiagnosticSignal;
   tlById: Map<string, Tradeline>;
   onDismiss: () => void;
+  onDraft: () => void;
+  busy: boolean;
 }) {
   const subj = signal.subject_ids as FurnisherRenameSubjectIds;
   const ev = signal.evidence as FurnisherRenameEvidence;
@@ -175,6 +213,9 @@ function RenameSignalRow({
         {ev.balance_delta_pct != null && <span>balance Δ {(ev.balance_delta_pct * 100).toFixed(1)}%</span>}
       </div>
       <div className="mt-2 flex justify-end">
+        <Button size="sm" variant="outline" className="mr-2" onClick={onDraft} disabled={busy}>
+          Draft §1681c(c)(1) re-aging letter
+        </Button>
         <Button size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>
       </div>
     </div>
@@ -182,12 +223,14 @@ function RenameSignalRow({
 }
 
 function HarmSignalRow({
-  signal, tlById, roundById, onDismiss,
+  signal, tlById, roundById, onDismiss, onDraft, busy,
 }: {
   signal: DiagnosticSignal;
   tlById: Map<string, Tradeline>;
   roundById: Map<string, DisputeRound>;
   onDismiss: () => void;
+  onDraft: (roundNumber: number) => void;
+  busy: boolean;
 }) {
   const subj = signal.subject_ids as PostRoundNewHarmSubjectIds;
   const ev = signal.evidence as PostRoundNewHarmEvidence;
@@ -215,11 +258,8 @@ function HarmSignalRow({
         <Button
           size="sm"
           variant="outline"
-          onClick={() => {
-            // Placeholder for C5 — escalation letter generation.
-            // eslint-disable-next-line no-alert
-            alert(`Draft Round ${(roundNum ?? 1) + 1} escalation — coming in C5`);
-          }}
+          disabled={busy}
+          onClick={() => onDraft((roundNum ?? 1) + 1)}
         >
           Draft Round {(roundNum ?? 1) + 1} escalation
         </Button>
@@ -230,12 +270,14 @@ function HarmSignalRow({
 }
 
 function AutomatedReverificationRow({
-  signal, tlById, evById, onDismiss,
+  signal, tlById, evById, onDismiss, onDraft, busy,
 }: {
   signal: DiagnosticSignal;
   tlById: Map<string, Tradeline>;
   evById: Map<string, TimelineEvent>;
   onDismiss: () => void;
+  onDraft: () => void;
+  busy: boolean;
 }) {
   const subj = signal.subject_ids as AutomatedReverificationSubjectIds;
   const ev = signal.evidence as AutomatedReverificationEvidence;
@@ -262,10 +304,8 @@ function AutomatedReverificationRow({
         <Button
           size="sm"
           variant="outline"
-          onClick={() => {
-            // eslint-disable-next-line no-alert
-            alert('Draft §1681i(a)(7) MOV letter — coming in C5');
-          }}
+          disabled={busy}
+          onClick={onDraft}
         >
           Draft §1681i(a)(7) MOV letter
         </Button>

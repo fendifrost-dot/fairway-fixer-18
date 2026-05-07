@@ -18,8 +18,9 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { CreditCard, Plus, Check, X, AlertTriangle, ChevronDown } from 'lucide-react';
+import { CreditCard, Plus, Check, X, AlertTriangle, ChevronDown, Upload } from 'lucide-react';
 import { useTradelines, useTradelineBureauStates, useCreateTradeline } from '@/hooks/useTradelines';
+import { UploadReportDialog } from './UploadReportDialog';
 import { useTimelineEvents } from '@/hooks/useTimelineEvents';
 import { useDiagnosticSignals, useDismissDiagnosticSignal } from '@/hooks/useDiagnosticSignals';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -64,6 +65,7 @@ export function TradelinesPanel({ clientId }: Props) {
   const { data: events = [] } = useTimelineEvents(clientId);
   const { data: signals = [] } = useDiagnosticSignals(clientId);
   const [showAdd, setShowAdd] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const statesByTradeline = useMemo(() => {
     const m = new Map<string, TradelineBureauState[]>();
@@ -142,6 +144,10 @@ export function TradelinesPanel({ clientId }: Props) {
             <CreditCard className="h-4 w-4" />
             Tradelines ({tradelines.length})
           </CardTitle>
+          <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1" onClick={() => setShowUpload(true)}>
+            <Upload className="h-3 w-3" /> Upload report
+          </Button>
           <Dialog open={showAdd} onOpenChange={setShowAdd}>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline" className="gap-1">
@@ -150,8 +156,10 @@ export function TradelinesPanel({ clientId }: Props) {
             </DialogTrigger>
             <AddTradelineDialog clientId={clientId} onClose={() => setShowAdd(false)} />
           </Dialog>
+          </div>
         </div>
       </CardHeader>
+      <UploadReportDialog clientId={clientId} open={showUpload} onOpenChange={setShowUpload} />
       <CardContent>
         {tradelines.length === 0 ? (
           <p className="text-sm text-muted-foreground">

@@ -1255,6 +1255,7 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
+          correlation_id: string | null
           created_at: string
           date_is_unknown: boolean
           details: string | null
@@ -1274,6 +1275,7 @@ export type Database = {
         Insert: {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
+          correlation_id?: string | null
           created_at?: string
           date_is_unknown?: boolean
           details?: string | null
@@ -1293,6 +1295,7 @@ export type Database = {
         Update: {
           category?: Database["public"]["Enums"]["event_category"]
           client_id?: string
+          correlation_id?: string | null
           created_at?: string
           date_is_unknown?: boolean
           details?: string | null

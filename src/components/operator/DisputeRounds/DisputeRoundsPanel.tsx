@@ -29,6 +29,21 @@ import {
 } from '@/hooks/useDisputeRounds';
 import { useDiagnosticSignals } from '@/hooks/useDiagnosticSignals';
 import { useTradelines } from '@/hooks/useTradelines';
+import { useTradelineBureauStates } from '@/hooks/useTradelines';
+import { useGenerateDisputeLetter } from '@/hooks/useGenerateDisputeLetter';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { suggestLetterTypeForRound } from '@/lib/disputeLetters/routing';
+import {
+  DISPUTE_LETTER_TYPE_LABELS,
+  type DisputeLetterType,
+} from '@/lib/disputeLetters/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { UnresolvedItem } from '@/types/parser';
 import { toast } from 'sonner';
@@ -64,6 +79,8 @@ export function DisputeRoundsPanel({ clientId, events, unresolvedItems = [] }: P
   const { data: rounds = [], isLoading } = useDisputeRounds(clientId);
   const { data: signals = [] } = useDiagnosticSignals(clientId);
   const { data: tradelines = [] } = useTradelines(clientId);
+  const { data: bureauStates = [] } = useTradelineBureauStates(clientId);
+  const generate = useGenerateDisputeLetter();
   const createRound = useCreateDisputeRound();
   const updateRound = useUpdateDisputeRound();
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
@@ -217,6 +234,15 @@ export function DisputeRoundsPanel({ clientId, events, unresolvedItems = [] }: P
                     <PostRoundHarmAlert signals={harmSignals} tlNameById={tlNameById} />
                   )}
 
+                  <DraftLettersMenu
+                    clientId={clientId}
+                    round={round}
+                    signals={signals}
+                    bureauStates={bureauStates}
+                    onGenerate={(req) => generate.mutate(req)}
+                    busy={generate.isPending}
+                  />
+
                   {/* Notes */}
                   <div>
                     {isEditing ? (
@@ -317,6 +343,95 @@ function Stat({ label, value }: { label: string; value: number }) {
         {label}
       </div>
     </div>
+  );
+}
+
+const BUREAUS: Array<{ key: string; label: string }> = [
+  { key: 'Experian', label: 'Experian' },
+  { key: 'TransUnion', label: 'TransUnion' },
+  { key: 'Equifax', label: 'Equifax' },
+];
+
+const ALL_LETTER_TYPES: DisputeLetterType[] = [
+  'round_n_initial',
+  'verify_or_delete',
+  'overdue_violation',
+  'data_broker_followup',
+];
+
+function DraftLettersMenu({
+  clientId,
+  round,
+  signals,
+  bureauStates,
+  onGenerate,
+  busy,
+}: {
+  clientId: string;
+  round: DisputeRound;
+  signals: DiagnosticSignal[];
+  bureauStates: Array<{ tradeline_id: string; bureau: string; present: boolean; status_on_bureau: string | null }>;
+  onGenerate: (req: { client_id: string; round_number: number; letter_type: DisputeLetterType; bureau?: string }) => void;
+  busy: boolean;
+}) {
+  const undismissed = signals.filter(s => !s.dismissed_at);
+  const hasArv = undismissed.some(s => s.signal_type === 'automated_reverification');
+  const hasRename = undismissed.some(s => s.signal_type === 'furnisher_rename');
+  const hasNewHarm = undismissed.some(
+    s => s.signal_type === 'post_round_new_harm' &&
+      (s.subject_ids as any)?.round_id === round.id
+  );
+  const verifiedTokens = ['verified', 'updated', 'no change', 'confirmed'];
+  const hasVerifiedItems = bureauStates.some(s => {
+    const st = (s.status_on_bureau || '').toLowerCase();
+    return verifiedTokens.some(t => st.includes(t));
+  });
+  const suggested = suggestLetterTypeForRound({
+    round: { status: round.status, submitted_at: round.submitted_at },
+    hasVerifiedItems,
+    hasAutomatedReverificationSignal: hasArv,
+    hasFurnisherRenameSignal: hasRename,
+    hasPostRoundNewHarmSignal: hasNewHarm,
+  });
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="sm" variant="outline" disabled={busy} className="w-full h-8 text-xs">
+          <Mail className="h-3 w-3 mr-1" /> Draft letters
+          <ChevronDown className="h-3 w-3 ml-auto" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel className="text-xs">
+          Suggested: {DISPUTE_LETTER_TYPE_LABELS[suggested]}
+        </DropdownMenuLabel>
+        {BUREAUS.map(b => (
+          <div key={b.key}>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {b.label}
+            </DropdownMenuLabel>
+            {ALL_LETTER_TYPES.map(t => (
+              <DropdownMenuItem
+                key={`${b.key}-${t}`}
+                onClick={() =>
+                  onGenerate({
+                    client_id: clientId,
+                    round_number: round.round_number,
+                    letter_type: t,
+                    bureau: b.key,
+                  })
+                }
+                className="text-xs"
+              >
+                {DISPUTE_LETTER_TYPE_LABELS[t]}
+                {t === suggested && <Badge variant="secondary" className="ml-auto text-[9px]">suggested</Badge>}
+              </DropdownMenuItem>
+            ))}
+          </div>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

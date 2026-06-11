@@ -3,7 +3,7 @@
   * Deterministic detection rules (no AI/LLM)
   */
  
- import { EventSource } from '@/types/operator';
+ import { EventSource, ALL_SOURCES } from '@/types/operator';
  
  export type SmartImportEventKind = 'action' | 'response' | 'outcome';
  
@@ -34,11 +34,14 @@ const VALID_SOURCES: Record<string, EventSource> = {
    'bbb': 'BBB',
    'ag': 'AG',
   'attorney general': 'AG',
+  'creditor': 'Creditor',
+  'furnisher': 'Creditor',
+  'collector': 'Creditor',
  };
  
 // Leading label patterns - these sources at the START of input get priority
 // Captures: "TransUnion emailed..." or "TransUnion: response..."
-const LEADING_SOURCE_PATTERN = /^(Experian|TransUnion|Equifax|Innovis|LexisNexis|Sagestream|CoreLogic|ChexSystems|EWS|NCTUE|CFPB|FTC|BBB|AG|Attorney General)\b[:\s-]*/i;
+const LEADING_SOURCE_PATTERN = /^(Experian|TransUnion|Equifax|Innovis|LexisNexis|Sagestream|CoreLogic|ChexSystems|EWS|NCTUE|CFPB|FTC|BBB|AG|Attorney General|Creditor|Furnisher|Collector)\b[:\s-]*/i;
 
  // Event kind detection keywords
 // Order matters: response checked first, then action, then outcome
@@ -57,7 +60,10 @@ const OUTCOME_KEYWORDS = ['deleted', 'removed', 'reinsertion', 'verified as accu
   if (leadingMatch) {
     const leadingSource = leadingMatch[1].toLowerCase();
     // Normalize "attorney general" to "ag"
-    const normalizedLeading = leadingSource === 'attorney general' ? 'ag' : leadingSource;
+    let normalizedLeading = leadingSource === 'attorney general' ? 'ag' : leadingSource;
+    if (normalizedLeading === 'furnisher' || normalizedLeading === 'collector') {
+      normalizedLeading = 'creditor';
+    }
     if (VALID_SOURCES[normalizedLeading]) {
       return VALID_SOURCES[normalizedLeading];
     }
@@ -191,10 +197,5 @@ function isValidDate(year: number, month: number, day: number): boolean {
   * Get all valid sources for dropdown
   */
  export function getAllSources(): EventSource[] {
-   return [
-     'Experian', 'TransUnion', 'Equifax',
-     'Innovis', 'LexisNexis', 'Sagestream', 'CoreLogic',
-     'ChexSystems', 'EWS', 'NCTUE',
-     'CFPB', 'FTC', 'BBB', 'AG',
-   ];
+   return [...ALL_SOURCES];
  }

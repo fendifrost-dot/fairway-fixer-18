@@ -6,5 +6,8 @@ verify_jwt = false
 [functions.cross-project-api]
 verify_jwt = false
 
-[functions.ingest-hub-event]
+[functions.control-center-api]
 verify_jwt = false
+
+[functions.analyze-bureau-response]
+verify_jwt = true

@@ -6,9 +6,10 @@ import { User, Mail, Phone } from 'lucide-react';
 
 interface ClientHeaderProps {
   client: DbClient;
+  balanceBadge?: React.ReactNode;
 }
 
-export function ClientHeader({ client }: ClientHeaderProps) {
+export function ClientHeader({ client, balanceBadge }: ClientHeaderProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Active': return 'bg-green-100 text-green-700 border-green-200';
@@ -34,6 +35,7 @@ export function ClientHeader({ client }: ClientHeaderProps) {
               <Badge variant="outline" className={getStatusColor(client.status)}>
                 {client.status}
               </Badge>
+              {balanceBadge}
             </div>
             
             {client.preferred_name && (

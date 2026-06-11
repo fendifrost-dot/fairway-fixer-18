@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Users, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { format, parseISO, isToday, isPast } from 'date-fns';
+import { PaymentsDueWidget } from '@/components/billing/PaymentsDueWidget';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -247,6 +248,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <PaymentsDueWidget />
 
       {/* Dialogs */}
       <AddClientDialog 

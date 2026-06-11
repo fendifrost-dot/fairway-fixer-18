@@ -32,12 +32,6 @@ import { AIReviewPanel, AISuggestion } from '@/components/operator/AIReviewPanel
 import { supabase } from '@/integrations/supabase/client';
 import { parseJsonImportArray, validateJsonImportBatch, JsonValidationResult } from '@/lib/jsonImportValidator';
 import { JsonImportReview } from '@/components/operator/JsonImportReview';
-import { ensureRound } from '@/hooks/useDisputeRounds';
-import { extractScoresFromLines } from '@/lib/scoreExtraction';
-import { applyExtractedScores } from '@/lib/applyExtractedScores';
-import { resolveFurnishersForEvents } from '@/lib/resolveFurnishers';
-import { resolveTradelinesForEvents } from '@/lib/resolveTradelines';
-import { persistAttachmentsForEvents } from '@/hooks/useEventAttachments';
 interface ChatGPTImportProps {
   clientId: string;
   onImportComplete?: (result: ParseResult) => void;
@@ -222,51 +216,7 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
     try {
       // Convert parsed timeline events to database format
       const dbEvents = parsed.timeline_events.map(e => mapTimelineEventToDb(e, clientId));
-
-      // Resolve [Round N] tags to dispute_round IDs (creating rounds if needed)
-      const uniqueRoundNumbers = Array.from(
-        new Set(
-          dbEvents
-            .map(e => e.round_number)
-            .filter((n): n is number => typeof n === 'number' && n > 0)
-        )
-      );
-      if (uniqueRoundNumbers.length > 0) {
-        const roundMap = new Map<number, string>();
-        for (const n of uniqueRoundNumbers) {
-          try {
-            const round = await ensureRound(clientId, n);
-            roundMap.set(n, round.id);
-          } catch (err) {
-            toast.error(`Failed to create Round ${n}: ${(err as Error).message}`);
-          }
-        }
-        for (const e of dbEvents) {
-          if (e.round_number && roundMap.has(e.round_number)) {
-            e.round_id = roundMap.get(e.round_number) ?? null;
-          }
-          delete e.round_number;
-        }
-      } else {
-        dbEvents.forEach(e => { delete e.round_number; });
-      }
-
-      // B4: Resolve furnisher_name → furnisher_id (creates rows on demand)
-      try {
-        const { errors: fErrs } = await resolveFurnishersForEvents(clientId, dbEvents);
-        if (fErrs.length > 0) console.warn('furnisher resolve warnings:', fErrs);
-      } catch (e) {
-        console.warn('furnisher resolution failed:', e);
-      }
-
-      // B5: Resolve [Tradeline: "..."] anchors → tradeline_id (create on demand)
-      try {
-        const { errors: tErrs } = await resolveTradelinesForEvents(clientId, dbEvents);
-        if (tErrs.length > 0) console.warn('tradeline resolve warnings:', tErrs);
-      } catch (e) {
-        console.warn('tradeline resolution failed:', e);
-      }
-
+      
       // Convert scheduled events to tasks
       const dbTasks = parsed.scheduled_events.map(e => mapScheduledEventToTask(e, clientId));
       
@@ -275,55 +225,11 @@ export function ChatGPTImport({ clientId, onImportComplete }: ChatGPTImportProps
         dbEvents.length > 0 ? createEvents.mutateAsync(dbEvents) : Promise.resolve(),
         dbTasks.length > 0 ? createTasks.mutateAsync(dbTasks) : Promise.resolve(),
       ]);
-
-      // B7: persist any parser-detected attachments. Re-fetch the just-inserted
-      // events to pair them with parsed_attachments by matching raw_line.
-      try {
-        const eventsWithAtt = dbEvents.filter(e => e.parsed_attachments && e.parsed_attachments.length > 0);
-        if (eventsWithAtt.length > 0) {
-          const rawLines = Array.from(new Set(eventsWithAtt.map(e => e.raw_line)));
-          const { data: rows } = await supabase
-            .from('timeline_events')
-            .select('id, raw_line')
-            .eq('client_id', clientId)
-            .in('raw_line', rawLines);
-          const byRaw = new Map<string, string>();
-          (rows ?? []).forEach((r: { id: string; raw_line: string }) => byRaw.set(r.raw_line, r.id));
-          const byEventId: Record<string, typeof eventsWithAtt[number]['parsed_attachments']> = {};
-          for (const e of eventsWithAtt) {
-            const id = byRaw.get(e.raw_line);
-            if (!id || !e.parsed_attachments) continue;
-            byEventId[id] = (byEventId[id] || []).concat(e.parsed_attachments);
-          }
-          if (Object.keys(byEventId).length > 0) {
-            await persistAttachmentsForEvents(clientId, byEventId as any);
-          }
-        }
-      } catch (e) {
-        console.warn('attachment persist failed:', e);
-      }
       
       setResult(parsed);
       
       // Notify parent of import completion (for unresolved items, drafts, notes)
       onImportComplete?.(parsed);
-
-      // B6: Auto-populate Credit Scores from outcome lines containing scores.
-      try {
-        const outcomeLines = parsed.timeline_events
-          .filter(e => e.event_kind === 'outcome' || e.event_kind === 'response' || e.event_kind === 'action')
-          .map(e => e.raw_line)
-          .filter(Boolean);
-        const incoming = extractScoresFromLines(outcomeLines);
-        if (incoming.length > 0) {
-          const { updated } = await applyExtractedScores(clientId, incoming, 'chatgpt-import');
-          if (updated > 0) {
-            toast.success(`Updated ${updated} credit score${updated === 1 ? '' : 's'}`);
-          }
-        }
-      } catch (e) {
-        console.warn('Credit score extraction failed:', e);
-      }
       
       // Auto-process unrouted lines through AI
       if (parsed.unrouted_lines.length > 0) {

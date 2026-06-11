@@ -99,7 +99,7 @@ export interface TimelineEventParsed {
   event_kind: EventKind; // required
   event_date: string | null; // YYYY-MM-DD or null if unknown
   date_is_unknown: boolean; // true if date had XX or was unparseable
-  source: NormalizedSource | null; // null when row attaches to a furnisher only
+  source: NormalizedSource; // required - if missing, NOT a timeline event
   scope: ScopeValue; // single or all_cras
   action_type: string | null; // optional
   status_verb: string | null; // optional
@@ -107,31 +107,6 @@ export interface TimelineEventParsed {
   account_ref: string | null; // optional
   description: string; // required
   raw_line: string; // required - original input line
-  round_number?: number | null; // optional [Round N] tag
-  /**
-   * B4: When the row's source column references a furnisher (creditor /
-   * collection agency) instead of a bureau, the parser surfaces the verbatim
-   * furnisher name here so the import pipeline can resolve it to a
-   * furnishers row before insert.
-   */
-  furnisher_name?: string | null;
-  /** Optional last-4 digits scraped from account_ref / details for furnisher dedupe. */
-  furnisher_account_last4?: string | null;
-  /**
-   * B5: Optional [Tradeline: "Display name"] anchor parsed from the row tail.
-   * Resolved to tradeline_id at import time via ensureTradeline.
-   */
-  tradeline_anchor?: string | null;
-  /**
-   * B7: Drive paths / URLs detected in the row's free-text columns.
-   * Persisted to timeline_event_attachments after the event is inserted.
-   */
-  parsed_attachments?: Array<{
-    drive_path: string;
-    file_url: string | null;
-    mime_type: string;
-    file_name: string;
-  }>;
 }
 
 // ============================================================================
@@ -160,9 +135,6 @@ export interface UnresolvedItem {
   date_is_unknown: boolean;
   description: string; // required
   raw_line: string; // required
-  round_number?: number | null;
-  furnisher_name?: string | null;
-  furnisher_account_last4?: string | null;
 }
 
 // ============================================================================

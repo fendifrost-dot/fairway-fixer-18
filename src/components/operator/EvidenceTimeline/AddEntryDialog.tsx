@@ -12,15 +12,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Plus } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCreateTimelineEvent } from '@/hooks/useTimelineEvents';
-import { useFurnishers, useCreateFurnisher } from '@/hooks/useFurnishers';
-import { useTradelines, useCreateTradeline } from '@/hooks/useTradelines';
 import { ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
-import { parseAttachmentLines } from '@/lib/attachmentDetector';
-import { persistAttachmentsForEvents } from '@/hooks/useEventAttachments';
 
 interface AddEntryDialogProps {
   open: boolean;
@@ -30,29 +26,15 @@ interface AddEntryDialogProps {
 
 export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogProps) {
   const createEvent = useCreateTimelineEvent();
-  const { data: furnishers = [] } = useFurnishers(clientId);
-  const createFurnisher = useCreateFurnisher();
-  const { data: tradelines = [] } = useTradelines(clientId);
-  const createTradeline = useCreateTradeline();
   
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const [category, setCategory] = useState<EventCategory>('Action');
   const [eventKind, setEventKind] = useState<string>('action');
   const [source, setSource] = useState<string>('');
-  const [furnisherId, setFurnisherId] = useState<string>('');
-  const [showNewFurnisher, setShowNewFurnisher] = useState(false);
-  const [newFurnisherName, setNewFurnisherName] = useState('');
-  const [newFurnisherLast4, setNewFurnisherLast4] = useState('');
-  const [tradelineId, setTradelineId] = useState<string>('');
-  const [showNewTradeline, setShowNewTradeline] = useState(false);
-  const [newTradelineName, setNewTradelineName] = useState('');
-  const [newTradelineLast4, setNewTradelineLast4] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [details, setDetails] = useState('');
   const [rawLine, setRawLine] = useState('');
-  const [attachmentsText, setAttachmentsText] = useState('');
-  const [attachmentsWarning, setAttachmentsWarning] = useState<string | null>(null);
 
   const categoryToKind: Record<EventCategory, string> = {
     Action: 'action',
@@ -71,103 +53,40 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
     setCategory('Action');
     setEventKind('action');
     setSource('');
-    setFurnisherId('');
-    setShowNewFurnisher(false);
-    setNewFurnisherName('');
-    setNewFurnisherLast4('');
-    setTradelineId('');
-    setShowNewTradeline(false);
-    setNewTradelineName('');
-    setNewTradelineLast4('');
     setTitle('');
     setSummary('');
     setDetails('');
     setRawLine('');
-    setAttachmentsText('');
-    setAttachmentsWarning(null);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const dateStr = eventDate ? format(eventDate, 'yyyy-MM-dd') : null;
     const effectiveRawLine = rawLine.trim() || summary.trim() || title.trim();
     
     if (!effectiveRawLine) return;
 
-    // If user filled the inline new-furnisher form but didn't click "Add",
-    // create it now so the event attaches to it.
-    let resolvedFurnisherId: string | null = furnisherId || null;
-    if (showNewFurnisher && newFurnisherName.trim()) {
-      try {
-        const created = await createFurnisher.mutateAsync({
-          client_id: clientId,
-          name: newFurnisherName.trim(),
-          account_last4: newFurnisherLast4.trim() || null,
-        });
-        resolvedFurnisherId = created.id;
-      } catch {
-        // Toast already handled by hook; abort submit so user can retry.
-        return;
-      }
-    }
-
-    let resolvedTradelineId: string | null = tradelineId || null;
-    if (showNewTradeline && newTradelineName.trim()) {
-      try {
-        const created = await createTradeline.mutateAsync({
-          client_id: clientId,
-          display_name: newTradelineName.trim(),
-          account_last4: newTradelineLast4.trim() || null,
-        });
-        resolvedTradelineId = created.id;
-      } catch {
-        return;
-      }
-    }
-
-    // Validate attachments first so we can warn before insert.
-    const attachmentsRaw = attachmentsText.trim();
-    let parsedAttachments: ReturnType<typeof parseAttachmentLines> = [];
-    if (attachmentsRaw) {
-      parsedAttachments = parseAttachmentLines(attachmentsRaw).filter(
-        (a) => a.drive_path && (a.drive_path.includes('/') || /^https?:\/\//i.test(a.drive_path)),
-      );
-      if (parsedAttachments.length === 0) {
-        setAttachmentsWarning('No valid attachments detected — paste Drive paths or share URLs');
-        return;
-      }
-    }
-    setAttachmentsWarning(null);
-
-    try {
-      const created = await createEvent.mutateAsync({
-        client_id: clientId,
-        event_date: dateStr,
-        date_is_unknown: !dateStr,
-        category: category,
-        source: (source || null) as EventSource | null,
-        title: title || category,
-        summary: summary || title,
-        details: details || null,
-        related_accounts: null,
-        raw_line: effectiveRawLine,
-        event_kind: eventKind,
-        is_draft: false,
-        furnisher_id: resolvedFurnisherId,
-        tradeline_id: resolvedTradelineId,
-      });
-      const newId = (created as { id?: string } | null)?.id;
-      if (newId && parsedAttachments.length > 0) {
-        await persistAttachmentsForEvents(clientId, { [newId]: parsedAttachments });
-      }
-      resetForm();
-      onOpenChange(false);
-    } catch {
-      // toast handled inside hook; keep dialog open
-    }
+    createEvent.mutate({
+      client_id: clientId,
+      event_date: dateStr,
+      date_is_unknown: !dateStr,
+      category: category,
+      source: (source || null) as EventSource | null,
+      title: title || category,
+      summary: summary || title,
+      details: details || null,
+      related_accounts: null,
+      raw_line: effectiveRawLine,
+      event_kind: eventKind,
+      is_draft: false,
+    }, {
+      onSuccess: () => {
+        resetForm();
+        onOpenChange(false);
+      },
+    });
   };
 
-  const canSubmit =
-    (title.trim() || summary.trim()) && !createEvent.isPending && !createFurnisher.isPending && !createTradeline.isPending;
+  const canSubmit = (title.trim() || summary.trim()) && !createEvent.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,182 +143,6 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
             </Select>
           </div>
 
-          {/* Furnisher (optional) — coexists with Source */}
-          <div className="space-y-1">
-            <Label htmlFor="add-furnisher">Furnisher (optional)</Label>
-            {!showNewFurnisher ? (
-              <div className="flex gap-2">
-                <Select
-                  value={furnisherId || '__none__'}
-                  onValueChange={(v) => setFurnisherId(v === '__none__' ? '' : v)}
-                >
-                  <SelectTrigger id="add-furnisher" className="flex-1">
-                    <SelectValue placeholder="No furnisher" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No furnisher</SelectItem>
-                    {furnishers.map(f => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.name}
-                        {f.account_last4 ? ` (…${f.account_last4})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowNewFurnisher(true);
-                    setFurnisherId('');
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  New
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2 rounded-md border p-2 bg-muted/30">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Furnisher name"
-                    value={newFurnisherName}
-                    onChange={(e) => setNewFurnisherName(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="Last 4"
-                    value={newFurnisherLast4}
-                    onChange={(e) => setNewFurnisherLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    className="w-20 font-mono"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowNewFurnisher(false);
-                      setNewFurnisherName('');
-                      setNewFurnisherLast4('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={!newFurnisherName.trim() || createFurnisher.isPending}
-                    onClick={async () => {
-                      const created = await createFurnisher.mutateAsync({
-                        client_id: clientId,
-                        name: newFurnisherName.trim(),
-                        account_last4: newFurnisherLast4.trim() || null,
-                      });
-                      setFurnisherId(created.id);
-                      setShowNewFurnisher(false);
-                      setNewFurnisherName('');
-                      setNewFurnisherLast4('');
-                    }}
-                  >
-                    Add furnisher
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Tradeline (optional) — coexists with Source and Furnisher */}
-          <div className="space-y-1">
-            <Label htmlFor="add-tradeline">Tradeline (optional)</Label>
-            {!showNewTradeline ? (
-              <div className="flex gap-2">
-                <Select
-                  value={tradelineId || '__none__'}
-                  onValueChange={(v) => setTradelineId(v === '__none__' ? '' : v)}
-                >
-                  <SelectTrigger id="add-tradeline" className="flex-1">
-                    <SelectValue placeholder="No tradeline" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No tradeline</SelectItem>
-                    {tradelines.map(t => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.display_name}
-                        {t.account_last4 ? ` (…${t.account_last4})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowNewTradeline(true);
-                    setTradelineId('');
-                  }}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  New
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-2 rounded-md border p-2 bg-muted/30">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Tradeline display name"
-                    value={newTradelineName}
-                    onChange={(e) => setNewTradelineName(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="Last 4"
-                    value={newTradelineLast4}
-                    onChange={(e) => setNewTradelineLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    className="w-20 font-mono"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowNewTradeline(false);
-                      setNewTradelineName('');
-                      setNewTradelineLast4('');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={!newTradelineName.trim() || createTradeline.isPending}
-                    onClick={async () => {
-                      const created = await createTradeline.mutateAsync({
-                        client_id: clientId,
-                        display_name: newTradelineName.trim(),
-                        account_last4: newTradelineLast4.trim() || null,
-                      });
-                      setTradelineId(created.id);
-                      setShowNewTradeline(false);
-                      setNewTradelineName('');
-                      setNewTradelineLast4('');
-                    }}
-                  >
-                    Add tradeline
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Title */}
           <div className="space-y-1">
             <Label htmlFor="add-title">Title</Label>
@@ -422,25 +165,6 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
           <div className="space-y-1">
             <Label htmlFor="add-rawline">Raw Evidence Text</Label>
             <Textarea id="add-rawline" value={rawLine} onChange={e => setRawLine(e.target.value)} placeholder="Verbatim source text (auto-filled from summary if empty)" rows={3} className="font-mono text-xs" />
-          </div>
-
-          {/* Attachments (optional) */}
-          <div className="space-y-1">
-            <Label htmlFor="add-attachments">Attachments (optional)</Label>
-            <Textarea
-              id="add-attachments"
-              value={attachmentsText}
-              onChange={(e) => { setAttachmentsText(e.target.value); if (attachmentsWarning) setAttachmentsWarning(null); }}
-              placeholder={'SAM CREDIT/responses/2026-03-25-innovis-response.png\nhttps://drive.google.com/file/d/...'}
-              rows={2}
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              One Drive path or share URL per line. Examples: SAM CREDIT/responses/2026-03-25-innovis-response.png, https://drive.google.com/file/d/...
-            </p>
-            {attachmentsWarning && (
-              <p className="text-xs text-destructive">{attachmentsWarning}</p>
-            )}
           </div>
         </div>
 

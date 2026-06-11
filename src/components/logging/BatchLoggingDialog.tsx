@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { pastDateBounds } from '@/lib/dateBounds';
 import { Card } from '@/components/ui/card';
 import { useClients, useMatters, useEntityCases } from '@/hooks/useDashboardData';
 import { useLogAction, useLogResponse } from '@/hooks/useMutations';
@@ -317,6 +318,7 @@ export function BatchLoggingDialog({ open, onOpenChange, mode }: BatchLoggingDia
                         <Label className="text-xs">Date</Label>
                         <Input
                           type="date"
+                          {...pastDateBounds()}
                           value={entry.date}
                           onChange={(e) => updateEntry(entry.id, 'date', e.target.value)}
                           className="h-8 text-xs"

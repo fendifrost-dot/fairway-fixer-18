@@ -88,7 +88,7 @@ serve(async (req) => {
               role: "system",
               content: `You are a credit report event parser. Extract structured timeline events from messy text lines about credit disputes, bureau responses, and outcomes.
 
-Valid sources: Experian, TransUnion, Equifax, Innovis, LexisNexis, Sagestream, CoreLogic, ChexSystems, EWS, NCTUE, CFPB, FTC, BBB, AG, Other.
+Valid sources: Experian, TransUnion, Equifax, Innovis, LexisNexis, Sagestream, CoreLogic, ChexSystems, EWS, NCTUE, CFPB, FTC, BBB, AG, Creditor, Other.
 Valid event_kinds: action, response, outcome.
 Valid categories: Action, Response, Outcome.
 

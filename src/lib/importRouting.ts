@@ -60,25 +60,6 @@ export type DbTimelineEvent = {
   raw_line: string;
   event_kind: string;
   is_draft: boolean;
-  round_id?: string | null;
-  /** Internal: parser-detected round number, resolved to round_id at import time. */
-  round_number?: number | null;
-  furnisher_id?: string | null;
-  /** Internal: parser-detected furnisher name, resolved to furnisher_id at import time. */
-  furnisher_name?: string | null;
-  /** Internal: parser-detected furnisher account last 4, used for ensureFurnisher dedupe. */
-  furnisher_account_last4?: string | null;
-  /** B5: Optional tradeline this event is anchored to. */
-  tradeline_id?: string | null;
-  /** Internal: parser-detected [Tradeline: "..."] anchor name; resolved at import time. */
-  tradeline_anchor?: string | null;
-  /** B7: parser-detected attachments; persisted after event insert. */
-  parsed_attachments?: Array<{
-    drive_path: string;
-    file_url: string | null;
-    mime_type: string;
-    file_name: string;
-  }>;
 };
 
 /**
@@ -107,11 +88,7 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     ag: 'AG',
   };
 
-  // Furnisher events carry source=null; bureau events keep their mapped source.
-  // Unknown sources fall back to 'Other' so they're still visible.
-  const mappedSource: EventSource | null = event.source
-    ? (sourceMap[event.source] || 'Other')
-    : null;
+  const mappedSource = sourceMap[event.source] || 'Other';
 
   return {
     client_id: clientId,
@@ -126,10 +103,5 @@ export function mapTimelineEventToDb(event: TimelineEventParsed, clientId: strin
     raw_line: event.raw_line,
     event_kind: event.event_kind,
     is_draft: false,
-    round_number: event.round_number ?? null,
-    furnisher_name: event.furnisher_name ?? null,
-    furnisher_account_last4: event.furnisher_account_last4 ?? null,
-    tradeline_anchor: event.tradeline_anchor ?? null,
-    parsed_attachments: event.parsed_attachments,
   };
 }

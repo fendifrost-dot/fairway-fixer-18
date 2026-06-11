@@ -1,0 +1,19 @@
+# Fairway Fixer — operator console (forensic evidence ledger)
+
+## Product philosophy (non-negotiable)
+- The operator decides. No auto-advancing workflows, lead scoring, or “next best action” engines.
+- **Forensic integrity:** Every committed `timeline_events` row must carry a meaningful `raw_line` (original source text). Prefer `date_is_unknown` over guessing dates.
+- **No silent transforms:** Do not hide placement errors; invalid/null sources surface in UI.
+- **AI scope:** Use AI only as an assist (parsing, drafting). Output is always reviewed and edited by the operator before use. AI must not invent facts absent from supplied text or ledger excerpts.
+- **Sources:** PascalCase in DB/UI (`Experian`, `Creditor`, …). Keep `ALL_SOURCES` / `smartImport` / validators aligned when adding sources.
+- **Legacy:** Do not extend `recommendationEngine`-style automation; it does not match product philosophy.
+
+## Response Analyzer (bureau reply → draft letter)
+- Produces a **draft for operator review only** — not legal advice. Disclaimers belong in UI copy.
+- Letter content must be grounded in: (1) extracted bureau response text, (2) operator-selected evidence timeline facts from this client/file.
+- PII must be masked client-side (`piiMasker`) before remote calls; edge function masks again.
+
+## Code conventions
+- Match existing patterns: React Query + Supabase client, shadcn/ui, Tailwind semantic tokens (no hardcoded colors).
+- Do not hand-edit `src/integrations/supabase/client.ts` or generated DB types unless the toolchain requires it.
+- When querying large tables, remember Supabase default row limits.

@@ -159,71 +159,6 @@ export type Database = {
           },
         ]
       }
-      bureau_responses: {
-        Row: {
-          analysis_result: Json | null
-          bureau: string
-          client_id: string
-          created_at: string | null
-          follow_up_action: string | null
-          id: string
-          items_deleted: number | null
-          items_disputed: number | null
-          items_updated: number | null
-          items_verified: number | null
-          response_date: string
-          response_type: string | null
-          source_file_name: string | null
-          source_file_url: string | null
-          violation_count: number | null
-          violations_detected: Json | null
-        }
-        Insert: {
-          analysis_result?: Json | null
-          bureau: string
-          client_id: string
-          created_at?: string | null
-          follow_up_action?: string | null
-          id?: string
-          items_deleted?: number | null
-          items_disputed?: number | null
-          items_updated?: number | null
-          items_verified?: number | null
-          response_date: string
-          response_type?: string | null
-          source_file_name?: string | null
-          source_file_url?: string | null
-          violation_count?: number | null
-          violations_detected?: Json | null
-        }
-        Update: {
-          analysis_result?: Json | null
-          bureau?: string
-          client_id?: string
-          created_at?: string | null
-          follow_up_action?: string | null
-          id?: string
-          items_deleted?: number | null
-          items_disputed?: number | null
-          items_updated?: number | null
-          items_verified?: number | null
-          response_date?: string
-          response_type?: string | null
-          source_file_name?: string | null
-          source_file_url?: string | null
-          violation_count?: number | null
-          violations_detected?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bureau_responses_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_actions: {
         Row: {
           case_id: string
@@ -275,285 +210,44 @@ export type Database = {
         }
         Relationships: []
       }
-      client_accounts: {
-        Row: {
-          account_number: string | null
-          account_type: string | null
-          balance: number | null
-          bureau: string | null
-          client_id: string
-          created_at: string | null
-          credit_limit: number | null
-          creditor_name: string
-          date_opened: string | null
-          dispute_date: string | null
-          dispute_reason: string | null
-          dispute_result: string | null
-          dispute_status: string | null
-          id: string
-          is_negative: boolean | null
-          notes: string | null
-          payment_status: string | null
-          reported_date: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          account_number?: string | null
-          account_type?: string | null
-          balance?: number | null
-          bureau?: string | null
-          client_id: string
-          created_at?: string | null
-          credit_limit?: number | null
-          creditor_name: string
-          date_opened?: string | null
-          dispute_date?: string | null
-          dispute_reason?: string | null
-          dispute_result?: string | null
-          dispute_status?: string | null
-          id?: string
-          is_negative?: boolean | null
-          notes?: string | null
-          payment_status?: string | null
-          reported_date?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          account_number?: string | null
-          account_type?: string | null
-          balance?: number | null
-          bureau?: string | null
-          client_id?: string
-          created_at?: string | null
-          credit_limit?: number | null
-          creditor_name?: string
-          date_opened?: string | null
-          dispute_date?: string | null
-          dispute_reason?: string | null
-          dispute_result?: string | null
-          dispute_status?: string | null
-          id?: string
-          is_negative?: boolean | null
-          notes?: string | null
-          payment_status?: string | null
-          reported_date?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_accounts_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      client_summaries: {
-        Row: {
-          client_id: string
-          content: string
-          created_at: string | null
-          generated_by: string | null
-          id: string
-          metadata: Json | null
-          summary_type: string
-          title: string
-        }
-        Insert: {
-          client_id: string
-          content: string
-          created_at?: string | null
-          generated_by?: string | null
-          id?: string
-          metadata?: Json | null
-          summary_type?: string
-          title: string
-        }
-        Update: {
-          client_id?: string
-          content?: string
-          created_at?: string | null
-          generated_by?: string | null
-          id?: string
-          metadata?: Json | null
-          summary_type?: string
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "client_summaries_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       clients: {
         Row: {
-          active_disputes: number | null
-          address_line1: string | null
-          address_line2: string | null
-          alternate_addresses: string[]
-          city: string | null
           created_at: string
-          credit_scores: Json
-          current_address: string | null
-          date_of_birth: string | null
-          dispute_count: number | null
           email: string | null
-          equifax_score: number | null
-          experian_score: number | null
           id: string
-          intake_auto_extracted_at: string | null
-          intake_date: string | null
-          last_report_date: string | null
           legal_name: string
           notes: string | null
           owner_id: string | null
           phone: string | null
           preferred_name: string | null
-          scores_updated_at: string | null
-          ssn_last4: string | null
-          state: string | null
           status: Database["public"]["Enums"]["client_status"]
-          transunion_score: number | null
           updated_at: string
-          zip_code: string | null
         }
         Insert: {
-          active_disputes?: number | null
-          address_line1?: string | null
-          address_line2?: string | null
-          alternate_addresses?: string[]
-          city?: string | null
           created_at?: string
-          credit_scores?: Json
-          current_address?: string | null
-          date_of_birth?: string | null
-          dispute_count?: number | null
           email?: string | null
-          equifax_score?: number | null
-          experian_score?: number | null
           id?: string
-          intake_auto_extracted_at?: string | null
-          intake_date?: string | null
-          last_report_date?: string | null
           legal_name: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           preferred_name?: string | null
-          scores_updated_at?: string | null
-          ssn_last4?: string | null
-          state?: string | null
           status?: Database["public"]["Enums"]["client_status"]
-          transunion_score?: number | null
           updated_at?: string
-          zip_code?: string | null
         }
         Update: {
-          active_disputes?: number | null
-          address_line1?: string | null
-          address_line2?: string | null
-          alternate_addresses?: string[]
-          city?: string | null
           created_at?: string
-          credit_scores?: Json
-          current_address?: string | null
-          date_of_birth?: string | null
-          dispute_count?: number | null
           email?: string | null
-          equifax_score?: number | null
-          experian_score?: number | null
           id?: string
-          intake_auto_extracted_at?: string | null
-          intake_date?: string | null
-          last_report_date?: string | null
           legal_name?: string
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           preferred_name?: string | null
-          scores_updated_at?: string | null
-          ssn_last4?: string | null
-          state?: string | null
           status?: Database["public"]["Enums"]["client_status"]
-          transunion_score?: number | null
           updated_at?: string
-          zip_code?: string | null
         }
         Relationships: []
-      }
-      credit_reports: {
-        Row: {
-          account_count: number | null
-          analysis_result: Json | null
-          bureau: string | null
-          client_id: string
-          created_at: string | null
-          diff_summary: string | null
-          id: string
-          inquiry_count: number | null
-          negative_count: number | null
-          parsed_data: Json | null
-          previous_report_id: string | null
-          report_date: string
-          score_at_report: number | null
-          source_file_name: string | null
-          source_file_url: string | null
-        }
-        Insert: {
-          account_count?: number | null
-          analysis_result?: Json | null
-          bureau?: string | null
-          client_id: string
-          created_at?: string | null
-          diff_summary?: string | null
-          id?: string
-          inquiry_count?: number | null
-          negative_count?: number | null
-          parsed_data?: Json | null
-          previous_report_id?: string | null
-          report_date: string
-          score_at_report?: number | null
-          source_file_name?: string | null
-          source_file_url?: string | null
-        }
-        Update: {
-          account_count?: number | null
-          analysis_result?: Json | null
-          bureau?: string | null
-          client_id?: string
-          created_at?: string | null
-          diff_summary?: string | null
-          id?: string
-          inquiry_count?: number | null
-          negative_count?: number | null
-          parsed_data?: Json | null
-          previous_report_id?: string | null
-          report_date?: string
-          score_at_report?: number | null
-          source_file_name?: string | null
-          source_file_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "credit_reports_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_reports_previous_report_id_fkey"
-            columns: ["previous_report_id"]
-            isOneToOne: false
-            referencedRelation: "credit_reports"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       deadlines: {
         Row: {
@@ -645,97 +339,6 @@ export type Database = {
         }
         Relationships: []
       }
-      diagnostic_signals: {
-        Row: {
-          client_id: string
-          created_at: string
-          detected_at: string
-          dismissed_at: string | null
-          evidence: Json
-          id: string
-          severity: string
-          signal_type: string
-          subject_ids: Json
-          updated_at: string
-        }
-        Insert: {
-          client_id: string
-          created_at?: string
-          detected_at?: string
-          dismissed_at?: string | null
-          evidence?: Json
-          id?: string
-          severity?: string
-          signal_type: string
-          subject_ids?: Json
-          updated_at?: string
-        }
-        Update: {
-          client_id?: string
-          created_at?: string
-          detected_at?: string
-          dismissed_at?: string | null
-          evidence?: Json
-          id?: string
-          severity?: string
-          signal_type?: string
-          subject_ids?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "diagnostic_signals_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      dispute_rounds: {
-        Row: {
-          client_id: string
-          completed_at: string | null
-          created_at: string
-          id: string
-          notes: string | null
-          round_number: number
-          status: Database["public"]["Enums"]["dispute_round_status"]
-          submitted_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          client_id: string
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          round_number: number
-          status?: Database["public"]["Enums"]["dispute_round_status"]
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          client_id?: string
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          notes?: string | null
-          round_number?: number
-          status?: Database["public"]["Enums"]["dispute_round_status"]
-          submitted_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "dispute_rounds_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       entity_cases: {
         Row: {
           created_at: string
@@ -776,47 +379,6 @@ export type Database = {
             columns: ["matter_id"]
             isOneToOne: false
             referencedRelation: "matters"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      furnishers: {
-        Row: {
-          account_last4: string | null
-          account_type: string | null
-          client_id: string
-          created_at: string
-          id: string
-          name: string
-          notes: string | null
-          updated_at: string
-        }
-        Insert: {
-          account_last4?: string | null
-          account_type?: string | null
-          client_id: string
-          created_at?: string
-          id?: string
-          name: string
-          notes?: string | null
-          updated_at?: string
-        }
-        Update: {
-          account_last4?: string | null
-          account_type?: string | null
-          client_id?: string
-          created_at?: string
-          id?: string
-          name?: string
-          notes?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "furnishers_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -1071,44 +633,6 @@ export type Database = {
         }
         Relationships: []
       }
-      score_history: {
-        Row: {
-          bureau: string
-          client_id: string
-          created_at: string | null
-          id: string
-          score: number
-          score_date: string
-          source: string | null
-        }
-        Insert: {
-          bureau: string
-          client_id: string
-          created_at?: string | null
-          id?: string
-          score: number
-          score_date?: string
-          source?: string | null
-        }
-        Update: {
-          bureau?: string
-          client_id?: string
-          created_at?: string | null
-          id?: string
-          score?: number
-          score_date?: string
-          source?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "score_history_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       source_corrections: {
         Row: {
           corrected_at: string
@@ -1210,107 +734,54 @@ export type Database = {
           },
         ]
       }
-      timeline_event_attachments: {
-        Row: {
-          created_at: string
-          drive_path: string
-          event_id: string
-          file_name: string
-          file_url: string | null
-          id: string
-          mime_type: string
-          size_bytes: number | null
-        }
-        Insert: {
-          created_at?: string
-          drive_path: string
-          event_id: string
-          file_name: string
-          file_url?: string | null
-          id?: string
-          mime_type: string
-          size_bytes?: number | null
-        }
-        Update: {
-          created_at?: string
-          drive_path?: string
-          event_id?: string
-          file_name?: string
-          file_url?: string | null
-          id?: string
-          mime_type?: string
-          size_bytes?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "timeline_event_attachments_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "timeline_events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       timeline_events: {
         Row: {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
-          correlation_id: string | null
           created_at: string
           date_is_unknown: boolean
           details: string | null
           event_date: string | null
           event_kind: string
-          furnisher_id: string | null
           id: string
           is_draft: boolean
           raw_line: string
           related_accounts: Json | null
-          round_id: string | null
           source: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
-          tradeline_id: string | null
         }
         Insert: {
           category: Database["public"]["Enums"]["event_category"]
           client_id: string
-          correlation_id?: string | null
           created_at?: string
           date_is_unknown?: boolean
           details?: string | null
           event_date?: string | null
           event_kind?: string
-          furnisher_id?: string | null
           id?: string
           is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
-          round_id?: string | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary: string
           title: string
-          tradeline_id?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["event_category"]
           client_id?: string
-          correlation_id?: string | null
           created_at?: string
           date_is_unknown?: boolean
           details?: string | null
           event_date?: string | null
           event_kind?: string
-          furnisher_id?: string | null
           id?: string
           is_draft?: boolean
           raw_line?: string
           related_accounts?: Json | null
-          round_id?: string | null
           source?: Database["public"]["Enums"]["event_source"] | null
           summary?: string
           title?: string
-          tradeline_id?: string | null
         }
         Relationships: [
           {
@@ -1318,134 +789,6 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timeline_events_furnisher_id_fkey"
-            columns: ["furnisher_id"]
-            isOneToOne: false
-            referencedRelation: "furnishers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timeline_events_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "dispute_rounds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "timeline_events_tradeline_id_fkey"
-            columns: ["tradeline_id"]
-            isOneToOne: false
-            referencedRelation: "tradelines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tradeline_bureau_states: {
-        Row: {
-          bureau: Database["public"]["Enums"]["tradeline_bureau"]
-          created_at: string
-          id: string
-          last_seen_date: string | null
-          notes: string | null
-          operator_disputed: boolean
-          operator_disputed_reason: string | null
-          present: boolean
-          status_on_bureau: string | null
-          tradeline_id: string
-          updated_at: string
-        }
-        Insert: {
-          bureau: Database["public"]["Enums"]["tradeline_bureau"]
-          created_at?: string
-          id?: string
-          last_seen_date?: string | null
-          notes?: string | null
-          operator_disputed?: boolean
-          operator_disputed_reason?: string | null
-          present?: boolean
-          status_on_bureau?: string | null
-          tradeline_id: string
-          updated_at?: string
-        }
-        Update: {
-          bureau?: Database["public"]["Enums"]["tradeline_bureau"]
-          created_at?: string
-          id?: string
-          last_seen_date?: string | null
-          notes?: string | null
-          operator_disputed?: boolean
-          operator_disputed_reason?: string | null
-          present?: boolean
-          status_on_bureau?: string | null
-          tradeline_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tradeline_bureau_states_tradeline_id_fkey"
-            columns: ["tradeline_id"]
-            isOneToOne: false
-            referencedRelation: "tradelines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tradelines: {
-        Row: {
-          account_last4: string | null
-          balance: number | null
-          client_id: string
-          created_at: string
-          display_name: string
-          furnisher_id: string | null
-          id: string
-          notes: string | null
-          opened_date: string | null
-          status: Database["public"]["Enums"]["tradeline_status"]
-          updated_at: string
-        }
-        Insert: {
-          account_last4?: string | null
-          balance?: number | null
-          client_id: string
-          created_at?: string
-          display_name: string
-          furnisher_id?: string | null
-          id?: string
-          notes?: string | null
-          opened_date?: string | null
-          status?: Database["public"]["Enums"]["tradeline_status"]
-          updated_at?: string
-        }
-        Update: {
-          account_last4?: string | null
-          balance?: number | null
-          client_id?: string
-          created_at?: string
-          display_name?: string
-          furnisher_id?: string | null
-          id?: string
-          notes?: string | null
-          opened_date?: string | null
-          status?: Database["public"]["Enums"]["tradeline_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tradelines_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tradelines_furnisher_id_fkey"
-            columns: ["furnisher_id"]
-            isOneToOne: false
-            referencedRelation: "furnishers"
             referencedColumns: ["id"]
           },
         ]
@@ -1548,66 +891,29 @@ export type Database = {
         }
         Returns: Json
       }
-      create_client_and_matter:
-        | {
-            Args: {
-              _client_notes?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-            }
-            Returns: {
-              client_id: string
-              matter_id: string
-            }[]
-          }
-        | {
-            Args: {
-              _alternate_addresses?: string[]
-              _client_notes?: string
-              _current_address?: string
-              _dob?: string
-              _email?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-              _phone?: string
-              _ssn_last4?: string
-            }
-            Returns: {
-              client_id: string
-              matter_id: string
-            }[]
-          }
-      debug_create_client_and_matter:
-        | {
-            Args: {
-              _client_notes?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _alternate_addresses?: string[]
-              _client_notes?: string
-              _current_address?: string
-              _dob?: string
-              _email?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-              _phone?: string
-              _ssn_last4?: string
-            }
-            Returns: Json
-          }
+      create_client_and_matter: {
+        Args: {
+          _client_notes?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+        }
+        Returns: {
+          client_id: string
+          matter_id: string
+        }[]
+      }
+      debug_create_client_and_matter: {
+        Args: {
+          _client_notes?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+        }
+        Returns: Json
+      }
       delete_client_cascade: {
         Args: {
           _client_id: string
@@ -1658,7 +964,7 @@ export type Database = {
       app_role: "admin" | "staff"
       baseline_bureau: "Experian" | "TransUnion" | "Equifax"
       baseline_target_status: "pending" | "still_present" | "not_found"
-      client_status: "Active" | "Inactive" | "Pending" | "active"
+      client_status: "Active" | "Inactive" | "Pending"
       date_confidence: "Exact" | "Inferred" | "Unknown"
       deadline_status: "Open" | "DueSoon" | "Overdue" | "Closed"
       deadline_type:
@@ -1669,12 +975,6 @@ export type Database = {
         | "CFPB_15"
         | "CFPB_60"
         | "FollowUp"
-      dispute_round_status:
-        | "planning"
-        | "mailed"
-        | "awaiting_response"
-        | "response_received"
-        | "closed"
       entity_type: "CRA" | "Furnisher" | "DataBroker" | "Agency"
       event_category: "Action" | "Response" | "Outcome" | "Note"
       event_source:
@@ -1732,13 +1032,6 @@ export type Database = {
       simple_status: "Open" | "Done"
       task_priority: "P0" | "P1" | "P2" | "P3"
       task_status: "Pending" | "InProgress" | "Done" | "Blocked"
-      tradeline_bureau: "equifax" | "experian" | "transunion"
-      tradeline_status:
-        | "active"
-        | "disputed"
-        | "deleted"
-        | "verified"
-        | "unknown"
       violation_trigger:
         | "Missed611Deadline"
         | "Reinsertion611a5B"
@@ -1878,7 +1171,7 @@ export const Constants = {
       app_role: ["admin", "staff"],
       baseline_bureau: ["Experian", "TransUnion", "Equifax"],
       baseline_target_status: ["pending", "still_present", "not_found"],
-      client_status: ["Active", "Inactive", "Pending", "active"],
+      client_status: ["Active", "Inactive", "Pending"],
       date_confidence: ["Exact", "Inferred", "Unknown"],
       deadline_status: ["Open", "DueSoon", "Overdue", "Closed"],
       deadline_type: [
@@ -1889,13 +1182,6 @@ export const Constants = {
         "CFPB_15",
         "CFPB_60",
         "FollowUp",
-      ],
-      dispute_round_status: [
-        "planning",
-        "mailed",
-        "awaiting_response",
-        "response_received",
-        "closed",
       ],
       entity_type: ["CRA", "Furnisher", "DataBroker", "Agency"],
       event_category: ["Action", "Response", "Outcome", "Note"],
@@ -1953,14 +1239,6 @@ export const Constants = {
       simple_status: ["Open", "Done"],
       task_priority: ["P0", "P1", "P2", "P3"],
       task_status: ["Pending", "InProgress", "Done", "Blocked"],
-      tradeline_bureau: ["equifax", "experian", "transunion"],
-      tradeline_status: [
-        "active",
-        "disputed",
-        "deleted",
-        "verified",
-        "unknown",
-      ],
       violation_trigger: [
         "Missed611Deadline",
         "Reinsertion611a5B",

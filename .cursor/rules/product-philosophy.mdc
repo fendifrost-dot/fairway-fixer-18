@@ -1,0 +1,12 @@
+---
+description: Fairway Fixer product guardrails and forensic ledger rules
+alwaysApply: true
+---
+
+# Fairway Fixer — rules
+
+- **Forensic ledger:** Require `raw_line` for timeline commits; use `date_is_unknown` when dates are unreliable.
+- **Operator control:** No auto-workflows, recommendation engines, or AI that finalizes disputes without review.
+- **AI:** Parsing and Response Analyzer drafts only; never invent facts beyond supplied text + evidence payloads.
+- **Sources:** PascalCase enums; keep `ALL_SOURCES`, validators, and `smartImport` maps in sync.
+- **UI:** Tailwind semantic tokens only; match existing shadcn patterns.

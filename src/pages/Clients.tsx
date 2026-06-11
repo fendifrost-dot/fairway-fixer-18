@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useClients } from '@/hooks/useClients';
-import { useClientActivitySummary, formatLastActive } from '@/hooks/useClientActivitySummary';
 import { AddClientDialog } from '@/components/clients/AddClientDialog';
 import { Users, Search, Plus, Mail, Phone, MoreVertical, Loader2, Trash2 } from 'lucide-react';
 import { DeleteClientDialog } from '@/components/clients/DeleteClientDialog';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -22,7 +22,6 @@ export default function Clients() {
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const { data: clients, isLoading, refetch } = useClients();
-  const { data: activityMap } = useClientActivitySummary();
 
   const filteredClients = clients?.filter(client =>
     client.legal_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -146,9 +145,11 @@ export default function Clients() {
                   >
                     {client.preferred_name || client.legal_name}
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {(client as any).current_address || 'Address pending'}
-                  </p>
+                  {client.preferred_name && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      {client.legal_name}
+                    </p>
+                  )}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -181,23 +182,9 @@ export default function Clients() {
                 )}>
                   {client.status}
                 </span>
-                {(() => {
-                  const summary = activityMap?.[client.id];
-                  const lastActive = summary?.lastActive
-                    ? formatLastActive(summary.lastActive)
-                    : null;
-                  const label = lastActive
-                    ? `Last active ${lastActive}`
-                    : `Created ${formatLastActive(client.created_at) ?? 'recently'}`;
-                  return (
-                    <span className="text-xs text-muted-foreground">{label}</span>
-                  );
-                })()}
-                {activityMap?.[client.id]?.signalCount ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200">
-                    {activityMap[client.id].signalCount} signals
-                  </span>
-                ) : null}
+                <span className="text-xs text-muted-foreground">
+                  Since {format(new Date(client.created_at), 'MMM yyyy')}
+                </span>
               </div>
 
               <div className="space-y-2 text-sm">

@@ -1,1 +1,0 @@
-UPDATE public.clients SET owner_id = '4b5e536e-3907-471a-ba68-8a4e4c503e98' WHERE owner_id IS NULL OR owner_id = 'c1ae8a38-a511-4e47-9881-cf7e71984e25';

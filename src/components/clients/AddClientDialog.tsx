@@ -25,11 +25,9 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClipboardPaste, UserPlus, Loader2, ChevronDown, AlertCircle } from 'lucide-react';
-import { Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { autoExtractIntake } from '@/lib/intakeAutoExtract';
 
 import type { Database } from '@/integrations/supabase/types';
 
@@ -63,15 +61,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const [legalName, setLegalName] = useState('');
   const [matterType, setMatterType] = useState<MatterType>('Credit');
   const [issueNote, setIssueNote] = useState('');
-
-  // Identity (optional) - shared across both tabs
-  const [identityOpen, setIdentityOpen] = useState(false);
-  const [dob, setDob] = useState('');
-  const [currentAddress, setCurrentAddress] = useState('');
-  const [ssnLast4, setSsnLast4] = useState('');
-  const [identPhone, setIdentPhone] = useState('');
-  const [identEmail, setIdentEmail] = useState('');
-  const [alternateAddresses, setAlternateAddresses] = useState<string[]>([]);
 
   // Auto-focus textarea when dialog opens in paste mode
   useEffect(() => {
@@ -108,13 +97,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setMode('paste');
     setSubmitError(null);
     setShowErrorDetails(false);
-    setIdentityOpen(false);
-    setDob('');
-    setCurrentAddress('');
-    setSsnLast4('');
-    setIdentPhone('');
-    setIdentEmail('');
-    setAlternateAddresses([]);
   };
 
 
@@ -216,22 +198,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       return null;
     }
 
-    // Validate identity fields client-side
-    const ssnTrim = ssnLast4.trim();
-    if (ssnTrim && !/^[0-9]{4}$/.test(ssnTrim)) {
-      const friendly = 'SSN must be exactly 4 digits.';
-      setSubmitError({ friendly });
-      toast.error(friendly);
-      return null;
-    }
-    const emailTrim = identEmail.trim().toLowerCase();
-    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
-      const friendly = 'Invalid email format.';
-      setSubmitError({ friendly });
-      toast.error(friendly);
-      return null;
-    }
-
     // Call the patched debug RPC (now returns jsonb)
     const { data, error } = await supabase.rpc('debug_create_client_and_matter', {
       _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
@@ -239,12 +205,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       _intake_raw_text: rawIntakeText || '',
       _intake_source: source,
       _client_notes: noteText || null,
-      _dob: dob || null,
-      _current_address: currentAddress.trim() || null,
-      _ssn_last4: ssnTrim || null,
-      _phone: identPhone.replace(/\D/g, '') || null,
-      _email: emailTrim || null,
-      _alternate_addresses: alternateAddresses.map((s) => s.trim()).filter(Boolean),
     });
 
     const debugPayload = JSON.stringify({ rpc_response: data, rpc_error: error, whoami: who.text }, null, 2);
@@ -334,29 +294,12 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       );
 
       if (result && result.client.id) {
-        const clientId = result.client.id;
-        // Auto-extract identity + timeline from the verbatim narrative (B3).
-        // Failure is non-fatal: the client is already saved, operator can
-        // still use the manual Paste-ChatGPT-Update flow on the client page.
-        let extractToast = 'Client created.';
-        if (intakeText.trim()) {
-          try {
-            const ex = await autoExtractIntake(clientId, intakeText.trim());
-            extractToast = `Imported ${ex.events} events, ${ex.tasks} tasks, ${ex.rounds} rounds, ${ex.attachmentsCreated} attachments from intake` +
-              (ex.scoresUpdated > 0 ? ` (+${ex.scoresUpdated} credit score${ex.scoresUpdated === 1 ? '' : 's'})` : '');
-            if (ex.errors.length > 0) {
-              console.warn('auto-extract warnings:', ex.errors);
-            }
-          } catch (e) {
-            console.error('auto-extract failed:', e);
-            extractToast = 'Client created. Auto-extract failed — use Import on the client page.';
-          }
-        }
-        toast.success(extractToast);
+        toast.success('Client created. Use ChatGPT Import to add timeline events.');
         resetForm();
         onOpenChange(false);
         onSuccess?.();
-        navigate(`/clients/${clientId}`);
+        // Navigate to client page (the main operator console)
+        navigate(`/clients/${result.client.id}`);
       }
     } catch (error) {
       const anyErr = error as any;
@@ -507,65 +450,6 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     );
   };
 
-  const IdentitySection = () => (
-    <Collapsible open={identityOpen} onOpenChange={setIdentityOpen} className="border rounded-md">
-      <CollapsibleTrigger asChild>
-        <Button type="button" variant="ghost" className="w-full justify-between h-9 px-3">
-          <span className="text-sm font-medium">Identity (optional)</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${identityOpen ? 'rotate-180' : ''}`} />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="p-3 pt-1 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="ident-dob" className="text-xs">DOB</Label>
-            <Input id="ident-dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="ident-ssn" className="text-xs">SSN (last 4)</Label>
-            <Input id="ident-ssn" maxLength={4} placeholder="1234" value={ssnLast4} onChange={(e) => setSsnLast4(e.target.value.replace(/\D/g, ''))} />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="ident-addr" className="text-xs">Current Address</Label>
-          <Input id="ident-addr" placeholder="123 Main St, City, ST 00000" value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="ident-phone" className="text-xs">Phone</Label>
-            <Input id="ident-phone" placeholder="(555) 123-4567" value={identPhone} onChange={(e) => setIdentPhone(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="ident-email" className="text-xs">Email</Label>
-            <Input id="ident-email" type="email" placeholder="name@example.com" value={identEmail} onChange={(e) => setIdentEmail(e.target.value)} />
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Alternate Addresses</Label>
-          {alternateAddresses.map((addr, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <Input
-                value={addr}
-                onChange={(e) => {
-                  const next = [...alternateAddresses];
-                  next[i] = e.target.value;
-                  setAlternateAddresses(next);
-                }}
-                placeholder="Prior address"
-              />
-              <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={() => setAlternateAddresses(alternateAddresses.filter((_, j) => j !== i))}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          <Button type="button" size="sm" variant="outline" onClick={() => setAlternateAddresses([...alternateAddresses, ''])}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add alternate address
-          </Button>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       if (!isOpen) resetForm();
@@ -622,8 +506,6 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
                 Intake text is stored but not parsed. Use ChatGPT Import on the client page to add timeline events.
               </p>
             </div>
-
-            <IdentitySection />
 
             <Alert className="mt-2">
               <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
@@ -724,8 +606,6 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
                 onChange={(e) => setIssueNote(e.target.value)}
               />
             </div>
-
-            <IdentitySection />
 
             <ErrorDisplay />
 

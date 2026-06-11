@@ -1,0 +1,40 @@
+## TransUnion
+Report date: 2026-05-26
+
+MOHELA/SERVICING | 502935047818**** | 2004-09-07 | balance: $16,672 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+2025-11 OK
+2025-12 60
+2026-01 OK
+
+MOHELA/SERVICING | 502935047818**** | 2005-09-06 | balance: $68,496 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+
+MOHELA/SERVICING | 502935047818**** | 2005-11-22 | balance: $7,609 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+
+MOHELA/SERVICING | 502935047818**** | 2006-06-05 | balance: $46,556 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+
+MOHELA/SERVICING | 502935047818**** | 2006-09-01 | balance: $7,214 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+
+MOHELA/SERVICING | 502935070148**** | 2006-12-26 | balance: $21,472 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK
+
+MOHELA/SERVICING | 502935070148**** | 2007-02-16 | balance: $12,281 | type: student loan
+2024-02 OK
+2024-03 60
+2024-04 OK

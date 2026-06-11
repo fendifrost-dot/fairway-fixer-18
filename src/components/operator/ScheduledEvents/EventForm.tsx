@@ -9,6 +9,7 @@ import { ChevronDown, Link2, X } from 'lucide-react';
 import { TimelineEvent, SOURCE_DISPLAY_NAMES } from '@/types/operator';
 import { EventFormData, RECURRENCE_OPTIONS } from './types';
 import { format, parseISO } from 'date-fns';
+import { futureDateBounds } from '@/lib/dateBounds';
 
 interface EventFormProps {
   onSubmit: (data: EventFormData) => void;
@@ -72,6 +73,7 @@ export function EventForm({ onSubmit, isLoading, timelineEvents = [] }: EventFor
       <div className="flex gap-2">
         <Input
           type="date"
+          {...futureDateBounds()}
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
           className="h-8 text-sm flex-1"

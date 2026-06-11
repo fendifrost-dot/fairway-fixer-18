@@ -123,11 +123,10 @@ export function EventCard({
               variant="ghost"
               className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
               onClick={onMarkDone}
-              title="Mark done"
-              aria-label="Mark done"
+              title="Mark Done"
             >
               <Check className="h-3 w-3 mr-1" />
-              Mark done
+              Done
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

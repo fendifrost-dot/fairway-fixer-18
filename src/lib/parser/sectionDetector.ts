@@ -196,14 +196,3 @@ export function cleanContentLine(line: string): string {
     .replace(/^\d+\.\s*/, '')
     .trim();
 }
-
-/**
- * Detect a [Round N] tag line. Returns the round number, or null.
- * Matches `[Round 1]`, `[round 2]`, `[ROUND 10]:`, with optional surrounding whitespace.
- */
-export function detectRoundTag(line: string): number | null {
-  const m = line.trim().match(/^\[\s*round\s+(\d+)\s*\]:?$/i);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}

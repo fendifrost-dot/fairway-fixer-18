@@ -1,1 +1,0 @@
-ALTER TABLE public.timeline_events DROP CONSTRAINT IF EXISTS timeline_events_event_kind_allowed;

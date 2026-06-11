@@ -17,24 +17,6 @@ import {
 } from '@/types/parser';
 import { parseDate, extractDueText } from './dateParser';
 import { normalizeSource, detectScope } from './sourceNormalizer';
-import { detectFurnisher, extractAccountLast4 } from './furnisherDetector';
-import { detectAttachmentsInText } from '@/lib/attachmentDetector';
-
-/**
- * Detect a [Tradeline: "Display name"] anchor anywhere in the raw line.
- * Returns { displayName, strippedLine } where strippedLine has the tag removed
- * (so downstream pipe parsing isn't disturbed). Match is non-greedy and
- * tolerates straight or curly quotes.
- */
-export function detectTradelineAnchor(rawLine: string): { displayName: string | null; strippedLine: string } {
-  const re = /\[\s*Tradeline\s*:\s*["“]([^"”]+)["”]\s*\]/i;
-  const m = rawLine.match(re);
-  if (!m) return { displayName: null, strippedLine: rawLine };
-  return {
-    displayName: m[1].trim(),
-    strippedLine: rawLine.replace(re, '').replace(/\s{2,}/g, ' ').trim(),
-  };
-}
 
 /**
  * Split a pipe-delimited line into parts
@@ -93,22 +75,6 @@ export function parseTimelineEventRow(
   if (parts.length < 2) return [];
   
   const dateParsed = parseDate(parts[0]);
-  // B5: extract any [Tradeline: "..."] anchor from the trailing column(s)
-  // before per-column processing so the tag never leaks into details/account.
-  const tradelineFromLastPart = (() => {
-    if (parts.length === 0) return null;
-    const lastIdx = parts.length - 1;
-    const last = parts[lastIdx] || '';
-    const { displayName, strippedLine } = detectTradelineAnchor(last);
-    if (displayName) {
-      parts[lastIdx] = strippedLine;
-      return displayName;
-    }
-    return null;
-  })();
-  const tradelineAnchor =
-    tradelineFromLastPart ?? detectTradelineAnchor(rawLine).displayName;
-
   const entityRaw = parts[1] || '';
   const typeOrStatus = parts[2]?.trim() || '';
   const details = parts[3]?.trim() || '';
@@ -123,51 +89,16 @@ export function parseTimelineEventRow(
     sources = ['FTC' as NormalizedSource];
     scope = 'single';
   }
-
-  // B4: Furnisher detection — if no bureau/data-broker source matched but the
-  // source column looks like a creditor/collection agency, emit a single
-  // event with source=null + furnisher_name so the import pipeline can
-  // resolve it into a furnishers row before insert.
-  let furnisherRef = sources.length === 0 ? detectFurnisher(entityRaw) : null;
-
-  // If still no valid bureau source AND no furnisher detected, return empty
-  // (caller routes to unrouted).
-  if (sources.length === 0 && !furnisherRef) {
+  
+  // If still no valid source detected, return empty (caller routes to unrouted)
+  if (sources.length === 0) {
     return [];
   }
-
+  
   // Build description
   const description = [typeOrStatus, details].filter(Boolean).join(' - ') || typeOrStatus || 'No description';
-  const cleanedAccount = accountRef && accountRef !== '-' && accountRef.toLowerCase() !== 'n/a' ? accountRef : null;
-
-  // B7: scan all free-text columns + the raw line for Drive path / URL refs.
-  const attachmentScanText = [typeOrStatus, details, accountRef, rawLine].filter(Boolean).join(' \n ');
-  const parsed_attachments = detectAttachmentsInText(attachmentScanText);
-
-  if (furnisherRef) {
-    // Upgrade furnisher last-4 from account_ref column when not already set
-    const last4 = furnisherRef.account_last4 ?? extractAccountLast4(cleanedAccount);
-    return [{
-      event_kind: eventKind,
-      event_date: dateParsed.date,
-      date_is_unknown: dateParsed.isUnknown,
-      source: null,
-      scope: 'single',
-      action_type: eventKind === 'action' ? typeOrStatus : null,
-      status_verb: eventKind === 'response' || eventKind === 'outcome' ? typeOrStatus : null,
-      counterparty: null,
-      account_ref: cleanedAccount,
-      description,
-      raw_line: rawLine,
-      furnisher_name: furnisherRef.name,
-      furnisher_account_last4: last4,
-      tradeline_anchor: tradelineAnchor,
-      parsed_attachments: parsed_attachments.length > 0 ? parsed_attachments : undefined,
-    }];
-  }
-
-  // Bureau / data-broker / regulatory path (existing behaviour, possibly
-  // expanded for "all CRAs").
+  
+  // Create event(s) - expand "all_cras" into 3 events
   return sources.map(source => ({
     event_kind: eventKind,
     event_date: dateParsed.date,
@@ -176,12 +107,10 @@ export function parseTimelineEventRow(
     scope,
     action_type: eventKind === 'action' ? typeOrStatus : null,
     status_verb: eventKind === 'response' || eventKind === 'outcome' ? typeOrStatus : null,
-    counterparty: null,
-    account_ref: cleanedAccount,
+    counterparty: null, // Could be parsed from details if structured
+    account_ref: accountRef && accountRef !== '-' && accountRef.toLowerCase() !== 'n/a' ? accountRef : null,
     description,
     raw_line: rawLine,
-    tradeline_anchor: tradelineAnchor,
-    parsed_attachments: parsed_attachments.length > 0 ? parsed_attachments : undefined,
   }));
 }
 
@@ -238,10 +167,9 @@ export function parseUnresolvedItemRow(
       raw_line: rawLine,
     }];
   }
-
+  
   if (sources.length === 0) {
-    // B4: try furnisher detection before falling back to a null-source item
-    const furnisherRef = detectFurnisher(entityRaw);
+    // No source detected - still create item but with null source
     return [{
       source_scope: 'single',
       source: null,
@@ -253,8 +181,6 @@ export function parseUnresolvedItemRow(
       date_is_unknown: dateParsed.isUnknown,
       description,
       raw_line: rawLine,
-      furnisher_name: furnisherRef?.name ?? null,
-      furnisher_account_last4: furnisherRef?.account_last4 ?? extractAccountLast4(counterpartyOrAccount),
     }];
   }
   

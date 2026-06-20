@@ -743,6 +743,88 @@ export type Database = {
           },
         ]
       }
+      dispute_letters: {
+        Row: {
+          body_docx_path: string | null
+          body_md: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          evidence_ids: Json
+          id: string
+          letter_type: string
+          recipient_name: string
+          recipient_type: string
+          round_id: string | null
+          status: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes: Json
+          strength_checklist: Json
+          timeline_event_id: string | null
+          tradeline_ids: Json
+          updated_at: string
+        }
+        Insert: {
+          body_docx_path?: string | null
+          body_md: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          evidence_ids?: Json
+          id?: string
+          letter_type: string
+          recipient_name: string
+          recipient_type: string
+          round_id?: string | null
+          status?: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes?: Json
+          strength_checklist?: Json
+          timeline_event_id?: string | null
+          tradeline_ids?: Json
+          updated_at?: string
+        }
+        Update: {
+          body_docx_path?: string | null
+          body_md?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_ids?: Json
+          id?: string
+          letter_type?: string
+          recipient_name?: string
+          recipient_type?: string
+          round_id?: string | null
+          status?: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes?: Json
+          strength_checklist?: Json
+          timeline_event_id?: string | null
+          tradeline_ids?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_letters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_letters_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "dispute_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_letters_timeline_event_id_fkey"
+            columns: ["timeline_event_id"]
+            isOneToOne: false
+            referencedRelation: "timeline_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispute_rounds: {
         Row: {
           client_id: string
@@ -1013,6 +1095,125 @@ export type Database = {
             columns: ["matter_id"]
             isOneToOne: false
             referencedRelation: "matters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_plans: {
+        Row: {
+          client_id: string
+          created_at: string
+          frequency: string | null
+          id: string
+          installment_amount: number | null
+          notes: string | null
+          num_installments: number | null
+          plan_type: string
+          start_date: string
+          status: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          installment_amount?: number | null
+          notes?: string | null
+          num_installments?: number | null
+          plan_type: string
+          start_date: string
+          status?: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          installment_amount?: number | null
+          notes?: string | null
+          num_installments?: number | null
+          plan_type?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_due: number
+          amount_paid: number | null
+          client_id: string
+          created_at: string
+          due_date: string
+          gcal_event_id: string | null
+          id: string
+          method: string | null
+          notes: string | null
+          paid_date: string | null
+          plan_id: string
+          reminder_sent: boolean
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount_due: number
+          amount_paid?: number | null
+          client_id: string
+          created_at?: string
+          due_date: string
+          gcal_event_id?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          plan_id: string
+          reminder_sent?: boolean
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number | null
+          client_id?: string
+          created_at?: string
+          due_date?: string
+          gcal_event_id?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          plan_id?: string
+          reminder_sent?: boolean
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1576,6 +1777,57 @@ export type Database = {
           },
         ]
       }
+      weekly_update_renderings: {
+        Row: {
+          client_id: string
+          custom_status_summary: string | null
+          generated_at: string
+          generated_by_user_id: string | null
+          id: string
+          include_dates_in_body: boolean
+          letters_action_table_snapshot: Json
+          output_storage_path: string
+          round_id: string | null
+        }
+        Insert: {
+          client_id: string
+          custom_status_summary?: string | null
+          generated_at?: string
+          generated_by_user_id?: string | null
+          id?: string
+          include_dates_in_body?: boolean
+          letters_action_table_snapshot?: Json
+          output_storage_path: string
+          round_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          custom_status_summary?: string | null
+          generated_at?: string
+          generated_by_user_id?: string | null
+          id?: string
+          include_dates_in_body?: boolean
+          letters_action_table_snapshot?: Json
+          output_storage_path?: string
+          round_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_update_renderings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_update_renderings_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "dispute_rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1720,6 +1972,7 @@ export type Database = {
         | "CFPB_15"
         | "CFPB_60"
         | "FollowUp"
+      dispute_letter_status: "draft" | "final" | "mailed"
       dispute_round_status:
         | "planning"
         | "mailed"
@@ -1769,6 +2022,8 @@ export type Database = {
         | "IdentityTheftDocumented"
         | "MixedFileConfirmed"
         | "UpstreamContainmentActive"
+      payment_plan_status: "active" | "completed" | "delinquent" | "canceled"
+      payment_status: "scheduled" | "paid" | "partial" | "overdue" | "waived"
       response_type:
         | "NoResponse"
         | "Boilerplate"
@@ -1941,6 +2196,7 @@ export const Constants = {
         "CFPB_60",
         "FollowUp",
       ],
+      dispute_letter_status: ["draft", "final", "mailed"],
       dispute_round_status: [
         "planning",
         "mailed",
@@ -1989,6 +2245,8 @@ export const Constants = {
         "MixedFileConfirmed",
         "UpstreamContainmentActive",
       ],
+      payment_plan_status: ["active", "completed", "delinquent", "canceled"],
+      payment_status: ["scheduled", "paid", "partial", "overdue", "waived"],
       response_type: [
         "NoResponse",
         "Boilerplate",

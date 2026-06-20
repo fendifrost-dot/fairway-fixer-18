@@ -743,6 +743,88 @@ export type Database = {
           },
         ]
       }
+      dispute_letters: {
+        Row: {
+          body_docx_path: string | null
+          body_md: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          evidence_ids: Json
+          id: string
+          letter_type: string
+          recipient_name: string
+          recipient_type: string
+          round_id: string | null
+          status: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes: Json
+          strength_checklist: Json
+          timeline_event_id: string | null
+          tradeline_ids: Json
+          updated_at: string
+        }
+        Insert: {
+          body_docx_path?: string | null
+          body_md: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          evidence_ids?: Json
+          id?: string
+          letter_type: string
+          recipient_name: string
+          recipient_type: string
+          round_id?: string | null
+          status?: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes?: Json
+          strength_checklist?: Json
+          timeline_event_id?: string | null
+          tradeline_ids?: Json
+          updated_at?: string
+        }
+        Update: {
+          body_docx_path?: string | null
+          body_md?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          evidence_ids?: Json
+          id?: string
+          letter_type?: string
+          recipient_name?: string
+          recipient_type?: string
+          round_id?: string | null
+          status?: Database["public"]["Enums"]["dispute_letter_status"]
+          statutes?: Json
+          strength_checklist?: Json
+          timeline_event_id?: string | null
+          tradeline_ids?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_letters_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_letters_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "dispute_rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_letters_timeline_event_id_fkey"
+            columns: ["timeline_event_id"]
+            isOneToOne: false
+            referencedRelation: "timeline_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dispute_rounds: {
         Row: {
           client_id: string
@@ -1695,6 +1777,57 @@ export type Database = {
           },
         ]
       }
+      weekly_update_renderings: {
+        Row: {
+          client_id: string
+          custom_status_summary: string | null
+          generated_at: string
+          generated_by_user_id: string | null
+          id: string
+          include_dates_in_body: boolean
+          letters_action_table_snapshot: Json
+          output_storage_path: string
+          round_id: string | null
+        }
+        Insert: {
+          client_id: string
+          custom_status_summary?: string | null
+          generated_at?: string
+          generated_by_user_id?: string | null
+          id?: string
+          include_dates_in_body?: boolean
+          letters_action_table_snapshot?: Json
+          output_storage_path: string
+          round_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          custom_status_summary?: string | null
+          generated_at?: string
+          generated_by_user_id?: string | null
+          id?: string
+          include_dates_in_body?: boolean
+          letters_action_table_snapshot?: Json
+          output_storage_path?: string
+          round_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_update_renderings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_update_renderings_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "dispute_rounds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1839,6 +1972,7 @@ export type Database = {
         | "CFPB_15"
         | "CFPB_60"
         | "FollowUp"
+      dispute_letter_status: "draft" | "final" | "mailed"
       dispute_round_status:
         | "planning"
         | "mailed"
@@ -2062,6 +2196,7 @@ export const Constants = {
         "CFPB_60",
         "FollowUp",
       ],
+      dispute_letter_status: ["draft", "final", "mailed"],
       dispute_round_status: [
         "planning",
         "mailed",

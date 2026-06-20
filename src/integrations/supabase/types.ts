@@ -1017,6 +1017,125 @@ export type Database = {
           },
         ]
       }
+      payment_plans: {
+        Row: {
+          client_id: string
+          created_at: string
+          frequency: string | null
+          id: string
+          installment_amount: number | null
+          notes: string | null
+          num_installments: number | null
+          plan_type: string
+          start_date: string
+          status: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          installment_amount?: number | null
+          notes?: string | null
+          num_installments?: number | null
+          plan_type: string
+          start_date: string
+          status?: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          frequency?: string | null
+          id?: string
+          installment_amount?: number | null
+          notes?: string | null
+          num_installments?: number | null
+          plan_type?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["payment_plan_status"]
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount_due: number
+          amount_paid: number | null
+          client_id: string
+          created_at: string
+          due_date: string
+          gcal_event_id: string | null
+          id: string
+          method: string | null
+          notes: string | null
+          paid_date: string | null
+          plan_id: string
+          reminder_sent: boolean
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount_due: number
+          amount_paid?: number | null
+          client_id: string
+          created_at?: string
+          due_date: string
+          gcal_event_id?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          plan_id: string
+          reminder_sent?: boolean
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number | null
+          client_id?: string
+          created_at?: string
+          due_date?: string
+          gcal_event_id?: string | null
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_date?: string | null
+          plan_id?: string
+          reminder_sent?: boolean
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1769,6 +1888,8 @@ export type Database = {
         | "IdentityTheftDocumented"
         | "MixedFileConfirmed"
         | "UpstreamContainmentActive"
+      payment_plan_status: "active" | "completed" | "delinquent" | "canceled"
+      payment_status: "scheduled" | "paid" | "partial" | "overdue" | "waived"
       response_type:
         | "NoResponse"
         | "Boilerplate"
@@ -1989,6 +2110,8 @@ export const Constants = {
         "MixedFileConfirmed",
         "UpstreamContainmentActive",
       ],
+      payment_plan_status: ["active", "completed", "delinquent", "canceled"],
+      payment_status: ["scheduled", "paid", "partial", "overdue", "waived"],
       response_type: [
         "NoResponse",
         "Boilerplate",

@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2, Upload, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { extractTextFromPdfFile } from '@/lib/pdfTextExtract';
+import { extractResponseDocumentText } from '@/lib/responseDocumentExtract';
 
 export type ImportScope = 'full_snapshot' | 'partial_update' | 'furnisher_update';
 
@@ -53,24 +53,30 @@ export function UploadCreditReportDialog({
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<{ diff: DiffSummary; warnings: string[] } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [sourceType, setSourceType] = useState<'paste' | 'pdf' | 'image' | 'txt' | 'csv'>('paste');
+
+  const inferSourceType = (file: File): typeof sourceType => {
+    const name = file.name.toLowerCase();
+    if (file.type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+    if (file.type.startsWith('image/')) return 'image';
+    if (name.endsWith('.csv')) return 'csv';
+    if (name.endsWith('.txt') || file.type.startsWith('text/')) return 'txt';
+    return 'paste';
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
+    setSourceType(inferSourceType(file));
     setLoading(true);
     try {
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        const extracted = await extractTextFromPdfFile(file);
-        setText(extracted);
-        toast.success('PDF text extracted — review before committing');
-      } else if (file.type.startsWith('text/') || file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
-        setText(await file.text());
-      } else if (file.type.startsWith('image/')) {
-        toast.info('Image OCR: paste extracted text or use PDF with text layer for best results');
-      } else {
-        toast.error('Unsupported file type');
+      const extracted = await extractResponseDocumentText(file);
+      if (!extracted.trim()) {
+        throw new Error('No text could be extracted — try a clearer scan or paste structured text manually');
       }
+      setText(extracted);
+      toast.success('Document text extracted — review and parse before committing');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to read file');
     } finally {
@@ -90,6 +96,7 @@ export function UploadCreditReportDialog({
           report_date: reportDate,
           furnisher_filter: scope === 'furnisher_update' ? furnisherFilter : undefined,
           dry_run: dryRun,
+          source_type: sourceType,
         },
       });
       if (error) throw error;
@@ -192,7 +199,10 @@ export function UploadCreditReportDialog({
             className="min-h-[200px] font-mono text-xs"
             placeholder={`## TransUnion\nMOHELA/SERVICING | 502935047818**** | 2004-09-07 | balance: $16,672\n2024-02 OK\n2024-03 60\n2024-04 OK`}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (!fileName) setSourceType('paste');
+            }}
           />
         </div>
 

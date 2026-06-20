@@ -46,6 +46,7 @@ serve(async (req) => {
     const reportDate = (body.report_date as string) || new Date().toISOString().slice(0, 10);
     const furnisherFilter = body.furnisher_filter as string | undefined;
     const dryRun = body.dry_run === true;
+    const sourceType = (body.source_type as string) || "paste";
 
     if (!clientId || !text) {
       return new Response(
@@ -113,7 +114,7 @@ serve(async (req) => {
         bureau,
         report_date: reportDate,
         import_scope: scope,
-        source_type: "paste",
+        source_type: sourceType,
         raw_text: text,
         parse_summary: diff.summary,
       })

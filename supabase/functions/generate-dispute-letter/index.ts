@@ -59,7 +59,7 @@ serve(async (req) => {
 
     let tradelinesQuery = supabase
       .from("tradelines")
-      .select("id, furnisher_raw, account_mask, date_opened, balance, tradeline_bureau_states(two_year_payment_grid)")
+      .select("id, furnisher_raw, account_mask, date_opened, tradeline_bureau_states(balance, pay_status, account_status, two_year_payment_grid)")
       .eq("client_id", clientId);
 
     if (tradelineIds.length > 0) {
@@ -69,14 +69,20 @@ serve(async (req) => {
     const { data: tradelineRows } = await tradelinesQuery;
 
     const tradelines = (tradelineRows ?? []).map((tl) => {
-      const states = (tl.tradeline_bureau_states as { two_year_payment_grid: unknown }[]) ?? [];
+      const states = (tl.tradeline_bureau_states as {
+        balance: number | null;
+        pay_status: string | null;
+        account_status: string | null;
+        two_year_payment_grid: unknown;
+      }[]) ?? [];
+      const primary = states[0];
       const grid = states.flatMap((s) => (s.two_year_payment_grid as { month: string; status: string }[]) ?? []);
       return {
         id: tl.id as string,
         furnisher_raw: tl.furnisher_raw as string,
         account_mask: tl.account_mask as string | undefined,
         date_opened: tl.date_opened as string | undefined,
-        balance: tl.balance as number | null,
+        balance: primary?.balance ?? null,
         two_year_payment_grid: grid,
       };
     });

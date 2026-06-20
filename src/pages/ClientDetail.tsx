@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,7 @@ import { EvidenceTimeline } from '@/components/operator/EvidenceTimeline/index';
 import { EvidenceTimelineSkeleton } from '@/components/operator/EvidenceTimeline/EvidenceTimelineSkeleton';
 import { NotesSection } from '@/components/operator/NotesSection';
 import { CreditReportPanel } from '@/components/creditReport/CreditReportPanel';
+import { CreditGuardianAnalyzerPanel } from '@/components/creditReport/CreditGuardianAnalyzerPanel';
 import { DraftLettersPanel } from '@/components/creditReport/DraftLettersPanel';
 import { WeeklyUpdateDialog } from '@/components/weeklyUpdate/WeeklyUpdateDialog';
 import { BillingPanel, BalanceBadge } from '@/components/billing/BillingPanel';
@@ -53,6 +54,7 @@ function InboxTabFallback() {
 
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [unresolvedItems, setUnresolvedItems] = useState<UnresolvedItem[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -100,6 +102,12 @@ export default function ClientDetail() {
   const { data: events = [], isLoading: eventsLoading } = useTimelineEvents(clientId);
   const { data: tasks = [] } = useOperatorTasks(clientId);
   const openTasks = tasks.filter((t) => t.status === 'Open').length;
+
+  const handleCreditReportRefresh = useCallback(() => {
+    if (!clientId) return;
+    queryClient.invalidateQueries({ queryKey: ['credit-reports', clientId] });
+    queryClient.invalidateQueries({ queryKey: ['dispute-letters', clientId] });
+  }, [clientId, queryClient]);
 
   const handleImportComplete = (result: ParseResult) => {
     if (result.unresolved_items.length > 0) {
@@ -185,7 +193,8 @@ export default function ClientDetail() {
                   <EvidenceTimeline events={events} clientId={clientId!} />
                 )}
                 <BaselinePanel clientId={clientId!} />
-                <CreditReportPanel clientId={clientId!} />
+                <CreditReportPanel clientId={clientId!} onRefresh={handleCreditReportRefresh} />
+                <CreditGuardianAnalyzerPanel clientId={clientId!} />
                 <DraftLettersPanel clientId={clientId!} />
                 <BillingPanel clientId={clientId!} />
                 <NotesSection clientId={clientId!} />

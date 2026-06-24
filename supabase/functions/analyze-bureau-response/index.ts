@@ -1,3 +1,7 @@
+/**
+ * Response Analyzer backend — bureau/furnisher reply + timeline evidence → draft letter JSON.
+ * AI via Lovable gateway (LOVABLE_API_KEY injected by platform). Operator reviews before sending.
+ */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 

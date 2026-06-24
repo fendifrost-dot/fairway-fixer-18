@@ -29,6 +29,12 @@ export async function invokeEdgeFunction<T = Record<string, unknown>>(
   }
 
   if (error) {
+    const msg = error.message ?? '';
+    if (/failed to send a request|fetch failed|network/i.test(msg)) {
+      throw new Error(
+        'Could not reach the letter draft service — it may still be syncing from GitHub. Try again after Lovable finishes deploying edge functions.'
+      );
+    }
     throw error;
   }
 

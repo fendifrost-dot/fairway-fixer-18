@@ -2,10 +2,7 @@
  * Tradeline violation + data-quality detection (mirrors disputeLetterGenerator server logic).
  */
 
-export interface PaymentGridEntry {
-  month: string;
-  status: string;
-}
+import type { PaymentGridEntry } from './tradelineIdentity';
 
 export interface TradelineForAnalysis {
   id?: string;

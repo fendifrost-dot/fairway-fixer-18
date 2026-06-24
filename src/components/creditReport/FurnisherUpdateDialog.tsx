@@ -12,7 +12,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { parseFurnisherUpdateText } from '@/lib/creditReport';
+import { parseFurnisherUpdateText, type CreditBureau } from '@/lib/creditReport';
+import type { Database } from '@/integrations/supabase/types';
+
+const BUREAU_TO_EVENT_SOURCE: Record<CreditBureau, Database['public']['Enums']['event_source']> = {
+  experian: 'Experian',
+  transunion: 'TransUnion',
+  equifax: 'Equifax',
+};
 
 interface FurnisherUpdateDialogProps {
   open: boolean;
@@ -54,9 +61,7 @@ export function FurnisherUpdateDialog({
         client_id: clientId,
         category: 'Outcome',
         event_kind: 'outcome',
-        source: parsed.bureau
-          ? parsed.bureau.charAt(0).toUpperCase() + parsed.bureau.slice(1)
-          : 'Other',
+        source: parsed.bureau ? BUREAU_TO_EVENT_SOURCE[parsed.bureau] : 'Other',
         title: `Bureau/furnisher update: ${parsed.result}`,
         summary: parsed.free_text.slice(0, 200),
         details: parsed.free_text,

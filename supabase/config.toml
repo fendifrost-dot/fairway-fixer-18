@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.analyze-bureau-response]
 verify_jwt = true
+
+[functions.analyze-credit-report]
+verify_jwt = true
+
+[functions.backfill-credit-reports]
+verify_jwt = true
+
+[functions.ingest-credit-report]
+verify_jwt = true

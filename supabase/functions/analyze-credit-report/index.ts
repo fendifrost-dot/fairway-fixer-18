@@ -176,7 +176,7 @@ serve(async (req) => {
       });
     }
 
-    const { data: bureauStates } = await supabase
+    const { data: bureauStates, error: bureauStatesError } = await supabase
       .from("tradeline_bureau_states")
       .select(`
         balance, pay_status, account_status, two_year_payment_grid,
@@ -184,17 +184,35 @@ serve(async (req) => {
           id, furnisher_raw, account_mask, date_opened, client_id
         )
       `)
-      .eq("credit_report_id", creditReportId)
-      .eq("tradelines.client_id", clientId);
+      .eq("credit_report_id", creditReportId);
 
-    const tradelines = (bureauStates ?? []).map((row) => {
-      const tl = row.tradelines as {
-        id: string;
-        furnisher_raw: string;
-        account_mask: string | null;
-        date_opened: string | null;
-      };
-      return {
+    if (bureauStatesError) {
+      return new Response(
+        JSON.stringify({ error: `Failed to load tradelines: ${bureauStatesError.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const tradelines = (bureauStates ?? []).flatMap((row) => {
+      const embedded = row.tradelines as
+        | {
+            id: string;
+            furnisher_raw: string;
+            account_mask: string | null;
+            date_opened: string | null;
+            client_id: string;
+          }
+        | {
+            id: string;
+            furnisher_raw: string;
+            account_mask: string | null;
+            date_opened: string | null;
+            client_id: string;
+          }[]
+        | null;
+      const tl = Array.isArray(embedded) ? embedded[0] : embedded;
+      if (!tl || tl.client_id !== clientId) return [];
+      return [{
         id: tl.id,
         furnisher_raw: tl.furnisher_raw,
         account_mask: tl.account_mask ?? undefined,
@@ -203,7 +221,7 @@ serve(async (req) => {
         pay_status: row.pay_status as string | undefined,
         account_status: row.account_status as string | undefined,
         two_year_payment_grid: (row.two_year_payment_grid as { month: string; status: string }[]) ?? [],
-      };
+      }];
     });
 
     const violations = analyzeWithDataQuality(tradelines);

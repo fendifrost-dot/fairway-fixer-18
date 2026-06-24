@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunctionWithBody } from '@/lib/invokeEdgeFunction';
+import type { AnalysisViolation, LetterSuggestion } from '@/integrations/supabase/creditGuardianTables';
 import {
   creditReportAnalysesTable,
   creditReportsTable,
@@ -49,19 +50,19 @@ export function useCreditReportAnalysis(creditReportId: string | null) {
 }
 
 export async function backfillCreditReports(clientId: string) {
-  const { data, error } = await supabase.functions.invoke('backfill-credit-reports', {
-    body: { client_id: clientId },
+  return invokeEdgeFunctionWithBody<{ created_count: number }>('backfill-credit-reports', {
+    client_id: clientId,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data as { created_count: number };
 }
 
 export async function analyzeCreditReport(clientId: string, creditReportId: string) {
-  const { data, error } = await supabase.functions.invoke('analyze-credit-report', {
-    body: { client_id: clientId, credit_report_id: creditReportId },
+  return invokeEdgeFunctionWithBody<{
+    violations?: AnalysisViolation[];
+    baseline_summary?: string | null;
+    letter_suggestions?: LetterSuggestion[];
+    analysis_id?: string;
+  }>('analyze-credit-report', {
+    client_id: clientId,
+    credit_report_id: creditReportId,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  return data;
 }

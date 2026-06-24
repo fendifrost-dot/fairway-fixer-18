@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Loader2, FileUp, Sparkles, Copy, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { invokeEdgeFunctionWithBody } from '@/lib/invokeEdgeFunction';
 import { TimelineEvent, EventSource, ALL_EVIDENCE_SOURCES } from '@/types/operator';
 import { maskPII } from '@/lib/piiMasker';
 import { extractResponseDocumentText, supportedResponseMimeTypes } from '@/lib/responseDocumentExtract';
@@ -69,19 +69,19 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
     setMeta(null);
     try {
       const { masked } = maskPII(trimmed);
-      const { data, error } = await supabase.functions.invoke('analyze-bureau-response', {
-        body: {
-          client_id: clientId,
-          bureau_source: bureau,
-          response_document_text: masked,
-        },
+      const data = await invokeEdgeFunctionWithBody<{
+        result?: DraftResult;
+        meta?: { evidence_event_count: number };
+        error?: string;
+      }>('analyze-bureau-response', {
+        client_id: clientId,
+        bureau_source: bureau,
+        response_document_text: masked,
       });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(String(data.error));
-      const r = data?.result as DraftResult | undefined;
+      const r = data.result;
       if (!r?.draft_letter) throw new Error('No draft returned');
       setResult(r);
-      setMeta(data?.meta ?? null);
+      setMeta(data.meta ?? null);
       toast.success('Draft generated — review before sending');
     } catch (e) {
       toast.error((e as Error).message);

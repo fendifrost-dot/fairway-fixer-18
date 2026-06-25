@@ -16,6 +16,40 @@ function trimSnippet(text: string, max = MAX_BODY_SNIPPET): string {
   return `${t.slice(0, max)}…[truncated]`;
 }
 
+function bureauResponseResult(row: {
+  response_type?: string | null;
+  items_verified?: number | null;
+  items_deleted?: number | null;
+  items_updated?: number | null;
+}): string {
+  const type = (row.response_type ?? "").toLowerCase();
+  if (/verified|confirm/.test(type)) return "verified";
+  if (/deleted|remov/.test(type)) return "deleted";
+  if (/updated|correct/.test(type)) return "updated";
+  if (/frivolous/.test(type)) return "frivolous";
+  if (/no.?response/.test(type)) return "no-response";
+  if ((row.items_deleted ?? 0) > 0) return "deleted";
+  if ((row.items_updated ?? 0) > 0) return "updated";
+  if ((row.items_verified ?? 0) > 0) return "verified";
+  return type || "unknown";
+}
+
+function bureauResponseText(row: {
+  analysis_result?: unknown;
+  follow_up_action?: string | null;
+}): string {
+  if (typeof row.follow_up_action === "string" && row.follow_up_action.trim()) {
+    return row.follow_up_action;
+  }
+  if (row.analysis_result == null) return "";
+  if (typeof row.analysis_result === "string") return row.analysis_result;
+  try {
+    return JSON.stringify(row.analysis_result);
+  } catch {
+    return "";
+  }
+}
+
 export function bureauSourceToDb(source: string): string | null {
   const map: Record<string, string> = {
     Experian: "experian",
@@ -47,7 +81,7 @@ export interface ProfileTradeline {
 export interface AnalyzerHistoryDigest {
   prior_round_count: number;
   prior_round_exists: boolean;
-  dispute_rounds: { round_number: number; started_at: string | null; status: string }[];
+  dispute_rounds: { round_number: number; submitted_at: string | null; status: string }[];
   prior_letters: {
     letter_type: string;
     recipient_name: string;
@@ -106,7 +140,7 @@ export async function loadAnalyzerContext(
       .maybeSingle(),
     supabase
       .from("dispute_rounds")
-      .select("round_number, started_at, status")
+      .select("round_number, submitted_at, status")
       .eq("client_id", clientId)
       .order("round_number", { ascending: true }),
     supabase
@@ -117,17 +151,16 @@ export async function loadAnalyzerContext(
       .limit(20),
     supabase
       .from("bureau_responses")
-      .select("bureau, response_date, result, free_text")
+      .select("bureau, response_date, response_type, analysis_result, items_verified, items_deleted, items_updated, follow_up_action")
       .eq("client_id", clientId)
       .order("response_date", { ascending: true })
       .limit(30),
     supabase
       .from("tradelines")
       .select(`
-        id, furnisher_raw, account_mask, date_opened,
+        id, display_name, account_last4, opened_date, balance, notes,
         tradeline_bureau_states (
-          bureau, present, absent_in_latest, status_on_bureau, balance,
-          pay_status, account_status, two_year_payment_grid, operator_disputed
+          bureau, present, status_on_bureau, operator_disputed, notes, last_seen_date
         )
       `)
       .eq("client_id", clientId),
@@ -159,7 +192,7 @@ export async function loadAnalyzerContext(
 
   const disputeRounds = (roundsRes.data ?? []) as {
     round_number: number;
-    started_at: string | null;
+    submitted_at: string | null;
     status: string;
   }[];
 
@@ -187,46 +220,59 @@ export async function loadAnalyzerContext(
   const allResponses = (responsesRes.data ?? []) as {
     bureau: string | null;
     response_date: string | null;
-    result: string;
-    free_text: string | null;
+    response_type?: string | null;
+    analysis_result?: unknown;
+    items_verified?: number | null;
+    items_deleted?: number | null;
+    items_updated?: number | null;
+    follow_up_action?: string | null;
   }[];
   const bureauResponses = allResponses
     .filter((r) => !bureauDb || r.bureau === bureauDb)
-    .map((r) => ({
-      bureau: r.bureau,
-      response_date: r.response_date,
-      result: r.result,
-      free_text_snippet: trimSnippet(r.free_text ?? ""),
-    }));
+    .map((r) => {
+      const freeText = bureauResponseText(r);
+      return {
+        bureau: r.bureau,
+        response_date: r.response_date,
+        result: bureauResponseResult(r),
+        free_text_snippet: trimSnippet(freeText),
+      };
+    });
 
   const hasVerifiedWithoutDocs = bureauResponses.some(
     (r) => r.result === "verified" && /no.?doc|without doc|unable to provide/i.test(r.free_text_snippet),
-  ) || allResponses.some(
-    (r) => r.result === "verified" && /no.?doc|without doc|unable to provide/i.test(r.free_text ?? ""),
-  );
+  ) || allResponses.some((r) => {
+    const text = bureauResponseText(r);
+    return bureauResponseResult(r) === "verified" &&
+      /no.?doc|without doc|unable to provide/i.test(text);
+  });
 
   const profileTradelines: ProfileTradeline[] = (tradelinesRes.data ?? []).map((tl: Record<string, unknown>) => {
     const states = ((tl.tradeline_bureau_states as Record<string, unknown>[]) ?? []).map((s) => ({
       bureau: String(s.bureau ?? ""),
       present: Boolean(s.present),
-      absent_in_latest: Boolean(s.absent_in_latest),
+      absent_in_latest: false,
       status_on_bureau: (s.status_on_bureau as string | null) ?? null,
-      balance: s.balance as number | null,
-      pay_status: (s.pay_status as string | null) ?? null,
-      account_status: (s.account_status as string | null) ?? null,
-      two_year_payment_grid: (s.two_year_payment_grid as { month: string; status: string }[]) ?? [],
+      balance: (tl.balance as number | null) ?? null,
+      pay_status: null,
+      account_status: (s.status_on_bureau as string | null) ?? null,
+      two_year_payment_grid: [] as { month: string; status: string }[],
       operator_disputed: Boolean(s.operator_disputed),
+      notes: (s.notes as string | null) ?? null,
     }));
     const bureauStates = bureauDb
       ? states.filter((s) => s.bureau === bureauDb)
       : states;
-    const reinsertion_signal = bureauStates.some((s) => s.absent_in_latest) &&
-      bureauStates.some((s) => s.present && !s.absent_in_latest);
+    const tradelineNotes = String(tl.notes ?? "");
+    const stateNotes = bureauStates.map((s) => s.notes ?? "").join(" ");
+    const reinsertion_signal = /reinsert|re-report|deleted.*again|absent.*present/i.test(
+      `${tradelineNotes} ${stateNotes}`,
+    ) || (bureauStates.some((s) => !s.present) && bureauStates.some((s) => s.present));
     return {
       id: tl.id as string,
-      furnisher_raw: tl.furnisher_raw as string,
-      account_mask: (tl.account_mask as string | null) ?? null,
-      date_opened: (tl.date_opened as string | null) ?? null,
+      furnisher_raw: String(tl.display_name ?? tl.furnisher_raw ?? "Unknown"),
+      account_mask: (tl.account_last4 ?? tl.account_mask) as string | null,
+      date_opened: (tl.opened_date ?? tl.date_opened) as string | null,
       operator_disputed: bureauStates.some((s) => s.operator_disputed),
       states: bureauStates,
       reinsertion_signal,

@@ -17,6 +17,7 @@ import { Loader2, FileUp, Sparkles, Copy, AlertTriangle, Save } from 'lucide-rea
 import { toast } from 'sonner';
 import { invokeEdgeFunctionWithBody } from '@/lib/invokeEdgeFunction';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { TimelineEvent, EventSource, ALL_EVIDENCE_SOURCES } from '@/types/operator';
 import { maskPII } from '@/lib/piiMasker';
 import { extractResponseDocumentText, supportedResponseMimeTypes } from '@/lib/responseDocumentExtract';
@@ -199,6 +200,12 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
     try {
       const focus = meta?.dispute_focus ?? resolvedFocus;
       const mode = meta?.letter_mode ?? letterMode;
+      const strengthChecklist: Json = {
+        operator_checklist: result?.operator_checklist ?? [],
+        opening_summary: result?.opening_summary ?? '',
+        supporting_bullets: result?.supporting_bullets ?? [],
+        ...(meta ? { analyzer_meta: JSON.parse(JSON.stringify(meta)) as Json } : {}),
+      };
       const { error } = await supabase.from('dispute_letters').insert({
         client_id: clientId,
         recipient_type: 'cra',
@@ -206,12 +213,7 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
         letter_type: `Response Analyzer — ${letterTypeLabel(mode, focus === 'auto' ? 'tradeline' : focus)}`,
         body_md: editedLetter,
         status: 'draft',
-        strength_checklist: {
-          operator_checklist: result?.operator_checklist ?? [],
-          opening_summary: result?.opening_summary ?? '',
-          supporting_bullets: result?.supporting_bullets ?? [],
-          analyzer_meta: meta,
-        },
+        strength_checklist: strengthChecklist,
       });
       if (error) throw error;
       toast.success('Draft saved to client file');

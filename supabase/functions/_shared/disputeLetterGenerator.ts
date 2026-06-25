@@ -45,6 +45,8 @@ export interface StrengthChecklist {
   contradictions_cited: string[];
   evidence_attached: string[];
   demand_and_deadline: boolean;
+  /** Elements the draft must include given file context — operator verifies before mailing. */
+  required_strength_elements: string[];
   score: number;
 }
 
@@ -210,6 +212,10 @@ Credit Restoration & Consumer Advocacy
     contradictions_cited: contradictions,
     evidence_attached: input.evidence.map((e) => e.title),
     demand_and_deadline: true,
+    required_strength_elements: [
+      "Method-of-verification demand under §1681i(a)(6)(B)(iii) and §1681i(a)(7)",
+      "30-day reinvestigation/deletion confirmation deadline",
+    ],
     score: Math.min(
       100,
       20 +
@@ -229,21 +235,82 @@ export function buildAnalyzerStrengthFloor(input: {
   priorRoundExists: boolean;
   hasReinsertionSignal: boolean;
   hasFtcReport: boolean;
+  hasVerifiedWithoutDocs: boolean;
+  isTradelineDispute: boolean;
   evidenceTitles: string[];
+  accountIdentifiers: string[];
 }): StrengthChecklist {
   const contradictions = input.violations.map((v) => v.narrative);
   const statutes = [...STATUTES_ALL];
-  let score = 20 + (statutes.length >= 8 ? 25 : 10);
-  if (contradictions.length > 0) score += 25;
-  if (input.evidenceTitles.length > 0) score += 15;
-  if (input.priorRoundExists) score += 10;
-  if (input.hasReinsertionSignal) score += 10;
-  if (input.hasFtcReport) score += 5;
+  const required: string[] = [];
+
+  required.push(
+    "Method-of-verification demand: describe how verified, name furnisher, provide furnisher contact (§1681i(a)(6)(B)(iii), §1681i(a)(7))",
+  );
+  required.push(
+    "Dual deadlines stated separately: §605B block within 4 business days (when applicable); reinvestigation/deletion confirmation within 30 days",
+  );
+
+  if (input.isTradelineDispute) {
+    required.push(
+      "Unequivocal not-my-account statement: no business relationship with furnisher and no liability for the account",
+    );
+  }
+
+  if (input.accountIdentifiers.length > 0) {
+    required.push(
+      `Account identifier(s) in letter body: ${input.accountIdentifiers.join("; ")}`,
+    );
+  }
+
+  if (input.hasFtcReport && input.isTradelineDispute) {
+    statutes.unshift(
+      "15 U.S.C. §1681c-2 (§605B) — block identity-theft information within 4 business days",
+    );
+    required.push(
+      "§605B blocking demand (15 U.S.C. §1681c-2): block reporting within 4 business days with four elements — proof of identity, identity theft report, identification of item, statement information does not relate to any transaction by the consumer",
+    );
+  }
+
+  if (input.hasReinsertionSignal) {
+    required.push(
+      "§611(a)(5)(B) / §1681i(a)(5)(B): demand written reinsertion notice + furnisher certification; absent certification, delete under §611(a)(5)(A) / §1681i(a)(5)(A)",
+    );
+  }
+
+  const willfulFacts =
+    input.hasFtcReport &&
+    (input.hasReinsertionSignal || input.hasVerifiedWithoutDocs || input.priorRoundExists);
+  if (willfulFacts) {
+    required.push(
+      "§1681n willful-noncompliance notice (§616): statutory damages $100–$1,000 per violation, punitive damages, attorney's fees — not merely case-law citation",
+    );
+  }
+
+  if (input.hasFtcReport && input.isTradelineDispute) {
+    required.push(
+      "operator_checklist: confirm enclosures mailed (FTC Identity Theft Report copy, government photo ID, proof of address)",
+    );
+  }
+
+  let score = 10;
+  if (statutes.length >= 9) score += 15;
+  if (contradictions.length > 0) score += 15;
+  if (input.evidenceTitles.length > 0) score += 10;
+  if (input.priorRoundExists) score += 8;
+  if (input.hasReinsertionSignal) score += 8;
+  if (input.hasFtcReport && input.isTradelineDispute) score += 12;
+  if (input.isTradelineDispute) score += 5;
+  if (input.accountIdentifiers.length > 0) score += 5;
+  if (willfulFacts) score += 8;
+  score += 4; // MOV demand baseline
+
   return {
     statutes_invoked: statutes,
     contradictions_cited: contradictions,
     evidence_attached: input.evidenceTitles,
     demand_and_deadline: true,
+    required_strength_elements: required,
     score: Math.min(100, score),
   };
 }

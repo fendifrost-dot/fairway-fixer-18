@@ -10,7 +10,7 @@ import {
   parseInquiriesFromReportText,
 } from "../_shared/inquiryParse.ts";
 import { loadAnalyzerContext, resolveEffectiveLetterMode } from "../_shared/analyzerContext.ts";
-import { STATUTES_ALL } from "../_shared/disputeLetterGenerator.ts";
+import { STATUTES_ALL, buildAnalyzerStrengthFloor } from "../_shared/disputeLetterGenerator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,7 +124,7 @@ serve(async (req) => {
       }
       throw e;
     }
-    const { clientLabel, history, profile, strength_floor } = analyzerCtx;
+    const { clientLabel, history, profile } = analyzerCtx;
     const effectiveLetterMode = resolveEffectiveLetterMode(requestedLetterMode, history);
 
     const { data: sourceEventRows, error: eventsError } = await supabase
@@ -214,6 +214,25 @@ serve(async (req) => {
     const effectiveFocus =
       disputeFocus === "auto" && unauthorizedInquiries.length > 0 ? "inquiry" : disputeFocus;
 
+    const accountIdentifiers = profile.tradelines.map((t) => {
+      const mask = t.account_mask ? `acct ending ${t.account_mask}` : "acct # unknown";
+      return `${t.furnisher_raw} (${mask})`;
+    });
+
+    const strength_floor = buildAnalyzerStrengthFloor({
+      violations: [...profile.tradeline_violations, ...profile.credit_report_violations],
+      priorRoundExists:
+        history.prior_round_exists ||
+        history.prior_letters.length > 0 ||
+        history.bureau_responses.length > 0,
+      hasReinsertionSignal: history.has_reinsertion_signal,
+      hasFtcReport: Boolean(history.ftc_identity_theft_report_number),
+      hasVerifiedWithoutDocs: history.has_verified_without_docs,
+      isTradelineDispute: effectiveFocus !== "inquiry",
+      evidenceTitles: history.prior_letters.map((l) => l.letter_type),
+      accountIdentifiers,
+    });
+
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return jsonError(
@@ -274,8 +293,11 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
               has_verified_without_docs: history.has_verified_without_docs,
               has_reinsertion_signal: history.has_reinsertion_signal,
               ftc_identity_theft_report_number: history.ftc_identity_theft_report_number,
+              has_ftc_report: Boolean(history.ftc_identity_theft_report_number),
               cfpb_or_ag_task_count: history.cfpb_or_ag_tasks.length,
-              statutes_scaffold: STATUTES_ALL,
+              statutes_scaffold: strength_floor.statutes_invoked,
+              account_identifiers: accountIdentifiers,
+              required_strength_elements: strength_floor.required_strength_elements,
             }),
           },
           {
@@ -294,7 +316,8 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
                 properties: {
                   draft_letter: {
                     type: "string",
-                    description: "Full letter body — no bracket placeholders, no enclosures list",
+                    description:
+                      "Full letter body — no bracket placeholders. Must include all applicable MAXIMUM-STRENGTH elements (§605B block when FTC on file, not-my-account statement, MOV demand, dual deadlines, account identifiers, §1681n willful notice when facts support). No separate Enclosures section; at most one inline Enclosed sentence.",
                   },
                   opening_summary: {
                     type: "string",
@@ -308,7 +331,8 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
                   operator_checklist: {
                     type: "array",
                     items: { type: "string" },
-                    description: "Items the operator must confirm, add, or correct before mailing",
+                    description:
+                      "Items the operator must confirm before mailing: enclosures (FTC report copy, photo ID, proof of address), account numbers, mailing gates, facts to verify. Required §605B enclosures go here, not in draft_letter body.",
                   },
                 },
                 required: ["draft_letter", "supporting_bullets", "operator_checklist"],

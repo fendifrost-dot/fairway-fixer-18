@@ -3,9 +3,7 @@
  */
 import {
   analyzeTradelineViolations,
-  buildAnalyzerStrengthFloor,
   type LetterViolation,
-  type StrengthChecklist,
 } from "./disputeLetterGenerator.ts";
 
 const MAX_BODY_SNIPPET = 400;
@@ -120,7 +118,6 @@ export async function loadAnalyzerContext(
   ftcReportNumber: string | null;
   history: AnalyzerHistoryDigest;
   profile: AnalyzerProfileDigest;
-  strength_floor: StrengthChecklist;
 }> {
   const bureauDb = bureauSourceToDb(bureauSource);
 
@@ -334,15 +331,7 @@ export async function loadAnalyzerContext(
       : null,
   };
 
-  const strength_floor = buildAnalyzerStrengthFloor({
-    violations: [...tradelineViolations, ...creditReportViolations],
-    priorRoundExists: priorRoundExists || priorLetters.length > 0 || bureauResponses.length > 0,
-    hasReinsertionSignal,
-    hasFtcReport: Boolean(ftcReportNumber),
-    evidenceTitles: priorLetters.map((l) => l.letter_type),
-  });
-
-  return { clientLabel, ftcReportNumber, history, profile, strength_floor };
+  return { clientLabel, ftcReportNumber, history, profile };
 }
 
 export function resolveEffectiveLetterMode(

@@ -250,6 +250,12 @@ export function buildAnalyzerStrengthFloor(input: {
   required.push(
     "Dual deadlines stated separately: §605B block within 4 business days (when applicable); reinvestigation/deletion confirmation within 30 days",
   );
+  required.push(
+    "Explicit §1681e(b) maximum-possible-accuracy citation in draft_letter (always — do not drop for space)",
+  );
+  required.push(
+    "Explicit §1681s-2(b) furnisher reinvestigation-duty citation in draft_letter (always — do not drop for space)",
+  );
 
   if (input.isTradelineDispute) {
     required.push(
@@ -274,7 +280,10 @@ export function buildAnalyzerStrengthFloor(input: {
 
   if (input.hasReinsertionSignal) {
     required.push(
-      "§611(a)(5)(B) / §1681i(a)(5)(B): demand written reinsertion notice + furnisher certification; absent certification, delete under §611(a)(5)(A) / §1681i(a)(5)(A)",
+      "§611(a)(5)(B) / §1681i(a)(5)(B): demand written reinsertion notice + furnisher certification",
+    );
+    required.push(
+      "Explicit deletion remedy: cite §611(a)(5)(A) / 15 U.S.C. §1681i(a)(5)(A) if certification not produced",
     );
   }
 
@@ -287,6 +296,12 @@ export function buildAnalyzerStrengthFloor(input: {
     );
   }
 
+  if (input.accountIdentifiers.length > 1) {
+    required.push(
+      `operator_checklist: confirm each disputed item before mailing — ${input.accountIdentifiers.join("; ")}`,
+    );
+  }
+
   if (input.hasFtcReport && input.isTradelineDispute) {
     required.push(
       "operator_checklist: confirm enclosures mailed (FTC Identity Theft Report copy, government photo ID, proof of address)",
@@ -294,16 +309,16 @@ export function buildAnalyzerStrengthFloor(input: {
   }
 
   let score = 10;
-  if (statutes.length >= 9) score += 15;
-  if (contradictions.length > 0) score += 15;
-  if (input.evidenceTitles.length > 0) score += 10;
-  if (input.priorRoundExists) score += 8;
-  if (input.hasReinsertionSignal) score += 8;
-  if (input.hasFtcReport && input.isTradelineDispute) score += 12;
-  if (input.isTradelineDispute) score += 5;
-  if (input.accountIdentifiers.length > 0) score += 5;
-  if (willfulFacts) score += 8;
-  score += 4; // MOV demand baseline
+  if (statutes.length >= 9) score += 12;
+  if (contradictions.length > 0) score += 12;
+  if (input.evidenceTitles.length > 0) score += 8;
+  if (input.priorRoundExists) score += 6;
+  if (input.hasReinsertionSignal) score += 6;
+  if (input.hasFtcReport && input.isTradelineDispute) score += 10;
+  if (input.isTradelineDispute) score += 4;
+  if (input.accountIdentifiers.length > 0) score += 4;
+  if (willfulFacts) score += 6;
+  score += 8; // MOV + §1681e(b) + §1681s-2(b) baseline
 
   return {
     statutes_invoked: statutes,

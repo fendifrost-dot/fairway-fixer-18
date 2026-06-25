@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FileUp, Sparkles, Copy, AlertTriangle, Save, Download, FileText } from 'lucide-react';
+import { Loader2, FileUp, Sparkles, Copy, AlertTriangle, Save, Download, FileText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { invokeEdgeFunctionWithBody } from '@/lib/invokeEdgeFunction';
 import { supabase } from '@/integrations/supabase/client';
@@ -79,6 +79,7 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
   const [disputeFocus, setDisputeFocus] = useState<DisputeFocus>('auto');
   const [inquiries, setInquiries] = useState<ParsedInquiry[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = filterEvidenceForSource(events, bureau);
@@ -295,6 +296,27 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
     }
   };
 
+  const handleDeleteDraft = async (letterId: string, label: string) => {
+    if (!window.confirm(`Delete saved draft "${label}"? This cannot be undone.`)) return;
+    setDeletingId(letterId);
+    try {
+      const { error } = await supabase
+        .from('dispute_letters')
+        .delete()
+        .eq('id', letterId)
+        .eq('client_id', clientId);
+      if (error) throw error;
+      toast.success('Draft deleted');
+      queryClient.invalidateQueries({ queryKey: ['dispute-letters', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['analyzer-saved-letters', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['analyzer-structured-history', clientId] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const currentLetterType = `Response Analyzer — ${letterTypeLabel(
     meta?.letter_mode ?? letterMode,
     (meta?.dispute_focus ?? resolvedFocus) === 'auto' ? 'tradeline' : (meta?.dispute_focus ?? resolvedFocus),
@@ -501,6 +523,22 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
                   >
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    disabled={deletingId === l.id}
+                    onClick={() =>
+                      handleDeleteDraft(l.id, `${l.letter_type} / ${l.recipient_name}`)
+                    }
+                  >
+                    {deletingId === l.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
                 </div>
               </div>

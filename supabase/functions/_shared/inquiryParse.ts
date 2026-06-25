@@ -119,7 +119,8 @@ function buildMaximumStrengthRules(
     blocks.push(`REINSERTION / §611(a)(5)(B) (MANDATORY — delete-then-reinsert signal in profile digest):
 - State that the tradeline was previously deleted and later reinserted without required notice.
 - Demand the **written notice of reinsertion within 5 business days** required by **§611(a)(5)(B) / §1681i(a)(5)(B)** and the **furnisher certification** supporting reinsertion.
-- **Explicitly demand production of the certification.** If the bureau cannot produce it, demand **deletion under §611(a)(5)(A) / §1681i(a)(5)(A)**.`);
+- **Explicitly demand production of the certification.**
+- **Deletion fallback (MANDATORY — cite the statute explicitly):** If the bureau cannot produce the certification, demand **immediate deletion under §611(a)(5)(A) / 15 U.S.C. §1681i(a)(5)(A)**. Do not imply deletion without naming §1681i(a)(5)(A).`);
   }
 
   if (willfulFacts) {
@@ -139,11 +140,17 @@ function buildMaximumStrengthRules(
     blocks.push(`ACCOUNT IDENTIFIERS (MANDATORY):
 - Reference each disputed tradeline by **specific account identifier** (not furnisher name alone).
 - Identifiers from profile digest: ${history.account_identifiers.join("; ")}.
-- Use language such as "account ending XXXX" in the Re: line and body.`);
+- Use language such as "account ending XXXX" in the Re: line and body.
+- When **multiple** tradelines/accounts appear in the profile digest or document, dispute each in the letter body AND add a separate **operator_checklist** line for the operator to confirm each item before mailing (furnisher name + account identifier).`);
   } else {
     blocks.push(`ACCOUNT IDENTIFIERS:
 - If account mask/last-4 appears in document text or profile digest, cite it in the Re: line and body. Do not invent account numbers.`);
   }
+
+  blocks.push(`ALWAYS-RETAIN ANCHORS (MANDATORY — include in draft_letter even when adding §605B, MOV, §1681n, and other max-strength content; do NOT drop these to save space):
+- **15 U.S.C. §1681e(b)** — duty to follow reasonable procedures to assure maximum possible accuracy of consumer reports.
+- **15 U.S.C. §1681s-2(b)** — furnisher duty to investigate and report results to consumer reporting agencies upon notice of dispute.
+- Cite both statutes by number in the body (not merely implied). These are non-negotiable baseline duties alongside any blocking or escalation demands.`);
 
   return blocks.join("\n\n");
 }
@@ -231,7 +238,8 @@ Universal rules:
 - NEVER use bracket placeholders or fill-in blanks in draft_letter (no [DATE], [SSN], [ACCOUNT NUMBER], [YOUR NAME], etc.). If a value is unknown, omit the sentence or use generic phrasing without blanks.
 - **Enclosures convention:** Do NOT include a separate "Enclosures" or "Attachments" section in draft_letter. List required mailing enclosures in **operator_checklist** (FTC Identity Theft Report copy, government-issued photo ID, proof of address, prior dispute correspondence). You MAY include at most **one** inline sentence such as "Enclosed: [list]" in draft_letter — no multi-line enclosure block.
 - Put verification reminders (SSN, DOB, account numbers to confirm, enclosure checks, mailing gates) in **operator_checklist** — not as bracket placeholders in draft_letter.
-- Maintain §1681e(b) maximum-possible-accuracy duty and §1681s-2(b) furnisher reinvestigation duty where applicable.
+- **Always retain** explicit citations to **§1681e(b)** (maximum possible accuracy) and **§1681s-2(b)** (furnisher reinvestigation duty) in draft_letter — adding §605B, MOV, or §1681n content must not replace these.
+- When profile digest lists multiple disputed tradelines/accounts, include each in the letter AND add one **operator_checklist** confirmation line per item (furnisher + account identifier).
 - If something important is missing from inputs, add it to operator_checklist rather than inventing it.
 - Valid event_kind values in evidence: action, response, outcome, note. Scheduled tasks are planning items, not sworn evidence — cite them cautiously.`;
 }

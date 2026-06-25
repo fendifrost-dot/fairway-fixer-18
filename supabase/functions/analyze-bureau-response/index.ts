@@ -332,7 +332,7 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
                     type: "array",
                     items: { type: "string" },
                     description:
-                      "Items the operator must confirm before mailing: enclosures (FTC report copy, photo ID, proof of address), account numbers, mailing gates, facts to verify. Required §605B enclosures go here, not in draft_letter body.",
+                      "Items the operator must confirm before mailing: enclosures (FTC report copy, photo ID, proof of address), one confirmation line per disputed tradeline/account when multiple items appear in profile digest, account numbers, mailing gates, facts to verify.",
                   },
                 },
                 required: ["draft_letter", "supporting_bullets", "operator_checklist"],

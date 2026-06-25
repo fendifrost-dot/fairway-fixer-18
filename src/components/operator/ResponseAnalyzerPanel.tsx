@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FileUp, Sparkles, Copy, AlertTriangle, Save } from 'lucide-react';
+import { Loader2, FileUp, Sparkles, Copy, AlertTriangle, Save, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { invokeEdgeFunctionWithBody } from '@/lib/invokeEdgeFunction';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,12 @@ import {
   letterTypeLabel,
   suggestLetterMode,
 } from '@/lib/letterAnalyzerHelpers';
+import {
+  clientDisplayName,
+  downloadDisputeLetterDocx,
+  downloadDisputeLetterPdf,
+  type LetterDownloadMeta,
+} from '@/lib/disputeLetterDocx';
 
 interface DraftResult {
   draft_letter: string;
@@ -72,11 +78,27 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
   const [letterMode, setLetterMode] = useState<LetterMode>('initial');
   const [disputeFocus, setDisputeFocus] = useState<DisputeFocus>('auto');
   const [inquiries, setInquiries] = useState<ParsedInquiry[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = filterEvidenceForSource(events, bureau);
   const stats = summarizeEvidenceCounts(filtered);
   const totalStats = summarizeEvidenceCounts(events);
+
+  const { data: clientRecord } = useQuery({
+    queryKey: ['client-display-name', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('legal_name, legal_full_name, preferred_name')
+        .eq('id', clientId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const clientName = clientDisplayName(clientRecord);
 
   const { data: savedLetters = [] } = useQuery({
     queryKey: ['analyzer-saved-letters', clientId],
@@ -231,6 +253,52 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
     await navigator.clipboard.writeText(editedLetter);
     toast.success('Copied to clipboard');
   };
+
+  const buildDownloadMeta = (
+    letterType: string,
+    recipientName: string,
+  ): LetterDownloadMeta => ({
+    clientName,
+    recipientName,
+    letterType,
+  });
+
+  const handleDownloadDocx = async (
+    bodyMd: string,
+    meta: LetterDownloadMeta,
+    downloadKey: string,
+  ) => {
+    if (!bodyMd.trim()) {
+      toast.error('Nothing to download');
+      return;
+    }
+    setDownloadingId(downloadKey);
+    try {
+      await downloadDisputeLetterDocx(bodyMd, meta);
+      toast.success('Letter downloaded');
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleDownloadPdf = (bodyMd: string, meta: LetterDownloadMeta) => {
+    if (!bodyMd.trim()) {
+      toast.error('Nothing to download');
+      return;
+    }
+    try {
+      downloadDisputeLetterPdf(bodyMd, meta);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const currentLetterType = `Response Analyzer — ${letterTypeLabel(
+    meta?.letter_mode ?? letterMode,
+    (meta?.dispute_focus ?? resolvedFocus) === 'auto' ? 'tradeline' : (meta?.dispute_focus ?? resolvedFocus),
+  )}`;
 
   const acceptAttr = supportedResponseMimeTypes().join(',');
 
@@ -396,9 +464,45 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
           <div className="rounded-md border bg-muted/20 p-3 space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Saved analyzer drafts</p>
             {savedLetters.map((l) => (
-              <div key={l.id} className="flex justify-between items-center text-sm gap-2">
-                <span className="truncate">{l.letter_type as string}</span>
-                <Badge variant="outline">{l.recipient_name as string}</Badge>
+              <div key={l.id} className="flex justify-between items-center text-sm gap-2 flex-wrap">
+                <span className="truncate min-w-0">{l.letter_type as string}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="outline">{l.recipient_name as string}</Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingId === `saved-docx-${l.id}`}
+                    onClick={() =>
+                      handleDownloadDocx(
+                        l.body_md as string,
+                        buildDownloadMeta(l.letter_type as string, l.recipient_name as string),
+                        `saved-docx-${l.id}`,
+                      )
+                    }
+                  >
+                    {downloadingId === `saved-docx-${l.id}` ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Download .docx
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      handleDownloadPdf(
+                        l.body_md as string,
+                        buildDownloadMeta(l.letter_type as string, l.recipient_name as string),
+                      )
+                    }
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    PDF
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -445,10 +549,41 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
             <div>
               <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                 <h4 className="text-sm font-medium">Draft letter</h4>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button type="button" size="sm" variant="outline" onClick={copyLetter}>
                     <Copy className="h-3.5 w-3.5 mr-1" />
                     Copy
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingId === 'draft-docx'}
+                    onClick={() =>
+                      handleDownloadDocx(
+                        editedLetter,
+                        buildDownloadMeta(currentLetterType, bureau),
+                        'draft-docx',
+                      )
+                    }
+                  >
+                    {downloadingId === 'draft-docx' ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Download .docx
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      handleDownloadPdf(editedLetter, buildDownloadMeta(currentLetterType, bureau))
+                    }
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    PDF
                   </Button>
                   <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
                     {saving ? (

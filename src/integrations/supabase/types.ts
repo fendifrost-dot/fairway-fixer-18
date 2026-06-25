@@ -396,6 +396,7 @@ export type Database = {
           address_line1: string | null
           address_line2: string | null
           alternate_addresses: string[]
+          campaign_label: string | null
           city: string | null
           created_at: string
           credit_scores: Json
@@ -405,10 +406,12 @@ export type Database = {
           email: string | null
           equifax_score: number | null
           experian_score: number | null
+          ftc_identity_theft_report_number: string | null
           id: string
           intake_auto_extracted_at: string | null
           intake_date: string | null
           last_report_date: string | null
+          legal_full_name: string | null
           legal_name: string
           notes: string | null
           owner_id: string | null
@@ -427,6 +430,7 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           alternate_addresses?: string[]
+          campaign_label?: string | null
           city?: string | null
           created_at?: string
           credit_scores?: Json
@@ -436,10 +440,12 @@ export type Database = {
           email?: string | null
           equifax_score?: number | null
           experian_score?: number | null
+          ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
           intake_date?: string | null
           last_report_date?: string | null
+          legal_full_name?: string | null
           legal_name: string
           notes?: string | null
           owner_id?: string | null
@@ -458,6 +464,7 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           alternate_addresses?: string[]
+          campaign_label?: string | null
           city?: string | null
           created_at?: string
           credit_scores?: Json
@@ -467,10 +474,12 @@ export type Database = {
           email?: string | null
           equifax_score?: number | null
           experian_score?: number | null
+          ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
           intake_date?: string | null
           last_report_date?: string | null
+          legal_full_name?: string | null
           legal_name?: string
           notes?: string | null
           owner_id?: string | null

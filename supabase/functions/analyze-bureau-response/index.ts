@@ -9,6 +9,8 @@ import {
   mergeFlaggedInquiries,
   parseInquiriesFromReportText,
 } from "../_shared/inquiryParse.ts";
+import { loadAnalyzerContext, resolveEffectiveLetterMode } from "../_shared/analyzerContext.ts";
+import { STATUTES_ALL } from "../_shared/disputeLetterGenerator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -105,23 +107,25 @@ serve(async (req) => {
       );
     }
 
-    const letterMode = body.letter_mode === "follow_up" ? "follow_up" : "initial";
+    const requestedLetterMode = body.letter_mode === "follow_up" ? "follow_up" : "initial";
     const disputeFocus = ["auto", "tradeline", "inquiry"].includes(body.dispute_focus ?? "")
       ? (body.dispute_focus as "auto" | "tradeline" | "inquiry")
       : "auto";
 
-    const { data: clientRow, error: clientErr } = await supabase
-      .from("clients")
-      .select("id, legal_name, preferred_name")
-      .eq("id", clientId)
-      .maybeSingle();
-
-    if (clientErr || !clientRow) {
-      return new Response(
-        JSON.stringify({ error: "Client not found or not accessible" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let analyzerCtx;
+    try {
+      analyzerCtx = await loadAnalyzerContext(supabase, clientId, bureauSource);
+    } catch (e) {
+      if (e instanceof Error && e.message === "CLIENT_NOT_FOUND") {
+        return new Response(
+          JSON.stringify({ error: "Client not found or not accessible" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      throw e;
     }
+    const { clientLabel, history, profile, strength_floor } = analyzerCtx;
+    const effectiveLetterMode = resolveEffectiveLetterMode(requestedLetterMode, history);
 
     const { data: sourceEventRows, error: eventsError } = await supabase
       .from("timeline_events")
@@ -218,12 +222,10 @@ serve(async (req) => {
       );
     }
 
-    const clientLabel = [clientRow.preferred_name, clientRow.legal_name].filter(Boolean).join(" / ");
-
     const userPrompt = `Target bureau/source (enum): ${bureauSource}
-Letter mode: ${letterMode}
+Letter mode (effective): ${effectiveLetterMode}${requestedLetterMode !== effectiveLetterMode ? ` (operator requested ${requestedLetterMode})` : ""}
 Dispute focus: ${effectiveFocus}
-Consumer reference name(s) (may be partial / masked): ${clientLabel || "Not provided"}
+Consumer reference name(s) (may be partial / masked): ${clientLabel}
 
 --- Document text (credit report excerpt, bureau response, or operator paste; PII may be masked) ---
 ${responseText}
@@ -231,11 +233,23 @@ ${responseText}
 --- Hard inquiries parsed from document (${parsedInquiries.length} total; ${unauthorizedInquiries.length} flagged unauthorized) ---
 ${JSON.stringify(parsedInquiries)}
 
+--- HISTORY DIGEST (dispute_rounds, prior letters, bureau_responses, FTC report, CFPB/AG tasks) ---
+${JSON.stringify(history)}
+
+--- PROFILE DIGEST (tradelines, violations, reinsertion signals) ---
+${JSON.stringify(profile)}
+
 --- Evidence timeline (${eventsForModel.length} of ${events.length} rows; scope: ${evidenceScope}; same-source count: ${sameSourceCount}) ---
 ${JSON.stringify(evidenceForModel)}
 
 --- Scheduled operator tasks (planning context — not sworn evidence; ${scheduledTasks.length} rows) ---
-${JSON.stringify(scheduledTasks)}`;
+${JSON.stringify(scheduledTasks)}
+
+--- REQUIRED STATUTORY SCAFFOLD (incorporate applicable items) ---
+${JSON.stringify(STATUTES_ALL)}
+
+--- DETERMINISTIC VIOLATIONS + STRENGTH FLOOR ---
+${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.credit_report_violations], strength_floor })}`;
 
     const aiController = new AbortController();
     const aiTimeout = setTimeout(() => aiController.abort(), AI_TIMEOUT_MS);
@@ -254,7 +268,15 @@ ${JSON.stringify(scheduledTasks)}`;
         messages: [
           {
             role: "system",
-            content: buildSystemPrompt(letterMode, effectiveFocus),
+            content: buildSystemPrompt(effectiveLetterMode, effectiveFocus, {
+              prior_round_count: history.prior_round_count,
+              prior_round_exists: history.prior_round_exists,
+              has_verified_without_docs: history.has_verified_without_docs,
+              has_reinsertion_signal: history.has_reinsertion_signal,
+              ftc_identity_theft_report_number: history.ftc_identity_theft_report_number,
+              cfpb_or_ag_task_count: history.cfpb_or_ag_tasks.length,
+              statutes_scaffold: STATUTES_ALL,
+            }),
           },
           {
             role: "user",
@@ -369,6 +391,7 @@ ${JSON.stringify(scheduledTasks)}`;
           opening_summary: parsed.opening_summary || "",
           supporting_bullets: parsed.supporting_bullets || [],
           operator_checklist: parsed.operator_checklist || [],
+          strength_checklist: strength_floor,
         },
         meta: {
           evidence_event_count: events.length,
@@ -377,12 +400,24 @@ ${JSON.stringify(scheduledTasks)}`;
           scheduled_task_count: scheduledTasks.length,
           inquiries_parsed: parsedInquiries.length,
           inquiries_flagged_unauthorized: unauthorizedInquiries.length,
-          letter_mode: letterMode,
+          letter_mode: effectiveLetterMode,
+          letter_mode_requested: requestedLetterMode,
+          letter_mode_overridden: requestedLetterMode !== effectiveLetterMode,
+          prior_round_exists: history.prior_round_exists,
+          prior_round_count: history.prior_round_count,
+          prior_letters_count: history.prior_letters.length,
+          bureau_responses_count: history.bureau_responses.length,
+          has_reinsertion_signal: history.has_reinsertion_signal,
+          has_verified_without_docs: history.has_verified_without_docs,
+          ftc_report_on_file: Boolean(history.ftc_identity_theft_report_number),
+          tradeline_count: profile.tradelines.length,
+          violation_count: profile.tradeline_violations.length + profile.credit_report_violations.length,
           dispute_focus: effectiveFocus,
           evidence_events_sent_to_model: eventsForModel.length,
           evidence_truncated: events.length > eventsForModel.length,
           bureau_source: bureauSource,
           response_chars_used: responseText.length,
+          history_digest_loaded: true,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

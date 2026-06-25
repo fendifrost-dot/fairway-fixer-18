@@ -54,4 +54,10 @@ describe('suggestLetterMode', () => {
     const events = [base({ event_kind: 'response', source: 'Experian' })];
     expect(suggestLetterMode(events, 'Experian')).toBe('follow_up');
   });
+
+  it('suggests follow_up when structured history exists', () => {
+    expect(
+      suggestLetterMode([], 'Experian', { dispute_rounds: 2, dispute_letters: 1, bureau_responses: 0 })
+    ).toBe('follow_up');
+  });
 });

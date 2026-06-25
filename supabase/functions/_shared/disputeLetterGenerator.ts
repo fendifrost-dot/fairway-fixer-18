@@ -48,7 +48,7 @@ export interface StrengthChecklist {
   score: number;
 }
 
-const STATUTES_ALL = [
+export const STATUTES_ALL = [
   '15 U.S.C. §1681i(a)(1) — reasonable reinvestigation',
   '15 U.S.C. §1681i(a)(5)(A) — delete unverifiable information',
   '15 U.S.C. §1681i(a)(6)-(7) — method of verification',
@@ -221,4 +221,29 @@ Credit Restoration & Consumer Advocacy
   };
 
   return { body_md, statutes, strength_checklist: checklist };
+}
+
+/** Deterministic strength floor for Response Analyzer (no full letter assembly). */
+export function buildAnalyzerStrengthFloor(input: {
+  violations: LetterViolation[];
+  priorRoundExists: boolean;
+  hasReinsertionSignal: boolean;
+  hasFtcReport: boolean;
+  evidenceTitles: string[];
+}): StrengthChecklist {
+  const contradictions = input.violations.map((v) => v.narrative);
+  const statutes = [...STATUTES_ALL];
+  let score = 20 + (statutes.length >= 8 ? 25 : 10);
+  if (contradictions.length > 0) score += 25;
+  if (input.evidenceTitles.length > 0) score += 15;
+  if (input.priorRoundExists) score += 10;
+  if (input.hasReinsertionSignal) score += 10;
+  if (input.hasFtcReport) score += 5;
+  return {
+    statutes_invoked: statutes,
+    contradictions_cited: contradictions,
+    evidence_attached: input.evidenceTitles,
+    demand_and_deadline: true,
+    score: Math.min(100, score),
+  };
 }

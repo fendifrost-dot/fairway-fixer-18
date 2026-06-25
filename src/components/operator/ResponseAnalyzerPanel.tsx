@@ -27,8 +27,10 @@ import {
   type ParsedInquiry,
 } from '@/lib/inquiryParse';
 import {
+  AnalyzerMetaDisplay,
   DisputeFocus,
   LetterMode,
+  formatAnalyzerContextSummary,
   letterTypeLabel,
   suggestLetterMode,
 } from '@/lib/letterAnalyzerHelpers';
@@ -38,18 +40,18 @@ interface DraftResult {
   opening_summary: string;
   supporting_bullets: string[];
   operator_checklist: string[];
+  strength_checklist?: {
+    statutes_invoked?: string[];
+    contradictions_cited?: string[];
+    score?: number;
+  };
 }
 
-interface AnalyzerMeta {
-  evidence_event_count: number;
-  evidence_same_source_count?: number;
-  evidence_scope?: string;
-  scheduled_task_count?: number;
+type AnalyzerMeta = AnalyzerMetaDisplay & {
   inquiries_parsed?: number;
   inquiries_flagged_unauthorized?: number;
-  letter_mode?: LetterMode;
   dispute_focus?: DisputeFocus;
-}
+};
 
 interface ResponseAnalyzerPanelProps {
   clientId: string;
@@ -90,9 +92,27 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
     },
   });
 
+  const { data: structuredHistory } = useQuery({
+    queryKey: ['analyzer-structured-history', clientId],
+    queryFn: async () => {
+      const [rounds, letters, responses] = await Promise.all([
+        supabase.from('dispute_rounds').select('id', { count: 'exact', head: true }).eq('client_id', clientId),
+        supabase.from('dispute_letters').select('id', { count: 'exact', head: true }).eq('client_id', clientId),
+        supabase.from('bureau_responses').select('id', { count: 'exact', head: true }).eq('client_id', clientId),
+      ]);
+      return {
+        dispute_rounds: rounds.count ?? 0,
+        dispute_letters: letters.count ?? 0,
+        bureau_responses: responses.count ?? 0,
+      };
+    },
+  });
+
+  const contextSummary = useMemo(() => formatAnalyzerContextSummary(meta), [meta]);
+
   useEffect(() => {
-    setLetterMode(suggestLetterMode(events, bureau));
-  }, [events, bureau]);
+    setLetterMode(suggestLetterMode(events, bureau, structuredHistory));
+  }, [events, bureau, structuredHistory]);
 
   useEffect(() => {
     if (!responseText.trim()) {
@@ -252,6 +272,12 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
             <p className="text-xs text-muted-foreground">
               Evidence for <strong>{bureau}</strong>: <strong>{stats.total}</strong> events ({stats.actions} actions,{' '}
               {stats.responses} responses). File total: <strong>{totalStats.total}</strong> committed timeline rows.
+              {structuredHistory && (
+                <span className="block mt-1">
+                  Structured history: {structuredHistory.dispute_rounds} round(s),{' '}
+                  {structuredHistory.dispute_letters} letter(s), {structuredHistory.bureau_responses} bureau response(s).
+                </span>
+              )}
               {stats.total === 0 && totalStats.total > 0 && (
                 <span className="block mt-1 text-amber-700 dark:text-amber-400">
                   No rows tagged {bureau} — server will fall back to all-source evidence. Tag imports with the correct
@@ -299,6 +325,15 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
                 <SelectItem value="follow_up">Follow-up (prior dispute in evidence)</SelectItem>
               </SelectContent>
             </Select>
+            {structuredHistory &&
+              (structuredHistory.dispute_rounds > 0 ||
+                structuredHistory.dispute_letters > 0 ||
+                structuredHistory.bureau_responses > 0) &&
+              letterMode === 'initial' && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Structured history exists — server will use follow-up/escalation framing even if Initial is selected.
+                </p>
+              )}
           </div>
           <div className="space-y-2">
             <Label>Dispute focus</Label>
@@ -370,16 +405,24 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
         {result && (
           <div className="space-y-4 pt-2 border-t border-border">
             {meta && (
-              <p className="text-xs text-muted-foreground">
-                Evidence: <strong>{meta.evidence_event_count}</strong> row(s)
-                {meta.evidence_scope === 'all_sources_fallback' && ' (all sources — none tagged for this bureau)'}
-                {meta.scheduled_task_count != null && meta.scheduled_task_count > 0 && (
-                  <> · <strong>{meta.scheduled_task_count}</strong> scheduled task(s) included as context</>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Timeline evidence: <strong>{meta.evidence_same_source_count ?? meta.evidence_event_count ?? 0}</strong>{' '}
+                  same-source row(s)
+                  {meta.evidence_scope === 'all_sources_fallback' && ' (fell back to all sources)'}
+                  {meta.letter_mode_overridden && (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      {' '}
+                      · mode upgraded to <strong>{meta.letter_mode}</strong> based on file history
+                    </span>
+                  )}
+                </p>
+                {contextSummary && (
+                  <p className="text-xs text-muted-foreground">
+                    History/profile loaded: {contextSummary}
+                  </p>
                 )}
-                {meta.inquiries_flagged_unauthorized != null && meta.inquiries_flagged_unauthorized > 0 && (
-                  <> · <strong>{meta.inquiries_flagged_unauthorized}</strong> unauthorized inquiry(ies)</>
-                )}
-              </p>
+              </div>
             )}
             {result.opening_summary && (
               <div>
@@ -421,6 +464,18 @@ export function ResponseAnalyzerPanel({ clientId, events }: ResponseAnalyzerPane
                 onChange={(e) => setEditedLetter(e.target.value)}
               />
             </div>
+            {result.strength_checklist && (
+              <div className="rounded-md border bg-muted/20 p-3 text-xs space-y-1">
+                <p className="font-medium">
+                  Strength score: {result.strength_checklist.score ?? '—'}/100
+                </p>
+                {(result.strength_checklist.statutes_invoked?.length ?? 0) > 0 && (
+                  <p className="text-muted-foreground">
+                    Statutes scaffold: {result.strength_checklist.statutes_invoked!.length} FCRA bases included
+                  </p>
+                )}
+              </div>
+            )}
             {result.operator_checklist.length > 0 && (
               <Alert>
                 <AlertTitle>Checklist before sending</AlertTitle>

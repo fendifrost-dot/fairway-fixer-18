@@ -19,8 +19,24 @@ function maskPII(text: string): string {
   return masked;
 }
 
-const MAX_RESPONSE_CHARS = 14_000;
+const MAX_RESPONSE_CHARS = 10_000;
 const MAX_EVENTS = 400;
+const MAX_EVENTS_FOR_MODEL = 60;
+const MAX_FIELD_CHARS = 500;
+const AI_TIMEOUT_MS = 50_000;
+
+function trimForModel(text: string, max = MAX_FIELD_CHARS): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max)}…[truncated]`;
+}
+
+function jsonError(message: string, status: number): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -113,19 +129,26 @@ serve(async (req) => {
     const events = eventRows || [];
     responseText = maskPII(responseText.slice(0, MAX_RESPONSE_CHARS));
 
-    const evidenceForModel = events.map((e) => ({
+    const eventsForModel = events.length > MAX_EVENTS_FOR_MODEL
+      ? events.slice(-MAX_EVENTS_FOR_MODEL)
+      : events;
+
+    const evidenceForModel = eventsForModel.map((e) => ({
       event_kind: e.event_kind,
       category: e.category,
       event_date: e.event_date,
       date_is_unknown: e.date_is_unknown,
-      title: maskPII(String(e.title || "")),
-      summary: maskPII(String(e.summary || "")),
-      raw_line: maskPII(String(e.raw_line || "")),
+      title: trimForModel(maskPII(String(e.title || ""))),
+      summary: trimForModel(maskPII(String(e.summary || ""))),
+      raw_line: trimForModel(maskPII(String(e.raw_line || ""))),
     }));
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      return jsonError(
+        "LOVABLE_API_KEY is not configured — AI parsing works on this project but this function may need a Lovable redeploy/sync.",
+        500,
+      );
     }
 
     const clientLabel = [clientRow.preferred_name, clientRow.legal_name].filter(Boolean).join(" / ");
@@ -136,16 +159,22 @@ Consumer reference name(s) (may be partial / masked): ${clientLabel || "Not prov
 --- Bureau / furnisher RESPONSE document (PII may be masked) ---
 ${responseText}
 
---- Prior evidence timeline rows for the SAME source (${bureauSource}) on this file (${events.length} events, non-draft) ---
-${JSON.stringify(evidenceForModel, null, 2)}`;
+--- Prior evidence timeline rows for the SAME source (${bureauSource}) on this file (${eventsForModel.length} of ${events.length} events shown, non-draft) ---
+${JSON.stringify(evidenceForModel)}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), AI_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        signal: aiController.signal,
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [
           {
@@ -203,7 +232,20 @@ Rules:
           function: { name: "dispute_letter_draft" },
         },
       }),
-    });
+      });
+    } catch (fetchErr) {
+      clearTimeout(aiTimeout);
+      const aborted = fetchErr instanceof Error && fetchErr.name === "AbortError";
+      console.error("AI gateway fetch error:", fetchErr);
+      return jsonError(
+        aborted
+          ? "Letter draft timed out — try a shorter bureau response paste or fewer timeline rows."
+          : "Letter draft request failed to reach AI gateway",
+        aborted ? 504 : 502,
+      );
+    } finally {
+      clearTimeout(aiTimeout);
+    }
 
     if (!response.ok) {
       const status = response.status;
@@ -262,6 +304,8 @@ Rules:
         },
         meta: {
           evidence_event_count: events.length,
+          evidence_events_sent_to_model: eventsForModel.length,
+          evidence_truncated: events.length > eventsForModel.length,
           bureau_source: bureauSource,
           response_chars_used: responseText.length,
         },

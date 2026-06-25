@@ -26,3 +26,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Build artifacts / tooling temp (regenerated)
+*.tsbuildinfo
+*.timestamp-*.mjs
+supabase/.temp/
+deno.lock
+
+# Client working documents (contain PII — keep out of source control)
+Jamal_Harris_*.md

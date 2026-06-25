@@ -421,7 +421,33 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
       );
     }
 
-    const data = await response.json();
+    // Read as text first: a 200 with a non-JSON body (gateway/proxy notice,
+    // empty body, SSE chunk) otherwise throws a raw SyntaxError that surfaces
+    // as an opaque 500 (e.g. "No number after minus sign in JSON...").
+    const rawGatewayBody = await response.text();
+    let data: {
+      choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
+    };
+    try {
+      data = JSON.parse(rawGatewayBody);
+    } catch (parseErr) {
+      const snippet = rawGatewayBody.slice(0, 200);
+      console.error(
+        "AI gateway returned a 200 with non-JSON body:",
+        parseErr,
+        "content-type:",
+        response.headers.get("content-type"),
+        "body[0:200]:",
+        snippet,
+      );
+      return jsonError(
+        `AI gateway returned an unparseable response (content-type: ${
+          response.headers.get("content-type") ?? "unknown"
+        }). Body begins: ${snippet || "<empty>"}`,
+        502,
+      );
+    }
+
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall) {
@@ -438,7 +464,7 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
       operator_checklist?: string[];
     };
     try {
-      parsed = JSON.parse(toolCall.function.arguments);
+      parsed = JSON.parse(toolCall.function?.arguments ?? "");
     } catch {
       return new Response(
         JSON.stringify({ error: "Failed to parse AI output", result: null }),
@@ -489,9 +515,16 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
     );
   } catch (e) {
     console.error("analyze-bureau-response error:", e);
+    // Surface the throw location so an opaque crash (e.g. a stray JSON.parse)
+    // is diagnosable from the response, not just the logs.
+    const where = e instanceof Error
+      ? (e.stack?.split("\n").find((l) => l.includes("index.ts") || l.includes(".ts")) ?? "").trim()
+      : "";
     return new Response(
       JSON.stringify({
         error: e instanceof Error ? e.message : "Unknown error",
+        error_name: e instanceof Error ? e.name : undefined,
+        error_at: where || undefined,
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

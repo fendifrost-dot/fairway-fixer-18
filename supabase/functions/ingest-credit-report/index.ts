@@ -194,10 +194,30 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Thrown Supabase PostgrestErrors are plain objects, not Error instances —
+    // `String(err)` would yield "[object Object]" and hide the real cause.
+    const obj = (err && typeof err === "object" ? err : null) as
+      | { message?: unknown; error_description?: unknown; code?: unknown; details?: unknown; hint?: unknown }
+      | null;
+    const msg = err instanceof Error
+      ? err.message
+      : obj?.message != null || obj?.error_description != null
+        ? String(obj.message ?? obj.error_description)
+        : typeof err === "string"
+          ? err
+          : JSON.stringify(obj ?? null);
+    console.error("ingest-credit-report error:", err);
+    return new Response(
+      JSON.stringify({
+        error: msg,
+        code: obj?.code ?? null,
+        details: obj?.details ?? null,
+        hint: obj?.hint ?? null,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

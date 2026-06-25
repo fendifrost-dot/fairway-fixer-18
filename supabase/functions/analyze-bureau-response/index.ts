@@ -520,11 +520,26 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
     const where = e instanceof Error
       ? (e.stack?.split("\n").find((l) => l.includes("index.ts") || l.includes(".ts")) ?? "").trim()
       : "";
+    // Thrown Supabase PostgrestErrors are plain objects, not Error instances —
+    // unwrap them so a DB failure shows its real message/code, not "Unknown error".
+    const obj = (e && typeof e === "object" ? e : null) as
+      | { message?: unknown; code?: unknown; details?: unknown; hint?: unknown }
+      | null;
+    const msg = e instanceof Error
+      ? e.message
+      : obj?.message != null
+        ? String(obj.message)
+        : typeof e === "string"
+          ? e
+          : "Unknown error";
     return new Response(
       JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
+        error: msg,
         error_name: e instanceof Error ? e.name : undefined,
         error_at: where || undefined,
+        code: obj?.code ?? undefined,
+        details: obj?.details ?? undefined,
+        hint: obj?.hint ?? undefined,
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

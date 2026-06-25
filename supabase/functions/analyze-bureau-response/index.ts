@@ -4,6 +4,11 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  buildSystemPrompt,
+  mergeFlaggedInquiries,
+  parseInquiriesFromReportText,
+} from "../_shared/inquiryParse.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,6 +75,13 @@ serve(async (req) => {
       client_id?: string;
       bureau_source?: string;
       response_document_text?: string;
+      letter_mode?: "initial" | "follow_up";
+      dispute_focus?: "auto" | "tradeline" | "inquiry";
+      flagged_inquiries?: {
+        creditor: string;
+        inquiry_date?: string | null;
+        dispute_as_unauthorized?: boolean;
+      }[];
     };
     try {
       body = await req.json();
@@ -93,6 +105,11 @@ serve(async (req) => {
       );
     }
 
+    const letterMode = body.letter_mode === "follow_up" ? "follow_up" : "initial";
+    const disputeFocus = ["auto", "tradeline", "inquiry"].includes(body.dispute_focus ?? "")
+      ? (body.dispute_focus as "auto" | "tradeline" | "inquiry")
+      : "auto";
+
     const { data: clientRow, error: clientErr } = await supabase
       .from("clients")
       .select("id, legal_name, preferred_name")
@@ -106,10 +123,10 @@ serve(async (req) => {
       );
     }
 
-    const { data: eventRows, error: eventsError } = await supabase
+    const { data: sourceEventRows, error: eventsError } = await supabase
       .from("timeline_events")
       .select(
-        "event_kind, category, event_date, date_is_unknown, summary, title, raw_line, created_at"
+        "event_kind, category, event_date, date_is_unknown, summary, title, raw_line, source, created_at"
       )
       .eq("client_id", clientId)
       .eq("source", bureauSource)
@@ -126,7 +143,48 @@ serve(async (req) => {
       );
     }
 
-    const events = eventRows || [];
+    let evidenceScope: "same_source" | "all_sources_fallback" = "same_source";
+    let events = sourceEventRows || [];
+    const sameSourceCount = events.length;
+
+    if (events.length === 0) {
+      const { data: allEventRows, error: allErr } = await supabase
+        .from("timeline_events")
+        .select(
+          "event_kind, category, event_date, date_is_unknown, summary, title, raw_line, source, created_at"
+        )
+        .eq("client_id", clientId)
+        .eq("is_draft", false)
+        .in("event_kind", ["action", "response", "outcome", "note"])
+        .order("event_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true })
+        .limit(MAX_EVENTS);
+
+      if (allErr) {
+        return new Response(
+          JSON.stringify({ error: "Failed to load timeline evidence", details: allErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      events = allEventRows || [];
+      if (events.length > 0) evidenceScope = "all_sources_fallback";
+    }
+
+    const { data: taskRows } = await supabase
+      .from("operator_tasks")
+      .select("title, notes, due_date, status, priority")
+      .eq("client_id", clientId)
+      .in("status", ["Open", "Done"])
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(25);
+
+    const scheduledTasks = (taskRows ?? []).map((t) => ({
+      title: trimForModel(String(t.title || "")),
+      notes: trimForModel(maskPII(String(t.notes || ""))),
+      due_date: t.due_date,
+      status: t.status,
+      priority: t.priority,
+    }));
     responseText = maskPII(responseText.slice(0, MAX_RESPONSE_CHARS));
 
     const eventsForModel = events.length > MAX_EVENTS_FOR_MODEL
@@ -138,10 +196,19 @@ serve(async (req) => {
       category: e.category,
       event_date: e.event_date,
       date_is_unknown: e.date_is_unknown,
+      source: e.source,
       title: trimForModel(maskPII(String(e.title || ""))),
       summary: trimForModel(maskPII(String(e.summary || ""))),
       raw_line: trimForModel(maskPII(String(e.raw_line || ""))),
     }));
+
+    const parsedInquiries = mergeFlaggedInquiries(
+      parseInquiriesFromReportText(responseText),
+      body.flagged_inquiries ?? [],
+    );
+    const unauthorizedInquiries = parsedInquiries.filter((i) => i.dispute_as_unauthorized);
+    const effectiveFocus =
+      disputeFocus === "auto" && unauthorizedInquiries.length > 0 ? "inquiry" : disputeFocus;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -154,13 +221,21 @@ serve(async (req) => {
     const clientLabel = [clientRow.preferred_name, clientRow.legal_name].filter(Boolean).join(" / ");
 
     const userPrompt = `Target bureau/source (enum): ${bureauSource}
+Letter mode: ${letterMode}
+Dispute focus: ${effectiveFocus}
 Consumer reference name(s) (may be partial / masked): ${clientLabel || "Not provided"}
 
---- Bureau / furnisher RESPONSE document (PII may be masked) ---
+--- Document text (credit report excerpt, bureau response, or operator paste; PII may be masked) ---
 ${responseText}
 
---- Prior evidence timeline rows for the SAME source (${bureauSource}) on this file (${eventsForModel.length} of ${events.length} events shown, non-draft) ---
-${JSON.stringify(evidenceForModel)}`;
+--- Hard inquiries parsed from document (${parsedInquiries.length} total; ${unauthorizedInquiries.length} flagged unauthorized) ---
+${JSON.stringify(parsedInquiries)}
+
+--- Evidence timeline (${eventsForModel.length} of ${events.length} rows; scope: ${evidenceScope}; same-source count: ${sameSourceCount}) ---
+${JSON.stringify(evidenceForModel)}
+
+--- Scheduled operator tasks (planning context — not sworn evidence; ${scheduledTasks.length} rows) ---
+${JSON.stringify(scheduledTasks)}`;
 
     const aiController = new AbortController();
     const aiTimeout = setTimeout(() => aiController.abort(), AI_TIMEOUT_MS);
@@ -179,14 +254,7 @@ ${JSON.stringify(evidenceForModel)}`;
         messages: [
           {
             role: "system",
-            content: `You assist a credit-file dispute professional drafting a follow-up letter. You are NOT a lawyer and do not give legal advice.
-
-Rules:
-- Use ONLY facts present in the bureau response text and the evidence timeline JSON. Never invent dates, account numbers, investigation outcomes, or communications.
-- If something important is missing from the inputs, add it to operator_checklist (things the operator must verify or fill in before sending).
-- The letter must be professional, factual, and ready for the operator to edit. Do not assert legal conclusions; describe what was sent, what was received, and what the consumer disputes or requests based on the supplied facts.
-- Reference the volume and nature of prior correspondence only as summarized from the evidence rows (counts, dates, kinds of events).
-- Valid event_kind values in evidence: action, response, outcome, note.`,
+            content: buildSystemPrompt(letterMode, effectiveFocus),
           },
           {
             role: "user",
@@ -204,7 +272,7 @@ Rules:
                 properties: {
                   draft_letter: {
                     type: "string",
-                    description: "Full letter body the operator can edit (salutation may be generic)",
+                    description: "Full letter body — no bracket placeholders, no enclosures list",
                   },
                   opening_summary: {
                     type: "string",
@@ -304,6 +372,13 @@ Rules:
         },
         meta: {
           evidence_event_count: events.length,
+          evidence_same_source_count: sameSourceCount,
+          evidence_scope: evidenceScope,
+          scheduled_task_count: scheduledTasks.length,
+          inquiries_parsed: parsedInquiries.length,
+          inquiries_flagged_unauthorized: unauthorizedInquiries.length,
+          letter_mode: letterMode,
+          dispute_focus: effectiveFocus,
           evidence_events_sent_to_model: eventsForModel.length,
           evidence_truncated: events.length > eventsForModel.length,
           bureau_source: bureauSource,

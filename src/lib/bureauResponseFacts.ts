@@ -9,6 +9,7 @@ export interface BureauEvidenceFact {
   summary: string;
   title: string;
   raw_line: string;
+  source?: string | null;
 }
 
 export interface BureauEvidenceSummary {
@@ -35,6 +36,7 @@ export function timelineToEvidenceFacts(events: TimelineEvent[]): BureauEvidence
     summary: e.summary ?? '',
     title: e.title ?? '',
     raw_line: (e.raw_line ?? '').trim(),
+    source: e.source ?? null,
   }));
 }
 

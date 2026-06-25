@@ -2,6 +2,11 @@
  * Violation detection + max-strength letter assembly (W2).
  */
 
+import {
+  buildScenarioStrengthBundle,
+  type ScenarioType,
+} from "./letterStrengthBlocks.ts";
+
 export interface PaymentGridEntry {
   month: string;
   status: string;
@@ -38,6 +43,24 @@ export interface DisputeLetterInput {
   evidence: LetterEvidence[];
   priorRoundExists?: boolean;
   cfpbComplaintIds?: string[];
+  /** Explicit §4 scenario; derived from recipientType + FTC report when omitted. */
+  scenarioType?: ScenarioType;
+  /** FTC Identity Theft Report number, when on file (enables identity-theft scenarios + enclosures line). */
+  ftcReportNumber?: string | null;
+}
+
+/**
+ * Derive the §4 scenario when the caller does not pass one explicitly.
+ * Honors the §0 guardrail: a CRA dispute is only identity-theft when an FTC
+ * report is on file; otherwise it is the accuracy/reinsertion path.
+ */
+export function deriveScenarioType(
+  recipientType: DisputeLetterInput['recipientType'],
+  hasFtcReport: boolean,
+): ScenarioType {
+  if (recipientType === 'furnisher' || recipientType === 'collector') return 'furnisher';
+  // cra / regulator
+  return hasFtcReport ? 'cra_account_idtheft' : 'cra_reinsertion_or_accuracy';
 }
 
 export interface StrengthChecklist {
@@ -161,24 +184,78 @@ export function buildDisputeLetterBody(input: DisputeLetterInput): {
           .join('\n')}`
       : '';
 
-  const statutes = [...STATUTES_ALL];
+  const hasFtcReport = Boolean(input.ftcReportNumber);
+  const scenario = input.scenarioType ?? deriveScenarioType(input.recipientType, hasFtcReport);
+  const bundle = buildScenarioStrengthBundle(scenario, input.recipientName);
+  const isFurnisher = scenario === 'furnisher';
+
+  const statutes = [...bundle.statute_stack];
   if (input.recipientType === 'collector') {
-    statutes.push('15 U.S.C. §1692g — FDCPA validation');
+    statutes.push('15 U.S.C. § 1692g — FDCPA validation');
   }
 
-  const body_md = `# Formal Dispute — ${input.letterType}
+  const reCite =
+    scenario === 'cra_account_idtheft'
+      ? '15 U.S.C. § 1681c-2 (§605B)'
+      : scenario === 'cra_inquiry'
+        ? '15 U.S.C. § 1681b & § 1681c-2'
+        : scenario === 'furnisher'
+          ? '15 U.S.C. § 1681s-2'
+          : '15 U.S.C. § 1681e(b) & § 1681i';
 
-**To:** ${input.recipientName}
-**Re:** ${input.clientName} — ${input.letterType}
-**Date:** ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+  const firstTl = input.tradelines[0];
+  const itemIdentifier = firstTl
+    ? `${firstTl.furnisher_raw}${firstTl.account_mask ? `, Account No. ending ${firstTl.account_mask}` : ''}`
+    : input.letterType;
 
-Dear ${input.recipientName},
+  const roleClause = isFurnisher ? 'as a furnisher of information' : 'as a consumer reporting agency';
 
-Pursuant to the Fair Credit Reporting Act and applicable furnisher duties, I formally dispute the following tradeline(s) as **inaccurate, incomplete, and unverifiable**:
+  // Numbered demand (§1 item 8) — permanent deletion + written confirmation,
+  // scenario-correct. CRA letters append the reinsertion trap.
+  const demandItems: string[] = isFurnisher
+    ? [
+        `cease furnishing and ${bundle.permanent_deletion_demand};`,
+        'conduct the reasonable investigation required by 15 U.S.C. § 1681s-2(b) and report the corrected results to every consumer reporting agency to which you furnished the information;',
+        'provide written confirmation of the action taken.',
+      ]
+    : [
+        `${bundle.permanent_deletion_demand};`,
+        'notify the furnisher of the deletion and direct it not to re-report the information;',
+        'provide method-of-verification disclosure under 15 U.S.C. § 1681i(a)(6)(B)(iii) and § 1681i(a)(7), identifying how the item was verified and the furnisher records relied upon;',
+        'provide written confirmation of the action taken.',
+      ];
 
-${tradelineList}
-${violationSection}
-${evidenceSection}
+  const dataBreachSection = bundle.data_breach_paragraph
+    ? `\n\n${bundle.data_breach_paragraph}`
+    : '';
+
+  const enclosuresLine = hasFtcReport
+    ? `\n\nEnclosures: FTC Identity Theft Report No. ${input.ftcReportNumber}; government-issued identification; proof of current address.`
+    : '';
+
+  const dateStr = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const body_md = `**${bundle.certified_mail_header}**
+
+${input.clientName}
+
+${dateStr}
+
+${input.recipientName}
+
+**RE: FORMAL DEMAND — ${reCite} — ${itemIdentifier}**
+
+To Whom It May Concern:
+
+${bundle.formal_demand_opening} I dispute the item${input.tradelines.length === 1 ? '' : 's'} identified above and demand ${isFurnisher ? 'correction and permanent deletion' : 'a block and permanent deletion'} of the information.
+
+${tradelineList}${dataBreachSection}${violationSection}${evidenceSection}
+
+${bundle.controlling_statute_quote}
 
 ## Statutory Basis
 
@@ -186,43 +263,51 @@ ${statutes.map((s) => `- ${s}`).join('\n')}
 
 ## Case Law
 
-- *Cushman v. Trans Union*, 115 F.3d 220 (3d Cir. 1997) — reasonable reinvestigation standard
-- *Safeco Ins. Co. v. Burr*, 551 U.S. 47 (2007) — willfulness under FCRA
-${escalationNote}
+${bundle.case_law.map((c) => `- ${c}`).join('\n')}${escalationNote}
+
+${bundle.liability_notice}
 
 ## Demand
 
-Within **30 days** of receipt, ${input.recipientType === 'furnisher' ? 'as furnisher of information' : 'as consumer reporting agency'}, you must:
+I therefore demand that you, ${roleClause}:
 
-1. Conduct a reasonable reinvestigation of each disputed item;
-2. **Delete** all tradelines and late-payment notations that cannot be verified with specific documentary evidence;
-3. Provide method-of-verification disclosure identifying the furnisher records relied upon;
-4. Correct all pay-history grids to reflect accurate payment status.
+${demandItems.map((d, i) => `${i + 1}. ${d}`).join('\n')}
+${bundle.reinsertion_trap ? `\n${bundle.reinsertion_trap}` : ''}
 
-Failure to comply will result in escalation to the CFPB${input.cfpbComplaintIds?.length ? ` (Complaint IDs: ${input.cfpbComplaintIds.join(', ')})` : ''}, state regulators, and potential litigation under §1681n/§1681o.
+${bundle.reservation_of_rights}${input.cfpbComplaintIds?.length ? ` Failure to comply will be escalated to the CFPB (Complaint IDs: ${input.cfpbComplaintIds.join(', ')}) and state regulators.` : ''}
 
-Respectfully,
+Sincerely,
 
-Continuum Capital Group
-Credit Restoration & Consumer Advocacy
+${input.clientName}${enclosuresLine}
 `;
+
+  const requiredStrengthElements = [
+    'Certified-mail header line',
+    'Formal-demand opening ("formal demand, not a routine dispute")',
+    'Controlling statute quoted + deadline clock',
+    'Scenario-correct case law',
+    'Liability notice (§1681n + §1681o + preservation)',
+    'Numbered demand with permanent deletion + written confirmation',
+    'Reservation of rights',
+  ];
+  if (bundle.data_breach_paragraph) requiredStrengthElements.push('Data-breach paragraph (identity-theft basis)');
+  if (bundle.reinsertion_trap) requiredStrengthElements.push('Reinsertion trap (§1681i(a)(5)(B))');
+  if (hasFtcReport) requiredStrengthElements.push('Enclosures line (FTC report on file)');
 
   const checklist: StrengthChecklist = {
     statutes_invoked: statutes,
     contradictions_cited: contradictions,
     evidence_attached: input.evidence.map((e) => e.title),
     demand_and_deadline: true,
-    required_strength_elements: [
-      "Method-of-verification demand under §1681i(a)(6)(B)(iii) and §1681i(a)(7)",
-      "30-day reinvestigation/deletion confirmation deadline",
-    ],
+    required_strength_elements: requiredStrengthElements,
     score: Math.min(
       100,
       20 +
-        (statutes.length >= 8 ? 25 : 10) +
-        (contradictions.length > 0 ? 25 : 0) +
-        (evidenceQuotes.length > 0 ? 20 : 0) +
-        10,
+        (statutes.length >= 4 ? 25 : 10) +
+        (contradictions.length > 0 ? 20 : 0) +
+        (evidenceQuotes.length > 0 ? 15 : 0) +
+        (bundle.data_breach_paragraph ? 5 : 0) +
+        15,
     ),
   };
 

@@ -57,6 +57,16 @@ export function bureauSourceToDb(source: string): string | null {
   return map[source] ?? null;
 }
 
+const BUREAU_DB_TO_DISPLAY: Record<string, string> = {
+  experian: "Experian",
+  equifax: "Equifax",
+  transunion: "TransUnion",
+};
+
+export function bureauDbToDisplay(db: string): string {
+  return BUREAU_DB_TO_DISPLAY[db.toLowerCase()] ?? db;
+}
+
 export interface ProfileTradeline {
   id: string;
   furnisher_raw: string;
@@ -74,6 +84,13 @@ export interface ProfileTradeline {
     two_year_payment_grid: { month: string; status: string }[];
   }[];
   reinsertion_signal: boolean;
+  /**
+   * Other nationwide bureaus (display names) that no longer report this
+   * tradeline while the target bureau still does — cross-bureau §1681e(b)
+   * leverage. Empty when the item is absent on the target bureau or present
+   * everywhere.
+   */
+  cross_bureau_deleted_by: string[];
 }
 
 export interface AnalyzerHistoryDigest {
@@ -265,6 +282,22 @@ export async function loadAnalyzerContext(
     const reinsertion_signal = /reinsert|re-report|deleted.*again|absent.*present/i.test(
       `${tradelineNotes} ${stateNotes}`,
     ) || (bureauStates.some((s) => !s.present) && bureauStates.some((s) => s.present));
+
+    // Cross-bureau leverage: only meaningful when the TARGET bureau still
+    // reports the item but other nationwide bureaus no longer do.
+    const presentOnTarget = bureauDb
+      ? states.some((s) => s.bureau === bureauDb && s.present)
+      : false;
+    const crossBureauDeletedBy = presentOnTarget
+      ? Array.from(
+        new Set(
+          states
+            .filter((s) => s.bureau && s.bureau !== bureauDb && !s.present)
+            .map((s) => bureauDbToDisplay(s.bureau)),
+        ),
+      )
+      : [];
+
     return {
       id: tl.id as string,
       furnisher_raw: String(tl.display_name ?? tl.furnisher_raw ?? "Unknown"),
@@ -273,6 +306,7 @@ export async function loadAnalyzerContext(
       operator_disputed: bureauStates.some((s) => s.operator_disputed),
       states: bureauStates,
       reinsertion_signal,
+      cross_bureau_deleted_by: crossBureauDeletedBy,
     };
   });
 

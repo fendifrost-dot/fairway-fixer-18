@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildDisputeLetterBody } from "../_shared/disputeLetterGenerator.ts";
+import { isScenarioType } from "../_shared/letterStrengthBlocks.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,7 @@ serve(async (req) => {
     const recipientName = body.recipient_name as string;
     const letterType = body.letter_type as string;
     const tradelineIds = (body.tradeline_ids as string[]) ?? [];
+    const scenarioType = isScenarioType(body.scenario_type) ? body.scenario_type : undefined;
 
     if (!clientId || !recipientType || !recipientName || !letterType) {
       return new Response(
@@ -117,6 +119,8 @@ serve(async (req) => {
         violations: [],
         evidence,
         priorRoundExists: (priorRounds?.length ?? 0) > 0,
+        scenarioType,
+        ftcReportNumber: client?.ftc_identity_theft_report_number ?? null,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

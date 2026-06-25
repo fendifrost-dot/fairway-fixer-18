@@ -11,6 +11,14 @@ import {
 } from "../_shared/inquiryParse.ts";
 import { loadAnalyzerContext, resolveEffectiveLetterMode } from "../_shared/analyzerContext.ts";
 import { STATUTES_ALL, buildAnalyzerStrengthFloor } from "../_shared/disputeLetterGenerator.ts";
+import { isScenarioType, type ScenarioType } from "../_shared/letterStrengthBlocks.ts";
+
+/** CRA scenarios only — this function targets a credit bureau, never a furnisher. */
+const CRA_SCENARIOS: ScenarioType[] = [
+  "cra_account_idtheft",
+  "cra_inquiry",
+  "cra_reinsertion_or_accuracy",
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +87,7 @@ serve(async (req) => {
       response_document_text?: string;
       letter_mode?: "initial" | "follow_up";
       dispute_focus?: "auto" | "tradeline" | "inquiry";
+      scenario_type?: string;
       flagged_inquiries?: {
         creditor: string;
         inquiry_date?: string | null;
@@ -219,6 +228,32 @@ serve(async (req) => {
       return `${t.furnisher_raw} (${mask})`;
     });
 
+    const hasFtcReport = Boolean(history.ftc_identity_theft_report_number);
+
+    // Scenario routing (§4). This function is CRA-only; furnisher disputes go
+    // through generate-dispute-letter. An operator override is honored only
+    // for CRA scenarios; otherwise derive from focus + identity-theft basis.
+    const overrideScenario =
+      isScenarioType(body.scenario_type) && CRA_SCENARIOS.includes(body.scenario_type)
+        ? body.scenario_type
+        : null;
+    const scenarioType: ScenarioType =
+      overrideScenario ??
+      (effectiveFocus === "inquiry"
+        ? "cra_inquiry"
+        : hasFtcReport
+          ? "cra_account_idtheft"
+          : "cra_reinsertion_or_accuracy");
+
+    // Cross-bureau §1681e(b) leverage: bureaus that already dropped a disputed
+    // item the target bureau still reports. Only meaningful for tradelines.
+    const crossBureauDeletedBy =
+      scenarioType === "cra_inquiry"
+        ? []
+        : Array.from(
+          new Set(profile.tradelines.flatMap((t) => t.cross_bureau_deleted_by ?? [])),
+        );
+
     const strength_floor = buildAnalyzerStrengthFloor({
       violations: [...profile.tradeline_violations, ...profile.credit_report_violations],
       priorRoundExists:
@@ -293,11 +328,14 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
               has_verified_without_docs: history.has_verified_without_docs,
               has_reinsertion_signal: history.has_reinsertion_signal,
               ftc_identity_theft_report_number: history.ftc_identity_theft_report_number,
-              has_ftc_report: Boolean(history.ftc_identity_theft_report_number),
+              has_ftc_report: hasFtcReport,
               cfpb_or_ag_task_count: history.cfpb_or_ag_tasks.length,
               statutes_scaffold: strength_floor.statutes_invoked,
               account_identifiers: accountIdentifiers,
               required_strength_elements: strength_floor.required_strength_elements,
+              scenario_type: scenarioType,
+              recipient_label: bureauSource,
+              cross_bureau_deleted_by: crossBureauDeletedBy,
             }),
           },
           {
@@ -317,7 +355,7 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
                   draft_letter: {
                     type: "string",
                     description:
-                      "Full letter body — no bracket placeholders. Must include all applicable MAXIMUM-STRENGTH elements (§605B block when FTC on file, not-my-account statement, MOV demand, dual deadlines, account identifiers, §1681n willful notice when facts support). No separate Enclosures section; at most one inline Enclosed sentence.",
+                      "Full letter body — no bracket placeholders, no blank signature line (typed name only). Must follow the canonical skeleton and include all applicable MAXIMUM-STRENGTH elements: certified-mail header line, 'formal demand, not a routine dispute' opening, data-breach paragraph (identity-theft basis only), controlling-statute quote + deadline clock, §605B block when FTC on file, not-my-account statement, MOV demand, dual deadlines, scenario-correct case law (Cushman+Hinkle for bureaus), verbatim liability notice (§1681n + §1681o + preservation), cross-bureau leverage when present, numbered permanent-deletion demand + written confirmation + reinsertion trap, and reservation of rights. Hybrid enclosures: a single 'Enclosures: …' line is allowed only when an FTC report number is on file; otherwise keep enclosures in operator_checklist.",
                   },
                   opening_summary: {
                     type: "string",
@@ -437,6 +475,9 @@ ${JSON.stringify({ violations: [...profile.tradeline_violations, ...profile.cred
           tradeline_count: profile.tradelines.length,
           violation_count: profile.tradeline_violations.length + profile.credit_report_violations.length,
           dispute_focus: effectiveFocus,
+          scenario_type: scenarioType,
+          scenario_type_overridden: Boolean(overrideScenario),
+          cross_bureau_deleted_by: crossBureauDeletedBy,
           evidence_events_sent_to_model: eventsForModel.length,
           evidence_truncated: events.length > eventsForModel.length,
           bureau_source: bureauSource,

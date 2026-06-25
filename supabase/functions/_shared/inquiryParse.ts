@@ -1,3 +1,8 @@
+import {
+  buildScenarioStrengthBundle,
+  type ScenarioType,
+} from "./letterStrengthBlocks.ts";
+
 export interface ParsedInquiry {
   creditor: string;
   inquiry_date: string | null;
@@ -76,6 +81,16 @@ export interface PromptHistoryContext {
   statutes_scaffold: string[];
   account_identifiers: string[];
   required_strength_elements: string[];
+  /** Scenario routing for the §4 statute matrix / §5 case-law selection. */
+  scenario_type: ScenarioType;
+  /** Recipient label spliced into the deterministic liability notice. */
+  recipient_label: string;
+  /**
+   * Cross-bureau leverage (§4): nationwide agencies that already deleted this
+   * item as not the consumer's. The single most compelling factual lever —
+   * always surface when present.
+   */
+  cross_bureau_deleted_by: string[];
 }
 
 function buildMaximumStrengthRules(
@@ -90,9 +105,30 @@ function buildMaximumStrengthRules(
       history.has_verified_without_docs ||
       history.prior_round_exists);
 
+  const bundle = buildScenarioStrengthBundle(history.scenario_type, history.recipient_label);
+  const recipientLabel = history.recipient_label || "the bureau";
+
   const blocks: string[] = [];
 
-  if (hasFtc && isTradeline) {
+  blocks.push(`CERTIFIED-MAIL HEADER (MANDATORY — the very first line of draft_letter):
+- Begin the letter with this exact bold line, on its own: "${bundle.certified_mail_header}".`);
+
+  blocks.push(`OPENING FRAMING (MANDATORY — first sentence of the body):
+- Open with this exact framing, verbatim: "${bundle.formal_demand_opening}"
+- Then state, in the consumer's voice, what the disputed item is and that the enclosures (FTC Identity Theft Report, government-issued ID, proof of address) accompany the letter when those facts are on file.`);
+
+  if (bundle.allows_identity_theft) {
+    blocks.push(`DATA-BREACH PARAGRAPH (MANDATORY — identity-theft basis; include this paragraph VERBATIM, do not paraphrase the citation-bearing sentence):
+"${bundle.data_breach_paragraph}"
+- If the file documents a specific breach, you MAY add ONE naming sentence (e.g., "including the [Year] [Company] breach"); otherwise keep it generic. Never invent a breach.`);
+  } else {
+    blocks.push(`ACCURACY-ONLY GUARDRAIL (MANDATORY — scenario is reinsertion/accuracy, NOT identity theft):
+- DO NOT label the item "identity theft," "fraudulent," or "not mine." The item may be the consumer's; the basis is inaccuracy / improper handling.
+- DO NOT include the data-breach paragraph or any §605B / §1681c-2 blocking demand.
+- Frame the demand on accuracy (§1681e(b)), reasonable reinvestigation (§1681i), and reinsertion notice/certification (§1681i(a)(5)(B)).`);
+  }
+
+  if (hasFtc && isTradeline && bundle.allows_identity_theft) {
     blocks.push(`§605B BLOCKING DEMAND (MANDATORY — FTC Identity Theft Report on file; tradeline/account dispute):
 - Include a dedicated §605B / 15 U.S.C. §1681c-2 blocking demand for the disputed account(s).
 - Demand the bureau BLOCK reporting of the information within **4 business days** (not 30 days).
@@ -124,11 +160,9 @@ function buildMaximumStrengthRules(
   }
 
   if (willfulFacts) {
-    blocks.push(`WILLFUL-NONCOMPLIANCE DAMAGES (MANDATORY — willfulness facts present):
-- Put the bureau on explicit notice of liability under **§616, 15 U.S.C. §1681n** for willful noncompliance.
-- State available remedies: **statutory damages of $100 to $1,000 per violation**, **punitive damages**, and **attorney's fees and costs**.
-- Tie willfulness to specific facts in inputs (e.g., reinserting an FTC-reported previously-deleted account; repeated "verified" responses without documentation; prior dispute rounds ignored).
-- Do not rely on *Safeco* alone — state the statutory damages framework directly. *Safeco Ins. Co. v. Burr*, 551 U.S. 47 (2007), may be cited as supporting case law.`);
+    blocks.push(`WILLFULNESS FACT-TIE (MANDATORY — willfulness facts present; the dollar amounts live in the verbatim LIABILITY NOTICE below — do NOT restate them twice):
+- In the sentence(s) immediately preceding the verbatim liability notice, tie willfulness to specific facts in inputs (e.g., reinserting an FTC-reported previously-deleted account; repeated "verified" responses without documentation; prior dispute rounds ignored).
+- *Safeco Ins. Co. v. Burr*, 551 U.S. 47 (2007), may be cited as supporting case law on the willfulness standard — but do not rely on it in place of the statutory damages framework stated in the liability notice.`);
   }
 
   blocks.push(`DUAL DEADLINES (MANDATORY — state separately; never collapse into one deadline):
@@ -146,6 +180,43 @@ function buildMaximumStrengthRules(
     blocks.push(`ACCOUNT IDENTIFIERS:
 - If account mask/last-4 appears in document text or profile digest, cite it in the Re: line and body. Do not invent account numbers.`);
   }
+
+  blocks.push(`CONTROLLING STATUTE — QUOTED + DEADLINE CLOCK (MANDATORY):
+- Quote the operative statutory words in quotation marks and express the deadline as a clock that has already started.
+- Use this exact controlling-statute sentence: "${bundle.controlling_statute_quote}"`);
+
+  blocks.push(`CASE LAW (MANDATORY — cite ONLY these, verbatim; never cite a case that does not fit the scenario):
+${bundle.case_law.map((c) => `- ${c}`).join("\n")}`);
+
+  blocks.push(`LIABILITY NOTICE (MANDATORY — include this paragraph VERBATIM; covers both §1681n willful and §1681o negligent plus preservation):
+"${bundle.liability_notice}"`);
+
+  blocks.push(`PERMANENT-DELETION DEMAND (MANDATORY — in the numbered demand):
+- Demand that the recipient ${bundle.permanent_deletion_demand}.
+- Demand written confirmation of the action taken.${
+    bundle.reinsertion_trap
+      ? `\n- Append the reinsertion trap VERBATIM: "${bundle.reinsertion_trap}"`
+      : ""
+  }`);
+
+  blocks.push(`RESERVATION OF RIGHTS (MANDATORY — include this sentence VERBATIM near the close):
+"${bundle.reservation_of_rights}"`);
+
+  if (history.cross_bureau_deleted_by.length > 0) {
+    blocks.push(`CROSS-BUREAU LEVERAGE (MANDATORY — the single most compelling factual lever; this item was already deleted by other nationwide agencies):
+- State explicitly that ${history.cross_bureau_deleted_by.join(" and ")} already removed this identical item as not the consumer's.
+- Pin it to §1681e(b): an item that other nationwide agencies removed as not the consumer's cannot meet maximum possible accuracy on ${recipientLabel}.
+- Only assert this for the bureaus listed above; do not invent which bureaus deleted the item.`);
+  }
+
+  if (hasFtc && isTradeline) {
+    blocks.push(`ENCLOSURES LINE (HYBRID CONVENTION):
+- Primary enclosure detail belongs in operator_checklist. You MAY add ONE closing line of the form "Enclosures: FTC Identity Theft Report No. ${history.ftc_identity_theft_report_number ?? "[on file]"}; government-issued identification; proof of current address." ONLY when the FTC report number is present in inputs.
+- Do NOT invent an FTC report number. If no number is in inputs, omit the Enclosures line from draft_letter and keep enclosures in operator_checklist only.`);
+  }
+
+  blocks.push(`SIGNATURE (MANDATORY):
+- Close with "Sincerely," then the consumer's typed name only. NO blank signature line, underscore line, or "/s/".`);
 
   blocks.push(`ALWAYS-RETAIN ANCHORS (MANDATORY — include in draft_letter even when adding §605B, MOV, §1681n, and other max-strength content; do NOT drop these to save space):
 - **15 U.S.C. §1681e(b)** — duty to follow reasonable procedures to assure maximum possible accuracy of consumer reports.
@@ -171,7 +242,7 @@ function buildSystemPrompt(
 - Reference prior bureau_responses (especially "verified" without documentation) to challenge reinvestigation reasonableness under §611 / 15 U.S.C. §1681i(a)(1) and furnisher duties under §623 / §1681s-2(b).
 - When FTC Identity Theft Report number is in history digest, cite it and the filing context (do not invent a filing date unless provided).
 - Note prior CFPB / state-AG complaints from history or scheduled tasks when present.
-- Incorporate case-law anchors: *Cushman v. Trans Union*, 115 F.3d 220 (3d Cir. 1997); *Safeco Ins. Co. v. Burr*, 551 U.S. 47 (2007).
+- Use the case-law anchors from the mandatory CASE LAW block below (scenario-correct); cite *Safeco Ins. Co. v. Burr*, 551 U.S. 47 (2007) only as willfulness support when willfulness facts are present.
 - Do not invent bureau acknowledgments, investigation outcomes, or communications not in inputs.`;
 
   const focus =

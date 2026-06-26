@@ -555,14 +555,18 @@ export type Database = {
           created_at: string | null
           diff_summary: string | null
           id: string
+          import_scope: string
           inquiry_count: number | null
           negative_count: number | null
+          parse_summary: string | null
           parsed_data: Json | null
           previous_report_id: string | null
+          raw_text: string | null
           report_date: string
           score_at_report: number | null
           source_file_name: string | null
           source_file_url: string | null
+          source_type: string
         }
         Insert: {
           account_count?: number | null
@@ -572,14 +576,18 @@ export type Database = {
           created_at?: string | null
           diff_summary?: string | null
           id?: string
+          import_scope?: string
           inquiry_count?: number | null
           negative_count?: number | null
+          parse_summary?: string | null
           parsed_data?: Json | null
           previous_report_id?: string | null
+          raw_text?: string | null
           report_date: string
           score_at_report?: number | null
           source_file_name?: string | null
           source_file_url?: string | null
+          source_type?: string
         }
         Update: {
           account_count?: number | null
@@ -589,14 +597,18 @@ export type Database = {
           created_at?: string | null
           diff_summary?: string | null
           id?: string
+          import_scope?: string
           inquiry_count?: number | null
           negative_count?: number | null
+          parse_summary?: string | null
           parsed_data?: Json | null
           previous_report_id?: string | null
+          raw_text?: string | null
           report_date?: string
           score_at_report?: number | null
           source_file_name?: string | null
           source_file_url?: string | null
+          source_type?: string
         }
         Relationships: [
           {
@@ -1606,42 +1618,81 @@ export type Database = {
       }
       tradeline_bureau_states: {
         Row: {
+          absent_in_latest: boolean
+          account_status: string | null
+          balance: number | null
           bureau: Database["public"]["Enums"]["tradeline_bureau"]
           created_at: string
+          credit_report_id: string | null
+          date_reported: string | null
+          dispute_flags: Json
+          high_balance: number | null
           id: string
           last_seen_date: string | null
+          monthly_payment: number | null
           notes: string | null
           operator_disputed: boolean
           operator_disputed_reason: string | null
+          parse_confidence: number | null
+          past_due: number | null
+          pay_status: string | null
           present: boolean
+          remarks: Json
           status_on_bureau: string | null
           tradeline_id: string
+          two_year_payment_grid: Json
           updated_at: string
         }
         Insert: {
+          absent_in_latest?: boolean
+          account_status?: string | null
+          balance?: number | null
           bureau: Database["public"]["Enums"]["tradeline_bureau"]
           created_at?: string
+          credit_report_id?: string | null
+          date_reported?: string | null
+          dispute_flags?: Json
+          high_balance?: number | null
           id?: string
           last_seen_date?: string | null
+          monthly_payment?: number | null
           notes?: string | null
           operator_disputed?: boolean
           operator_disputed_reason?: string | null
+          parse_confidence?: number | null
+          past_due?: number | null
+          pay_status?: string | null
           present?: boolean
+          remarks?: Json
           status_on_bureau?: string | null
           tradeline_id: string
+          two_year_payment_grid?: Json
           updated_at?: string
         }
         Update: {
+          absent_in_latest?: boolean
+          account_status?: string | null
+          balance?: number | null
           bureau?: Database["public"]["Enums"]["tradeline_bureau"]
           created_at?: string
+          credit_report_id?: string | null
+          date_reported?: string | null
+          dispute_flags?: Json
+          high_balance?: number | null
           id?: string
           last_seen_date?: string | null
+          monthly_payment?: number | null
           notes?: string | null
           operator_disputed?: boolean
           operator_disputed_reason?: string | null
+          parse_confidence?: number | null
+          past_due?: number | null
+          pay_status?: string | null
           present?: boolean
+          remarks?: Json
           status_on_bureau?: string | null
           tradeline_id?: string
+          two_year_payment_grid?: Json
           updated_at?: string
         }
         Relationships: [
@@ -1657,41 +1708,107 @@ export type Database = {
       tradelines: {
         Row: {
           account_last4: string | null
+          account_mask: string | null
+          account_status: string | null
+          account_type: string | null
           balance: number | null
+          bureau: string | null
           client_id: string
           created_at: string
+          credit_limit: number | null
+          date_opened: string | null
+          date_reported: string | null
           display_name: string
+          dispute_flags: Json | null
           furnisher_id: string | null
+          furnisher_normalized: string | null
+          furnisher_raw: string | null
+          high_balance: number | null
           id: string
+          identity_key: string | null
+          last_seen_date: string | null
+          loan_type: string | null
           notes: string | null
           opened_date: string | null
+          parse_confidence: number | null
+          past_due: number | null
+          pay_status: string | null
+          payment_amount: number | null
+          remarks: Json | null
+          report_date: string | null
           status: Database["public"]["Enums"]["tradeline_status"]
+          tradeline_id: string | null
+          two_year_payment_grid: Json | null
           updated_at: string
         }
         Insert: {
           account_last4?: string | null
+          account_mask?: string | null
+          account_status?: string | null
+          account_type?: string | null
           balance?: number | null
+          bureau?: string | null
           client_id: string
           created_at?: string
+          credit_limit?: number | null
+          date_opened?: string | null
+          date_reported?: string | null
           display_name: string
+          dispute_flags?: Json | null
           furnisher_id?: string | null
+          furnisher_normalized?: string | null
+          furnisher_raw?: string | null
+          high_balance?: number | null
           id?: string
+          identity_key?: string | null
+          last_seen_date?: string | null
+          loan_type?: string | null
           notes?: string | null
           opened_date?: string | null
+          parse_confidence?: number | null
+          past_due?: number | null
+          pay_status?: string | null
+          payment_amount?: number | null
+          remarks?: Json | null
+          report_date?: string | null
           status?: Database["public"]["Enums"]["tradeline_status"]
+          tradeline_id?: string | null
+          two_year_payment_grid?: Json | null
           updated_at?: string
         }
         Update: {
           account_last4?: string | null
+          account_mask?: string | null
+          account_status?: string | null
+          account_type?: string | null
           balance?: number | null
+          bureau?: string | null
           client_id?: string
           created_at?: string
+          credit_limit?: number | null
+          date_opened?: string | null
+          date_reported?: string | null
           display_name?: string
+          dispute_flags?: Json | null
           furnisher_id?: string | null
+          furnisher_normalized?: string | null
+          furnisher_raw?: string | null
+          high_balance?: number | null
           id?: string
+          identity_key?: string | null
+          last_seen_date?: string | null
+          loan_type?: string | null
           notes?: string | null
           opened_date?: string | null
+          parse_confidence?: number | null
+          past_due?: number | null
+          pay_status?: string | null
+          payment_amount?: number | null
+          remarks?: Json | null
+          report_date?: string | null
           status?: Database["public"]["Enums"]["tradeline_status"]
+          tradeline_id?: string | null
+          two_year_payment_grid?: Json | null
           updated_at?: string
         }
         Relationships: [

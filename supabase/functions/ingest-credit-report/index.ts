@@ -46,7 +46,10 @@ serve(async (req) => {
     const clientId = body.client_id as string;
     const text = (body.text as string)?.trim();
     const scope = (body.scope as string) || "full_snapshot";
-    const bureau = (body.bureau as string) || "transunion";
+    // Normalize to lowercase: parser tags rows lowercase ("experian") and the diff
+    // matches on strict equality, so a "Experian" from the caller would drop every
+    // row before it reaches the DB. Lowercase also matches the tradeline_bureau enum.
+    const bureau = ((body.bureau as string) || "transunion").toLowerCase();
     const reportDate = (body.report_date as string) || new Date().toISOString().slice(0, 10);
     const furnisherFilter = body.furnisher_filter as string | undefined;
     const dryRun = body.dry_run === true;
@@ -191,6 +194,10 @@ serve(async (req) => {
             date_opened: coerceDate(row.date_opened) || null,
             loan_type: row.loan_type,
             display_name,
+            // Dual-write the simple/legacy columns so readers on the live schema
+            // (analyzerContext, frontend) see the imported data too.
+            account_last4: row.account_mask || null,
+            opened_date: coerceDate(row.date_opened) || null,
           }, { onConflict: "client_id,identity_key" })
           .select("id")
           .single();

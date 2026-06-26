@@ -169,8 +169,13 @@ serve(async (req) => {
 
     if (crErr) throw crErr;
 
+    let tradelinesWritten = 0;
+    let statesWritten = 0;
+    const keyCounts = new Map<string, number>();
+
     const upsertTradeline = async (row: typeof parsed.rows[0], existingId?: string) => {
       const identity_key = buildTradelineIdentityKey(row);
+      keyCounts.set(identity_key, (keyCounts.get(identity_key) ?? 0) + 1);
       const display_name = `${row.furnisher_raw} ${row.account_mask ?? ""}`.trim();
 
       let tradelineId = existingId;
@@ -191,9 +196,12 @@ serve(async (req) => {
           .single();
         if (error) throw error;
         tradelineId = inserted.id;
+        tradelinesWritten++;
       }
 
-      await supabase.from("tradeline_bureau_states").upsert({
+      // Error was previously unchecked here — a failing per-bureau-state write
+      // returned 200 silently and left credit_report_id NULL.
+      const { error: stateErr } = await supabase.from("tradeline_bureau_states").upsert({
         tradeline_id: tradelineId,
         credit_report_id: creditReport.id,
         bureau: row.bureau,
@@ -212,15 +220,30 @@ serve(async (req) => {
         date_reported: coerceDate(row.date_reported ?? "") || null,
         last_seen_date: coerceDate(reportDate) || null,
       }, { onConflict: "tradeline_id,bureau" });
+      if (stateErr) throw stateErr;
+      statesWritten++;
 
       return tradelineId;
     };
 
-    for (const row of [...diff.added, ...diff.updated.map((u) => u.after), ...diff.unchanged]) {
+    const toUpsert = [...diff.added, ...diff.updated.map((u) => u.after), ...diff.unchanged];
+    for (const row of toUpsert) {
       const key = buildTradelineIdentityKey(row);
       const existing = diff.updated.find((u) => u.identity_key === key);
       await upsertTradeline(row, existing?.before.id);
     }
+
+    const collisions = [...keyCounts.entries()].filter(([, n]) => n > 1);
+    console.log("ingest persistence:", JSON.stringify({
+      bureau,
+      parse_mode: parseMode,
+      parsed_rows: parsed.rows.length,
+      diff: diff.summary,
+      rows_to_upsert: toUpsert.length,
+      tradelines_written: tradelinesWritten,
+      states_written: statesWritten,
+      identity_key_collisions: collisions.map(([k, n]) => `${n}× ${k}`),
+    }));
 
     for (const absent of diff.absent_in_latest) {
       if (!absent.existing.id) continue;
@@ -236,6 +259,13 @@ serve(async (req) => {
         credit_report_id: creditReport.id,
         diff: diff.summary,
         parse_mode: parseMode,
+        persistence: {
+          parsed_rows: parsed.rows.length,
+          rows_to_upsert: toUpsert.length,
+          tradelines_written: tradelinesWritten,
+          states_written: statesWritten,
+          identity_key_collisions: collisions.length,
+        },
         warnings: parsed.warnings,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

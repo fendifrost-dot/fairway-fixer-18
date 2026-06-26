@@ -1,8 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { buildTradelineIdentityKey } from "../_shared/tradelineIdentity.ts";
+import { buildTradelineIdentityKey, type CreditBureau } from "../_shared/tradelineIdentity.ts";
 import { diffCreditReport } from "../_shared/creditReportDiff.ts";
-import { parseStructuredCreditReportText } from "../_shared/parseStructuredText.ts";
+import {
+  parseStructuredCreditReportText,
+  type ParseStructuredTextResult,
+} from "../_shared/parseStructuredText.ts";
+import { parseCreditReportWithAI } from "../_shared/aiCreditParser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,9 +59,38 @@ serve(async (req) => {
       );
     }
 
-    const parsed = parseStructuredCreditReportText(text, {
-      default_bureau: bureau as "equifax" | "experian" | "transunion",
-    });
+    // Primary path: LLM parser (handles PrivacyGuard tri-merge + layout variants
+    // the regex parser chokes on). Falls back to the regex parser for tiny manual
+    // pastes or if the AI call fails, so ingest never hard-depends on the gateway.
+    const runRegex = () =>
+      parseStructuredCreditReportText(text, { default_bureau: bureau as CreditBureau });
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    let parsed: ParseStructuredTextResult;
+    let parseMode: "ai" | "regex_fallback" | "regex" = "regex";
+    if (LOVABLE_API_KEY) {
+      try {
+        parsed = await parseCreditReportWithAI(text, {
+          bureau,
+          reportDate,
+          apiKey: LOVABLE_API_KEY,
+        });
+        parseMode = "ai";
+        if (parsed.rows.length === 0) {
+          const regex = runRegex();
+          if (regex.rows.length > 0) {
+            parsed = regex;
+            parseMode = "regex_fallback";
+          }
+        }
+      } catch (e) {
+        console.warn("AI parse failed; falling back to regex:", e instanceof Error ? e.message : e);
+        parsed = runRegex();
+        parseMode = "regex_fallback";
+      }
+    } else {
+      parsed = runRegex();
+    }
 
     const { data: existingTradelines } = await supabase
       .from("tradelines")
@@ -102,7 +135,7 @@ serve(async (req) => {
     });
 
     if (dryRun) {
-      return new Response(JSON.stringify({ diff, parsed, warnings: parsed.warnings }), {
+      return new Response(JSON.stringify({ diff, parsed, parse_mode: parseMode, warnings: parsed.warnings }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -189,6 +222,7 @@ serve(async (req) => {
       JSON.stringify({
         credit_report_id: creditReport.id,
         diff: diff.summary,
+        parse_mode: parseMode,
         warnings: parsed.warnings,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -6,7 +6,7 @@ import {
   parseStructuredCreditReportText,
   type ParseStructuredTextResult,
 } from "../_shared/parseStructuredText.ts";
-import { parseCreditReportWithAI } from "../_shared/aiCreditParser.ts";
+import { parseCreditReportWithAI, coerceDate } from "../_shared/aiCreditParser.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -66,6 +66,10 @@ serve(async (req) => {
       parseStructuredCreditReportText(text, { default_bureau: bureau as CreditBureau });
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // The regex parser is only safe for tiny manual pastes — on a full report it
+    // mis-columns fields (e.g. a status word lands in a date), so we never use it
+    // as a silent fallback for large input.
+    const smallInput = text.length <= 2000;
     let parsed: ParseStructuredTextResult;
     let parseMode: "ai" | "regex_fallback" | "regex" = "regex";
     if (LOVABLE_API_KEY) {
@@ -76,7 +80,7 @@ serve(async (req) => {
           apiKey: LOVABLE_API_KEY,
         });
         parseMode = "ai";
-        if (parsed.rows.length === 0) {
+        if (parsed.rows.length === 0 && smallInput) {
           const regex = runRegex();
           if (regex.rows.length > 0) {
             parsed = regex;
@@ -84,9 +88,18 @@ serve(async (req) => {
           }
         }
       } catch (e) {
-        console.warn("AI parse failed; falling back to regex:", e instanceof Error ? e.message : e);
-        parsed = runRegex();
-        parseMode = "regex_fallback";
+        const msg = e instanceof Error ? e.message : String(e);
+        if (smallInput) {
+          console.warn("AI parse failed on small input; using regex:", msg);
+          parsed = runRegex();
+          parseMode = "regex_fallback";
+        } else {
+          // Fail clearly so the operator retries — the AI gateway hiccup is
+          // usually transient, and regex on a real report would import garbage.
+          throw new Error(
+            `AI parse failed on a ${text.length}-char report; not falling back to the regex parser (it corrupts tri-merge layouts). Please retry. Cause: ${msg}`,
+          );
+        }
       }
     } else {
       parsed = runRegex();
@@ -170,7 +183,7 @@ serve(async (req) => {
             furnisher_raw: row.furnisher_raw,
             furnisher_normalized: row.furnisher_normalized,
             account_mask: row.account_mask,
-            date_opened: row.date_opened || null,
+            date_opened: coerceDate(row.date_opened) || null,
             loan_type: row.loan_type,
             display_name,
           }, { onConflict: "client_id,identity_key" })
@@ -196,8 +209,8 @@ serve(async (req) => {
         two_year_payment_grid: row.two_year_payment_grid ?? [],
         dispute_flags: row.dispute_flags ?? [],
         parse_confidence: row.parse_confidence,
-        date_reported: row.date_reported,
-        last_seen_date: reportDate,
+        date_reported: coerceDate(row.date_reported ?? "") || null,
+        last_seen_date: coerceDate(reportDate) || null,
       }, { onConflict: "tradeline_id,bureau" });
 
       return tradelineId;

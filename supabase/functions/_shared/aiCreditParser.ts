@@ -281,13 +281,16 @@ export async function parseCreditReportWithAI(
     .map((tl) => mapTradeline(tl, fallbackBureau))
     .filter((r): r is TradelineRow => r !== null);
 
-  if (!keepAll) {
-    const before = rows.length;
-    rows = rows.filter((r) => r.bureau === targetBureau);
-    if (before > rows.length) {
+  if (!keepAll && targetBureau) {
+    // Client-side PDF extraction linearizes PrivacyGuard's 3-column tri-merge, so
+    // the model's per-row bureau tag is unreliable (a value's source column is
+    // lost). This upload is declared to be `targetBureau`'s snapshot, so attribute
+    // every extracted tradeline to it rather than dropping rows it mis-tagged.
+    for (const r of rows) r.bureau = targetBureau;
+    if (rows.length > 0) {
       warnings.push({
         line: "",
-        reason: `Filtered ${before - rows.length} tradeline(s) from other bureaus; kept ${targetBureau}.`,
+        reason: `Attributed ${rows.length} tradeline(s) to ${targetBureau} (per-bureau upload of a tri-merge; column→bureau mapping is not recoverable from extracted text).`,
       });
     }
   }

@@ -2010,33 +2010,22 @@ export type Database = {
               matter_id: string
             }[]
           }
-      debug_create_client_and_matter:
-        | {
-            Args: {
-              _client_notes?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _alternate_addresses?: string[]
-              _client_notes?: string
-              _current_address?: string
-              _dob?: string
-              _email?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-              _phone?: string
-              _ssn_last4?: string
-            }
-            Returns: Json
-          }
+      debug_create_client_and_matter: {
+        Args: {
+          _alternate_addresses?: string[]
+          _client_notes?: string
+          _current_address?: string
+          _dob?: string
+          _email?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+          _phone?: string
+          _ssn_last4?: string
+        }
+        Returns: Json
+      }
       delete_client_cascade: {
         Args: {
           _client_id: string

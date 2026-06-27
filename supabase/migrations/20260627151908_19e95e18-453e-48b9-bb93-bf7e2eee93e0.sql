@@ -1,0 +1,1 @@
+DROP FUNCTION public.debug_create_client_and_matter(text, public.matter_type, text, text, text);

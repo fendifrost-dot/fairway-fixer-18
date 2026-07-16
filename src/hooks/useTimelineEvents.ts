@@ -128,7 +128,7 @@ export function useUpdateTimelineEvent() {
     mutationFn: async ({ id, clientId, updates }: { 
       id: string; 
       clientId: string; 
-      updates: Partial<Pick<TimelineEvent, 'event_date' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind'>>
+      updates: Partial<Pick<TimelineEvent, 'event_date' | 'date_is_unknown' | 'title' | 'summary' | 'details' | 'category' | 'source' | 'event_kind'>>
     }) => {
       const { error } = await supabase
         .from('timeline_events')

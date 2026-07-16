@@ -10,11 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { pastDateBounds } from '@/lib/dateBounds';
 import { useUpdateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { TimelineEvent, ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
 
@@ -28,7 +24,8 @@ interface EditEntryDialogProps {
 export function EditEntryDialog({ open, onOpenChange, event, clientId }: EditEntryDialogProps) {
   const updateEvent = useUpdateTimelineEvent();
   
-  const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
+  // yyyy-MM-dd string ('' = no date). Native <input type="date"> value shape.
+  const [eventDate, setEventDate] = useState<string>('');
   const [category, setCategory] = useState<EventCategory>('Action');
   const [eventKind, setEventKind] = useState<string>('action');
   const [source, setSource] = useState<string>('');
@@ -45,7 +42,7 @@ export function EditEntryDialog({ open, onOpenChange, event, clientId }: EditEnt
 
   useEffect(() => {
     if (event) {
-      setEventDate(event.event_date && !event.date_is_unknown ? parseISO(event.event_date) : undefined);
+      setEventDate(event.event_date && !event.date_is_unknown ? event.event_date.slice(0, 10) : '');
       setCategory(event.category);
       setEventKind(event.event_kind || categoryToKind[event.category]);
       setSource(event.source || '');
@@ -62,13 +59,14 @@ export function EditEntryDialog({ open, onOpenChange, event, clientId }: EditEnt
 
   const handleSubmit = () => {
     if (!event) return;
-    const dateStr = eventDate ? format(eventDate, 'yyyy-MM-dd') : null;
+    const dateStr = eventDate || null;
 
     updateEvent.mutate({
       id: event.id,
       clientId,
       updates: {
         event_date: dateStr,
+        date_is_unknown: !dateStr,
         category: category,
         source: (source || null) as EventSource | null,
         title,
@@ -95,21 +93,13 @@ export function EditEntryDialog({ open, onOpenChange, event, clientId }: EditEnt
           {/* Action Date */}
           <div className="space-y-1">
             <Label htmlFor="edit-event-date">Action Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="edit-event-date"
-                  variant="outline"
-                  className={cn("w-full justify-start text-left font-normal", !eventDate && "text-muted-foreground")}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {eventDate ? format(eventDate, 'PPP') : 'No date set'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={eventDate} onSelect={setEventDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
+            <Input
+              id="edit-event-date"
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              {...pastDateBounds()}
+            />
           </div>
 
           {/* Category */}
@@ -167,7 +157,7 @@ export function EditEntryDialog({ open, onOpenChange, event, clientId }: EditEnt
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-background border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {updateEvent.isPending ? 'Saving...' : 'Save Changes'}

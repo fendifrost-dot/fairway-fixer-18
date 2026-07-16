@@ -10,11 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { pastDateBounds } from '@/lib/dateBounds';
 import { useCreateTimelineEvent } from '@/hooks/useTimelineEvents';
 import { ALL_SOURCES, SOURCE_DISPLAY_NAMES, EVENT_CATEGORIES, EventSource, EventCategory } from '@/types/operator';
 
@@ -27,7 +23,8 @@ interface AddEntryDialogProps {
 export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogProps) {
   const createEvent = useCreateTimelineEvent();
   
-  const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
+  // yyyy-MM-dd string ('' = no date). Native <input type="date"> value shape.
+  const [eventDate, setEventDate] = useState<string>('');
   const [category, setCategory] = useState<EventCategory>('Action');
   const [eventKind, setEventKind] = useState<string>('action');
   const [source, setSource] = useState<string>('');
@@ -49,7 +46,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   };
 
   const resetForm = () => {
-    setEventDate(undefined);
+    setEventDate('');
     setCategory('Action');
     setEventKind('action');
     setSource('');
@@ -60,7 +57,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
   };
 
   const handleSubmit = () => {
-    const dateStr = eventDate ? format(eventDate, 'yyyy-MM-dd') : null;
+    const dateStr = eventDate || null;
     const effectiveRawLine = rawLine.trim() || summary.trim() || title.trim();
     
     if (!effectiveRawLine) return;
@@ -100,21 +97,13 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
           {/* Action Date */}
           <div className="space-y-1">
             <Label htmlFor="add-event-date">Action Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="add-event-date"
-                  variant="outline"
-                  className={cn("w-full justify-start text-left font-normal", !eventDate && "text-muted-foreground")}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {eventDate ? format(eventDate, 'PPP') : 'Pick a date (optional)'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={eventDate} onSelect={setEventDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
+            <Input
+              id="add-event-date"
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              {...pastDateBounds()}
+            />
           </div>
 
           {/* Category */}
@@ -168,7 +157,7 @@ export function AddEntryDialog({ open, onOpenChange, clientId }: AddEntryDialogP
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-background border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {createEvent.isPending ? 'Adding...' : 'Add Entry'}

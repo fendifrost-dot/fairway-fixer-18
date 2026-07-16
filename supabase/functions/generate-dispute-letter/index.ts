@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { buildDisputeLetterBody } from "../_shared/disputeLetterGenerator.ts";
+import {
+  buildDisputeLetterBody,
+  type LetterDisputeHistory,
+} from "../_shared/disputeLetterGenerator.ts";
+import { loadAnalyzerContext } from "../_shared/analyzerContext.ts";
 import { isScenarioType } from "../_shared/letterStrengthBlocks.ts";
 
 const corsHeaders = {
@@ -108,6 +112,44 @@ serve(async (req) => {
       .eq("client_id", clientId)
       .limit(1);
 
+    // Load the recipient-scoped dispute history (rounds, prior letters, bureau
+    // responses, reinsertion/verified-without-docs signals, FTC report, filed
+    // complaints) so the draft is a documented follow-up rather than a
+    // standalone "initial" letter. Reuses the same digest the Response Analyzer
+    // builds. Degrade gracefully — a history-load failure must not block the
+    // letter, it just produces the older history-blind draft.
+    let history: LetterDisputeHistory | undefined;
+    try {
+      const ctx = await loadAnalyzerContext(supabase, clientId, recipientName);
+      const h = ctx.history;
+      history = {
+        prior_round_count: h.prior_round_count,
+        dispute_rounds: h.dispute_rounds,
+        prior_letters: h.prior_letters.map((l) => ({
+          letter_type: l.letter_type,
+          recipient_name: l.recipient_name,
+          status: l.status,
+          created_at: l.created_at,
+        })),
+        bureau_responses: h.bureau_responses,
+        ftc_report_number: h.ftc_identity_theft_report_number,
+        cfpb_or_ag_tasks: h.cfpb_or_ag_tasks.map((t) => ({ title: t.title, status: t.status })),
+        has_verified_without_docs: h.has_verified_without_docs,
+        has_reinsertion_signal: h.has_reinsertion_signal,
+      };
+    } catch (histErr) {
+      console.error("generate-dispute-letter: history load failed, proceeding without it:", histErr);
+      history = undefined;
+    }
+
+    const priorRoundExists =
+      (priorRounds?.length ?? 0) > 0 ||
+      (history
+        ? history.prior_round_count > 0 ||
+          history.prior_letters.length > 0 ||
+          history.bureau_responses.length > 0
+        : false);
+
     let letterResult;
     try {
       letterResult = buildDisputeLetterBody({
@@ -118,9 +160,10 @@ serve(async (req) => {
         tradelines,
         violations: [],
         evidence,
-        priorRoundExists: (priorRounds?.length ?? 0) > 0,
+        priorRoundExists,
         scenarioType,
         ftcReportNumber: client?.ftc_identity_theft_report_number ?? null,
+        history,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

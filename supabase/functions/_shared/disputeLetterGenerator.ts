@@ -33,6 +33,24 @@ export interface LetterViolation {
   severity?: string;
 }
 
+/**
+ * Client dispute history for the selected recipient, sourced from the same
+ * digest the Response Analyzer builds (`loadAnalyzerContext`). Supplying this
+ * turns a "standalone initial dispute" into a documented follow-up/escalation:
+ * the letter cites round counts, dates, prior bureau results, reinsertion, the
+ * FTC report, and filed complaints, and unlocks the escalated statutory basis.
+ */
+export interface LetterDisputeHistory {
+  prior_round_count: number;
+  dispute_rounds: { round_number: number; submitted_at: string | null; status: string }[];
+  prior_letters: { letter_type: string; recipient_name: string; status: string; created_at: string }[];
+  bureau_responses: { bureau: string | null; response_date: string | null; result: string; free_text_snippet: string }[];
+  ftc_report_number: string | null;
+  cfpb_or_ag_tasks: { title: string; status: string }[];
+  has_verified_without_docs: boolean;
+  has_reinsertion_signal: boolean;
+}
+
 export interface DisputeLetterInput {
   clientName: string;
   recipientType: 'cra' | 'furnisher' | 'collector' | 'regulator';
@@ -47,6 +65,8 @@ export interface DisputeLetterInput {
   scenarioType?: ScenarioType;
   /** FTC Identity Theft Report number, when on file (enables identity-theft scenarios + enclosures line). */
   ftcReportNumber?: string | null;
+  /** Prior dispute history for the selected recipient (rounds, responses, complaints). */
+  history?: LetterDisputeHistory;
 }
 
 /**
@@ -146,6 +166,155 @@ export function analyzeTradelineViolations(tradelines: TradelineForLetter[]): Le
   return violations;
 }
 
+function formatHistoryDate(d: string | null | undefined): string {
+  if (!d) return "undated";
+  const iso = d.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return d;
+  const dt = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return iso;
+  return dt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+interface HistoryRenderResult {
+  section: string;
+  escalationStatutes: string[];
+  requiredElements: string[];
+  reinsertionDemand: string | null;
+  isFollowUp: boolean;
+  willful: boolean;
+}
+
+/**
+ * Turn the recipient-scoped dispute history into a "Prior Dispute History"
+ * section plus the escalated statutes / demands / required elements it unlocks.
+ * Returns null when no history is on file (letter stays a true initial dispute).
+ */
+function buildHistorySection(
+  h: LetterDisputeHistory | undefined,
+  isFurnisher: boolean,
+  hasFtcReport: boolean,
+): HistoryRenderResult | null {
+  if (!h) return null;
+  const hasHistory =
+    h.prior_round_count > 0 ||
+    h.prior_letters.length > 0 ||
+    h.bureau_responses.length > 0 ||
+    h.cfpb_or_ag_tasks.length > 0 ||
+    h.has_reinsertion_signal ||
+    h.has_verified_without_docs;
+  if (!hasHistory) return null;
+
+  const lines: string[] = [];
+  const requiredElements: string[] = [];
+  const escalationStatutes: string[] = [];
+
+  const roundCount = Math.max(h.prior_round_count, h.prior_letters.length);
+  if (roundCount > 0) {
+    const dates = h.dispute_rounds
+      .map((r) => r.submitted_at)
+      .filter((d): d is string => Boolean(d))
+      .map(formatHistoryDate)
+      .concat(h.prior_letters.map((l) => formatHistoryDate(l.created_at)));
+    const uniqueDates = Array.from(new Set(dates)).filter((d) => d !== "undated").slice(0, 6);
+    lines.push(
+      `The item(s) above have already been disputed in **${roundCount} prior round${
+        roundCount === 1 ? "" : "s"
+      }**${
+        uniqueDates.length ? ` (${uniqueDates.join("; ")})` : ""
+      }. This is a continued dispute and escalation, not a first-time request.`,
+    );
+  }
+
+  const verified = h.bureau_responses.filter((r) => r.result === "verified");
+  if (verified.length > 0) {
+    const verifiedDates = Array.from(
+      new Set(verified.map((r) => formatHistoryDate(r.response_date))),
+    ).join("; ");
+    lines.push(
+      `The disputed information was previously "verified" (${verifiedDates}) ${
+        h.has_verified_without_docs
+          ? "**without producing any of the documentation relied upon**"
+          : "without disclosing the documentation relied upon"
+      }, placing the reasonableness of the reinvestigation squarely at issue under 15 U.S.C. § 1681i.`,
+    );
+    requiredElements.push(
+      "Cite the prior 'verified' response(s) and demand the method of verification / documents relied upon (§1681i(a)(6)-(7))",
+    );
+  }
+
+  if (h.has_reinsertion_signal) {
+    lines.push(
+      `The disputed information was previously **deleted and subsequently reinserted** into the file, invoking the mandatory written-notice and furnisher-recertification requirements of 15 U.S.C. § 1681i(a)(5)(B).`,
+    );
+  }
+
+  if (h.ftc_report_number) {
+    lines.push(
+      `An FTC Identity Theft Report (No. ${h.ftc_report_number}) is on file and accompanied the prior dispute(s).`,
+    );
+  }
+
+  const complaints = h.cfpb_or_ag_tasks.filter((t) =>
+    /cfpb|attorney general|\bag\b|complaint/i.test(t.title)
+  );
+  if (complaints.length > 0) {
+    const titles = complaints
+      .slice(0, 4)
+      .map((t) => `${t.title}${t.status ? ` (${t.status})` : ""}`)
+      .join("; ");
+    lines.push(
+      `Regulatory complaints have already been filed or queued on this matter: ${titles}.`,
+    );
+  }
+
+  if (lines.length === 0) return null;
+
+  if (h.has_reinsertion_signal) {
+    escalationStatutes.push(
+      "15 U.S.C. § 1681i(a)(5)(B) — written reinsertion notice within 5 business days + furnisher recertification",
+      "15 U.S.C. § 1681i(a)(5)(A) — deletion when reinserted information cannot be recertified",
+    );
+    requiredElements.push(
+      "§611(a)(5)(B) reinsertion notice + furnisher certification demand, or deletion under §611(a)(5)(A)",
+    );
+  }
+  if (verified.length > 0) {
+    escalationStatutes.push("15 U.S.C. § 1681i(a)(6)-(7) — method of verification disclosure");
+  }
+  const willful = hasFtcReport &&
+    (h.has_reinsertion_signal || h.has_verified_without_docs || h.prior_round_count > 0);
+  if (willful) {
+    escalationStatutes.push(
+      "15 U.S.C. § 1681n — willful noncompliance (statutory $100–$1,000 per violation, punitive damages, fees)",
+    );
+    requiredElements.push(
+      "Willful-noncompliance notice (§1681n): documented repeat failures with the FTC report on file support statutory + punitive damages",
+    );
+  }
+
+  const reinsertionDemand = h.has_reinsertion_signal
+    ? (isFurnisher
+      ? "recertify the previously deleted-then-reinserted item under 15 U.S.C. § 1681s-2(b) or permanently cease furnishing it;"
+      : "provide the written reinsertion notice and furnisher certification required by 15 U.S.C. § 1681i(a)(5)(B) for any previously deleted item now reinserted, or delete it under § 1681i(a)(5)(A);")
+    : null;
+
+  return {
+    section: `\n\n## Prior Dispute History & Escalation Basis\n\n${
+      lines.map((l) => `- ${l}`).join("\n")
+    }`,
+    escalationStatutes,
+    requiredElements,
+    reinsertionDemand,
+    isFollowUp: true,
+    willful,
+  };
+}
+
 export function buildDisputeLetterBody(input: DisputeLetterInput): {
   body_md: string;
   statutes: string[];
@@ -160,10 +329,6 @@ export function buildDisputeLetterBody(input: DisputeLetterInput): {
 
   const contradictions = allViolations.map((v) => v.narrative);
   const evidenceQuotes = input.evidence.filter((e) => e.quote);
-
-  const escalationNote = input.priorRoundExists
-    ? '\n\n**Escalation notice:** A prior dispute round and/or CFPB complaint exists for these items. This letter adopts reinsertion / method-of-verification / willful-noncompliance framing pursuant to prior non-responsive verification.'
-    : '';
 
   const tradelineList = input.tradelines
     .map(
@@ -189,9 +354,31 @@ export function buildDisputeLetterBody(input: DisputeLetterInput): {
   const bundle = buildScenarioStrengthBundle(scenario, input.recipientName);
   const isFurnisher = scenario === 'furnisher';
 
+  // Documented dispute history for the selected recipient — turns a standalone
+  // "initial" letter into a history-aware follow-up/escalation.
+  const hist = buildHistorySection(input.history, isFurnisher, hasFtcReport);
+  const isFollowUp = hist?.isFollowUp ?? Boolean(input.priorRoundExists);
+  const historySection = hist?.section ?? '';
+  // Full history section supersedes the generic note; keep the note only when a
+  // caller signals prior rounds without supplying the digest.
+  const escalationNote = !hist && input.priorRoundExists
+    ? '\n\n**Escalation notice:** A prior dispute round and/or CFPB complaint exists for these items. This letter adopts reinsertion / method-of-verification / willful-noncompliance framing pursuant to prior non-responsive verification.'
+    : '';
+
   const statutes = [...bundle.statute_stack];
   if (input.recipientType === 'collector') {
     statutes.push('15 U.S.C. § 1692g — FDCPA validation');
+  }
+  // Merge escalation statutes, deduping by citation (text before the em dash)
+  // so a scenario bundle and an escalation don't list the same section twice.
+  const citationKey = (s: string) => s.split('—')[0].replace(/\s+/g, ' ').trim().toLowerCase();
+  const seenCitations = new Set(statutes.map(citationKey));
+  for (const s of hist?.escalationStatutes ?? []) {
+    const key = citationKey(s);
+    if (!seenCitations.has(key)) {
+      statutes.push(s);
+      seenCitations.add(key);
+    }
   }
 
   const reCite =
@@ -225,6 +412,12 @@ export function buildDisputeLetterBody(input: DisputeLetterInput): {
         'provide written confirmation of the action taken.',
       ];
 
+  // Insert the reinsertion-recertification demand before the final confirmation
+  // item when the file shows a delete-then-reinsert event.
+  if (hist?.reinsertionDemand) {
+    demandItems.splice(Math.max(demandItems.length - 1, 0), 0, hist.reinsertionDemand);
+  }
+
   const dataBreachSection = bundle.data_breach_paragraph
     ? `\n\n${bundle.data_breach_paragraph}`
     : '';
@@ -247,13 +440,13 @@ ${dateStr}
 
 ${input.recipientName}
 
-**RE: FORMAL DEMAND — ${reCite} — ${itemIdentifier}**
+**RE: FORMAL DEMAND${isFollowUp ? ' — FOLLOW-UP / ESCALATION' : ''} — ${reCite} — ${itemIdentifier}**
 
 To Whom It May Concern:
 
 ${bundle.formal_demand_opening} I dispute the item${input.tradelines.length === 1 ? '' : 's'} identified above and demand ${isFurnisher ? 'correction and permanent deletion' : 'a block and permanent deletion'} of the information.
 
-${tradelineList}${dataBreachSection}${violationSection}${evidenceSection}
+${tradelineList}${dataBreachSection}${violationSection}${historySection}${evidenceSection}
 
 ${bundle.controlling_statute_quote}
 
@@ -293,6 +486,10 @@ ${input.clientName}${enclosuresLine}
   if (bundle.data_breach_paragraph) requiredStrengthElements.push('Data-breach paragraph (identity-theft basis)');
   if (bundle.reinsertion_trap) requiredStrengthElements.push('Reinsertion trap (§1681i(a)(5)(B))');
   if (hasFtcReport) requiredStrengthElements.push('Enclosures line (FTC report on file)');
+  if (hist) requiredStrengthElements.push('Prior dispute history cited (rounds, dates, prior responses)');
+  for (const el of hist?.requiredElements ?? []) {
+    if (!requiredStrengthElements.includes(el)) requiredStrengthElements.push(el);
+  }
 
   const checklist: StrengthChecklist = {
     statutes_invoked: statutes,
@@ -307,6 +504,7 @@ ${input.clientName}${enclosuresLine}
         (contradictions.length > 0 ? 20 : 0) +
         (evidenceQuotes.length > 0 ? 15 : 0) +
         (bundle.data_breach_paragraph ? 5 : 0) +
+        (hist ? 10 : 0) +
         15,
     ),
   };

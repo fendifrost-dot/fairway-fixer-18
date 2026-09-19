@@ -4,17 +4,53 @@
  */
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.91.1";
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "x-api-key, content-type, authorization",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body, null, 2), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+/**
+ * Allow-listed browser origins for the Continuum OS ↔ Credit Guardian bridge.
+ * Server-to-server callers send no Origin header and are unaffected by CORS; this
+ * only constrains browser-scriptable access. Configure via CREDIT_GUARDIAN_ALLOWED_ORIGINS
+ * (comma-separated). We never fall back to "*" for these service-role/PII endpoints.
+ */
+function allowedOrigins(): string[] {
+  const raw = Deno.env.get("CREDIT_GUARDIAN_ALLOWED_ORIGINS") ?? "";
+  return raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
 }
+
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "x-api-key, content-type, authorization",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
+  };
+  // Only reflect an Origin we explicitly trust. Unknown browser origins get no
+  // ACAO header (browser blocks the response); non-browser callers are unaffected.
+  if (origin && allowedOrigins().includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
+}
+
+/**
+ * Constant-time string comparison. Avoids the timing side-channel of `!==`,
+ * which returns early on the first differing byte and can leak the key.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  // Fold the length difference into the accumulator so mismatched lengths still
+  // run the full loop and never short-circuit.
+  let diff = ab.length ^ bb.length;
+  const len = Math.max(ab.length, bb.length);
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 
 type EventSourceEnum =
   | "Experian"
@@ -124,6 +160,13 @@ function mapGeminiEventToRow(
 }
 
 export async function handleCreditGuardianRequest(req: Request): Promise<Response> {
+  const corsHeaders = corsHeadersFor(req);
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body, null, 2), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -135,7 +178,8 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
   const apiKey = req.headers.get("x-api-key");
   const expectedKey = Deno.env.get("CREDIT_GUARDIAN_KEY");
 
-  if (!expectedKey || apiKey !== expectedKey) {
+  // Reject missing/invalid key with a constant-time comparison (no early-exit timing leak).
+  if (!expectedKey || !apiKey || !timingSafeEqual(apiKey, expectedKey)) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -170,10 +214,12 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
   const p = params;
 
   if (action === "get_clients") {
+    const limit = Math.min(Number(p.limit ?? raw.limit ?? 200) || 200, 500);
     const { data, error } = await supabase
       .from("clients")
       .select("id, legal_name, preferred_name, email, phone, status, created_at, updated_at")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(limit);
     return json({ data, error });
   }
 

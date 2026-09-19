@@ -452,7 +452,9 @@ serve(async (req) => {
 
     const buffer = await Packer.toBuffer(doc);
     const fileName = `Weekly_Update_${clientName.replace(/\s+/g, "_")}.docx`;
-    const storagePath = `client-deliverables/${clientId}/${fileName}`;
+    // Object key convention: <client_id>/<file>. The leading segment is the
+    // client id so storage.objects RLS can scope access via can_access_client().
+    const storagePath = `${clientId}/${fileName}`;
 
     const { error: uploadErr } = await supabase.storage
       .from("client-deliverables")

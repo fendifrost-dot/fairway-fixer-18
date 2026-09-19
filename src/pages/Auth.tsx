@@ -16,6 +16,13 @@ import { z } from 'zod';
 // Version marker - increment on each deploy to verify code is live
 const AUTH_VERSION = "2026-02-05-v2";
 
+// H1: Credit Guardian is an internal, staff-operated console. Public self-signup
+// is DISABLED by default (invite-only / staff-provisioned). Set
+// VITE_ALLOW_PUBLIC_SIGNUP="true" only for non-production environments.
+// NOTE for Fendi: also disable "Allow new users to sign up" in Supabase Auth
+// settings so signup is blocked at the API layer, not just hidden in the UI.
+const ALLOW_PUBLIC_SIGNUP = import.meta.env.VITE_ALLOW_PUBLIC_SIGNUP === 'true';
+
 const authSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -114,15 +121,19 @@ export default function Auth() {
           </div>
           <CardTitle>Welcome</CardTitle>
           <CardDescription>
-            Sign in to your account or create a new one
+            {ALLOW_PUBLIC_SIGNUP
+              ? 'Sign in to your account or create a new one'
+              : 'Sign in to your account'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+            {ALLOW_PUBLIC_SIGNUP && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
@@ -199,6 +210,7 @@ export default function Auth() {
               </form>
             </TabsContent>
 
+            {ALLOW_PUBLIC_SIGNUP && (
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
@@ -229,6 +241,7 @@ export default function Auth() {
                 </Button>
               </form>
             </TabsContent>
+            )}
           </Tabs>
         </CardContent>
       </Card>

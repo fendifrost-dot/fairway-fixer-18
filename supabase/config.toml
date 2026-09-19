@@ -1,8 +1,15 @@
 project_id = "gflvvzkiuleeochqcdeb"
 
+# project-stats now requires a valid Supabase JWT (platform-enforced); the
+# function additionally checks for an admin/staff role in code. (B2)
 [functions.project-stats]
-verify_jwt = false
+verify_jwt = true
 
+# cross-project-api / control-center-api are the Continuum OS ↔ Credit Guardian
+# integration bridge and authenticate via a timing-safe x-api-key compare inside
+# the shared handler (see _shared/creditGuardianApi.ts). verify_jwt stays false
+# here ON PURPOSE — flipping it would break the OS side and MUST be coordinated
+# with Lane A before changing. (B1)
 [functions.cross-project-api]
 verify_jwt = false
 

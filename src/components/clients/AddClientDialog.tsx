@@ -156,29 +156,9 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     }
   };
 
-  // Temporary test function to diagnose RLS
-  const runRlsTest = async () => {
-    try {
-      const { data, error } = await supabase.rpc('test_matters_insert_rls');
-      if (error) {
-        toast.error('RLS test failed');
-        console.log('RLS Test Error:', JSON.stringify(error, null, 2));
-        setWhoamiText(prev => prev + '\n\n--- RLS TEST RESULT ---\n' + JSON.stringify(error, null, 2));
-      } else {
-        toast.success('RLS test passed!');
-        console.log('RLS Test Success:', JSON.stringify(data, null, 2));
-        setWhoamiText(prev => prev + '\n\n--- RLS TEST RESULT ---\n' + JSON.stringify(data, null, 2));
-      }
-    } catch (e) {
-      toast.error('RLS test exception');
-      console.log('RLS Test Exception:', e);
-      setWhoamiText(prev => prev + '\n\n--- RLS TEST EXCEPTION ---\n' + String(e));
-    }
-  };
-
   /**
-   * DEBUG RPC: instrumented client+matter creation
-   * Now returns jsonb with full diagnostics including visibility assertion and detailed error info.
+   * Production client + matter creation via the SECURITY INVOKER RPC.
+   * Runs under the caller's JWT so RLS enforces owner scoping.
    */
   const createClientAndMatter = async (
     clientName: string,
@@ -192,14 +172,13 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       const friendly = 'Not authenticated — cannot create matter.';
       setSubmitError({
         friendly,
-        technical: `WHOAMI (preflight)\n${who.text ?? lastWhoamiSnapshot}`,
+        technical: import.meta.env.DEV ? `WHOAMI (preflight)\n${who.text ?? lastWhoamiSnapshot}` : undefined,
       });
       toast.error('Not authenticated');
       return null;
     }
 
-    // Call the patched debug RPC (now returns jsonb)
-    const { data, error } = await supabase.rpc('debug_create_client_and_matter', {
+    const { data, error } = await supabase.rpc('create_client_and_matter', {
       _legal_name: (clientName || 'New Client').trim().substring(0, 100) || 'New Client',
       _matter_type: matterType,
       _intake_raw_text: rawIntakeText || '',
@@ -207,66 +186,19 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
       _client_notes: noteText || null,
     });
 
-    const debugPayload = JSON.stringify({ rpc_response: data, rpc_error: error, whoami: who.text }, null, 2);
-
     if (error) {
-      throw { stage: 'rpc_call', debugPayload, ...error };
+      throw { stage: 'rpc_call', ...error };
     }
 
-    if (!data) {
-      throw { stage: 'rpc_call', debugPayload, message: 'No data returned from server' };
+    // create_client_and_matter returns TABLE(client_id uuid, matter_id uuid)
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || !row.client_id) {
+      throw { stage: 'rpc_call', message: 'No data returned from server' };
     }
 
-    // The RPC now returns a single jsonb object, not an array
-    const result = data as {
-      caller_uid: string;
-      inserted_client_id: string | null;
-      inserted_client_owner_id?: string;
-      client_visible_after_insert: boolean;
-      inserted_matter_id?: string | null;
-      attempted_matter_client_id?: string;
-      attempted_matter_owner_id?: string;
-      error_code?: string;
-      error_message?: string;
-      error_detail?: string;
-      error_hint?: string;
-      error_table?: string;
-      error_column?: string;
-      error_constraint?: string;
-      error_stage?: string;
-      success?: boolean;
-    };
-
-    // Check if the RPC caught an error
-    if (result.error_code) {
-      throw {
-        stage: result.error_stage || 'rpc_insert',
-        debugPayload,
-        code: result.error_code,
-        message: result.error_message,
-        detail: result.error_detail,
-        hint: result.error_hint,
-        table: result.error_table,
-        column: result.error_column,
-        constraint: result.error_constraint,
-        client_visible: result.client_visible_after_insert,
-      };
-    }
-
-    // Check visibility assertion
-    if (!result.client_visible_after_insert) {
-      throw {
-        stage: 'client_visibility_check',
-        debugPayload,
-        message: 'Client row not visible after INSERT',
-      };
-    }
-
-    // Success
     return {
-      client: { id: result.inserted_client_id },
-      matter: { id: result.inserted_matter_id },
-      debugPayload,
+      client: { id: row.client_id as string },
+      matter: { id: row.matter_id as string | null },
     };
   };
 
@@ -317,20 +249,18 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
                   ? 'Client saved but matter failed (and cleanup failed).'
                   : 'Nothing saved: matter creation failed.';
 
-      // Include debugPayload if available
-      const debugPayload = anyErr?.debugPayload ?? '';
-      const technical = [
-        'DEBUG RPC PAYLOAD:',
-        debugPayload,
-        '---',
-        'ERROR DETAILS:',
-        buildTechnicalError(error),
-        '---',
-        'WHOAMI (preflight):',
-        who.text ?? lastWhoamiSnapshot,
-      ]
-        .filter(Boolean)
-        .join('\n');
+      // Verbose diagnostics are dev-only; production shows just the friendly message.
+      const technical = import.meta.env.DEV
+        ? [
+            'ERROR DETAILS:',
+            buildTechnicalError(error),
+            '---',
+            'WHOAMI (preflight):',
+            who.text ?? lastWhoamiSnapshot,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : undefined;
 
       setSubmitError({ friendly, technical });
       toast.error('Creation failed');
@@ -384,20 +314,18 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
                   ? 'Client saved but matter failed (and cleanup failed).'
                   : 'Nothing saved: matter creation failed.';
 
-      // Include debugPayload if available
-      const debugPayload = anyErr?.debugPayload ?? '';
-      const technical = [
-        'DEBUG RPC PAYLOAD:',
-        debugPayload,
-        '---',
-        'ERROR DETAILS:',
-        buildTechnicalError(error),
-        '---',
-        'WHOAMI (preflight):',
-        who.text ?? lastWhoamiSnapshot,
-      ]
-        .filter(Boolean)
-        .join('\n');
+      // Verbose diagnostics are dev-only; production shows just the friendly message.
+      const technical = import.meta.env.DEV
+        ? [
+            'ERROR DETAILS:',
+            buildTechnicalError(error),
+            '---',
+            'WHOAMI (preflight):',
+            who.text ?? lastWhoamiSnapshot,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : undefined;
 
       setSubmitError({ friendly, technical });
       toast.error('Creation failed');
@@ -507,47 +435,40 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
               </p>
             </div>
 
-            <Alert className="mt-2">
-              <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
-              <AlertDescription className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Status: <span className="font-mono">{whoamiStatus}</span>
-                </p>
-                {(whoamiStatus !== 'authenticated' || whoamiLoading) && (
-                  <Alert variant="destructive">
-                    <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
-                    <AlertDescription>
-                      {whoamiLoading
-                        ? 'Checking authentication…'
-                        : 'Please log in, then reopen this dialog.'}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">Technical details (whoami)</Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2">
-                    <Textarea
-                      readOnly
-                      value={whoamiText}
-                      className="min-h-[120px] font-mono text-xs bg-muted"
-                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                    />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      className="mt-2"
-                      onClick={runRlsTest}
-                      disabled={isSubmitting || whoamiStatus !== 'authenticated'}
-                    >
-                      Run RLS Test (debug)
-                    </Button>
-                  </CollapsibleContent>
-                </Collapsible>
-              </AlertDescription>
-            </Alert>
+            {whoamiStatus !== 'authenticated' && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
+                <AlertDescription>
+                  {whoamiLoading
+                    ? 'Checking authentication…'
+                    : 'Please log in, then reopen this dialog.'}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {import.meta.env.DEV && (
+              <Alert className="mt-2">
+                <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Status: <span className="font-mono">{whoamiStatus}</span>
+                  </p>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm">Technical details (whoami)</Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <Textarea
+                        readOnly
+                        value={whoamiText}
+                        className="min-h-[120px] font-mono text-xs bg-muted"
+                        onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <ErrorDisplay />
 
@@ -609,40 +530,43 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
 
             <ErrorDisplay />
 
-            <Alert className="mt-2">
-              <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
-              <AlertDescription className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Status: <span className="font-mono">{whoamiStatus}</span>
-                </p>
-                {(whoamiStatus !== 'authenticated' || whoamiLoading) && (
-                  <Alert variant="destructive">
-                    <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
-                    <AlertDescription>
-                      {whoamiLoading
-                        ? 'Checking authentication…'
-                        : 'Please log in, then reopen this dialog.'}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm">Technical details (whoami)</Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2">
-                    <Textarea
-                      readOnly
-                      value={whoamiText}
-                      className="min-h-[120px] font-mono text-xs bg-muted"
-                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                    />
-                  </CollapsibleContent>
-                </Collapsible>
-              </AlertDescription>
-            </Alert>
+            {whoamiStatus !== 'authenticated' && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTitle>Not authenticated — cannot create matters</AlertTitle>
+                <AlertDescription>
+                  {whoamiLoading
+                    ? 'Checking authentication…'
+                    : 'Please log in, then reopen this dialog.'}
+                </AlertDescription>
+              </Alert>
+            )}
 
-            <Button 
-              onClick={handleManualSubmit} 
+            {import.meta.env.DEV && (
+              <Alert className="mt-2">
+                <AlertTitle>Auth diagnostics (whoami)</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Status: <span className="font-mono">{whoamiStatus}</span>
+                  </p>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm">Technical details (whoami)</Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <Textarea
+                        readOnly
+                        value={whoamiText}
+                        className="min-h-[120px] font-mono text-xs bg-muted"
+                        onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={handleManualSubmit}
               className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 text-base"
               disabled={isSubmitting || !legalName.trim() || whoamiStatus !== 'authenticated' || whoamiLoading}
             >

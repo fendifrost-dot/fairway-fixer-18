@@ -6,26 +6,43 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.1";
 type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+  // Handle CORS preflight requests. Origin allow-list only; no "*" for a
+  // diagnostic endpoint that echoes RLS/JWT claims. (M3/M4)
+  const origin = req.headers.get("Origin");
+  const allowed = (Deno.env.get("CREDIT_GUARDIAN_ALLOWED_ORIGINS") ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const corsHeaders: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    Vary: "Origin",
   };
+  if (origin && allowed.includes(origin)) {
+    corsHeaders["Access-Control-Allow-Origin"] = origin;
+  }
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // M4: this endpoint leaks raw RLS/JWT-claims diagnostics. It is DISABLED for
+  // production and only responds when ENABLE_DEBUG_PROBES="true" is set.
+  if (Deno.env.get("ENABLE_DEBUG_PROBES") !== "true") {
+    return new Response(JSON.stringify({ error: "Not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey =
     Deno.env.get("SUPABASE_ANON_KEY") ??
     Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ??
-    Deno.env.get("SUPABASE_ANON_KEY") ??
     "";
 
   if (!supabaseUrl || !anonKey) {

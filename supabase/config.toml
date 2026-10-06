@@ -27,3 +27,15 @@ verify_jwt = true
 
 [functions.ingest-credit-report]
 verify_jwt = true
+
+# guardian-mcp authenticates an enrolled agent secret (Bearer), not a Supabase
+# JWT. verify_jwt stays false ON PURPOSE — the platform check would reject every
+# agent call. The handler rejects a missing secret, any session JWT, and
+# CREDIT_GUARDIAN_KEY. Do not point this function at the Control Center key.
+[functions.guardian-mcp]
+verify_jwt = false
+
+# Enrollment is a staff session. The platform requires a JWT; the function
+# also requires an admin or staff role. Agent secrets are not accepted.
+[functions.guardian-mcp-enroll]
+verify_jwt = true

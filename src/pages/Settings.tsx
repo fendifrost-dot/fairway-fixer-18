@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Settings as SettingsIcon, Bell, Shield, Database, Clock, Scale } from 'lucide-react';
+import { AgentAccessCard } from '@/components/settings/AgentAccessCard';
 
 export default function Settings() {
   return (
@@ -19,6 +20,8 @@ export default function Settings() {
           Configure workflow engine preferences
         </p>
       </div>
+
+      <AgentAccessCard />
 
       {/* Notification Settings */}
       <Card className="card-elevated">

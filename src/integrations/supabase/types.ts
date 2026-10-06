@@ -1032,6 +1032,77 @@ export type Database = {
         }
         Relationships: []
       }
+      mcp_agents: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          name: string
+          revoked_at: string | null
+          scopes: string[]
+          secret_hash: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          name: string
+          revoked_at?: string | null
+          scopes: string[]
+          secret_hash: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          name?: string
+          revoked_at?: string | null
+          scopes?: string[]
+          secret_hash?: string
+        }
+        Relationships: []
+      }
+      mcp_audit_log: {
+        Row: {
+          agent_id: string
+          client_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          success: boolean
+          tool: string
+        }
+        Insert: {
+          agent_id: string
+          client_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          success: boolean
+          tool: string
+        }
+        Update: {
+          agent_id?: string
+          client_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          success?: boolean
+          tool?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcp_audit_log_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "mcp_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operator_tasks: {
         Row: {
           client_id: string

@@ -13,7 +13,8 @@
 export const SERVER_NAME = "credit-guardian";
 export const SERVER_VERSION = "1.0.0";
 
-export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
+export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] as const;
+export const LATEST_PROTOCOL_VERSION = "2025-06-18";
 
 export const READ_SCOPES = [
   "clients.list",
@@ -1009,10 +1010,7 @@ async function handleMessage(
 
   const outcome = await withAudit(store, { agentId: agent.id, tool, clientId, success: false, error: "pending" }, async () => {
     if (method === "initialize") {
-      const protocol = negotiatedProtocol(params.protocolVersion);
-      if (!protocol) {
-        return { ok: false, error: "unsupported protocol version" };
-      }
+      const protocol = negotiatedProtocol(params.protocolVersion) ?? LATEST_PROTOCOL_VERSION;
       return {
         ok: true,
         value: {

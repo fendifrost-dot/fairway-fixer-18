@@ -19,8 +19,8 @@ const AUTH_VERSION = "2026-02-05-v2";
 // H1: Credit Guardian is an internal, staff-operated console. Public self-signup
 // is DISABLED by default (invite-only / staff-provisioned). Set
 // VITE_ALLOW_PUBLIC_SIGNUP="true" only for non-production environments.
-// NOTE for Fendi: also disable "Allow new users to sign up" in Supabase Auth
-// settings so signup is blocked at the API layer, not just hidden in the UI.
+// NOTE for Fendi: "Allow new users to sign up" must stay off in Supabase Auth
+// settings. handle_new_user also no longer grants staff to a new auth user.
 const ALLOW_PUBLIC_SIGNUP = import.meta.env.VITE_ALLOW_PUBLIC_SIGNUP === 'true';
 
 const authSchema = z.object({

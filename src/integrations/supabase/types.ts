@@ -409,12 +409,14 @@ export type Database = {
           ftc_identity_theft_report_number: string | null
           id: string
           intake_auto_extracted_at: string | null
+          intake_channel: string
           intake_date: string | null
           last_report_date: string | null
           legal_full_name: string | null
           legal_name: string
           notes: string | null
           owner_id: string | null
+          payment_standing: string
           phone: string | null
           preferred_name: string | null
           scores_updated_at: string | null
@@ -443,12 +445,14 @@ export type Database = {
           ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
+          intake_channel?: string
           intake_date?: string | null
           last_report_date?: string | null
           legal_full_name?: string | null
           legal_name: string
           notes?: string | null
           owner_id?: string | null
+          payment_standing?: string
           phone?: string | null
           preferred_name?: string | null
           scores_updated_at?: string | null
@@ -477,12 +481,14 @@ export type Database = {
           ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
+          intake_channel?: string
           intake_date?: string | null
           last_report_date?: string | null
           legal_full_name?: string | null
           legal_name?: string
           notes?: string | null
           owner_id?: string | null
+          payment_standing?: string
           phone?: string | null
           preferred_name?: string | null
           scores_updated_at?: string | null

@@ -8,6 +8,10 @@ export interface Client {
   email: string | null;
   phone: string | null;
   status: 'Active' | 'Inactive' | 'Pending';
+  /** staff | agent | control_center | website_subscription */
+  intake_channel: string;
+  /** subscriber | paid_in_full | partial | unpaid | unknown */
+  payment_standing: string;
   notes: string | null;
   created_at: string;
   updated_at: string;

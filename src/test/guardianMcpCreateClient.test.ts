@@ -59,6 +59,8 @@ function fakeStore(state: FakeState): GuardianMcpStore {
             email: client.email,
             phone: client.phone,
             status: client.status,
+            intake_channel: client.intake_channel,
+            payment_standing: client.payment_standing,
             notes: client.notes,
             ssn_last4: client.ssn_last4,
             created_at: "2026-10-15T00:00:00.000Z",
@@ -167,6 +169,8 @@ describe("create_client call", () => {
     expect(client.id).toBe(NEW_CLIENT_ID);
     expect(client.legal_name).toBe("Deajah Newman");
     expect(client.email).toBe("deajah@example.com");
+    expect(client.intake_channel).toBe("agent");
+    expect(client.payment_standing).toBe("unknown");
     expect(client).not.toHaveProperty("ssn_last4");
 
     expect(state.created).toHaveLength(1);
@@ -176,6 +180,8 @@ describe("create_client call", () => {
     expect(matter.matter_type).toBe("Credit");
     expect(matter.intake_source).toBe("MCP");
     expect(inserted.status).toBe("Active");
+    expect(inserted.intake_channel).toBe("agent");
+    expect(inserted.payment_standing).toBe("unknown");
     expect(inserted.ssn_last4).toBe("1234");
     expect(inserted.experian_score).toBe(612);
 
@@ -231,6 +237,14 @@ describe("parseCreateClientArgs", () => {
     expect(bad({ legal_name: "A", status: "Closed" })).toBe("status must be Active, Inactive, or Pending");
     expect(bad({ legal_name: "A", matter_type: "Tax" })).toBe("matter_type must be Credit, Consulting, or Both");
     expect(bad({ legal_name: "A", email: "a@b\nc" })).toBe("email must be a single line");
+    expect(bad({ legal_name: "A", payment_standing: "free" })).toContain("payment_standing must be one of");
+    expect(bad({ legal_name: "A", intake_channel: "staff" })).toBe("unknown field: intake_channel");
+  });
+
+  it("records the payment standing the agent was told and always stamps the agent channel", () => {
+    const { client } = ok({ legal_name: "A", payment_standing: "paid_in_full" });
+    expect(client.payment_standing).toBe("paid_in_full");
+    expect(client.intake_channel).toBe("agent");
   });
 
   it("normalizes optional fields", () => {

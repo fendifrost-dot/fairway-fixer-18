@@ -46,6 +46,8 @@ export const CLIENT_LIST_FIELDS = [
   "email",
   "phone",
   "status",
+  "intake_channel",
+  "payment_standing",
   "created_at",
   "updated_at",
 ] as const;
@@ -65,6 +67,7 @@ export const CLIENT_CREATE_FIELDS = [
   "email",
   "phone",
   "status",
+  "payment_standing",
   "notes",
   "date_of_birth",
   "current_address",
@@ -84,8 +87,15 @@ export const CLIENT_UPDATE_FIELDS = [
   "email",
   "phone",
   "status",
+  "intake_channel",
+  "payment_standing",
   "notes",
 ] as const;
+
+/** How a client entered the file. create_client always records "agent". */
+export const INTAKE_CHANNELS = ["staff", "agent", "control_center", "website_subscription"] as const;
+/** Staff-maintained payment state. Not derived from payment_plans. */
+export const PAYMENT_STANDINGS = ["subscriber", "paid_in_full", "partial", "unpaid", "unknown"] as const;
 
 export const TIMELINE_FIELDS = [
   "id",
@@ -240,6 +250,8 @@ export interface ClientCreateInsert {
   legal_name: string;
   owner_id: string;
   status: string;
+  intake_channel: "agent";
+  payment_standing: string;
   preferred_name: string | null;
   email: string | null;
   phone: string | null;
@@ -430,7 +442,8 @@ const TOOLS: ToolDef[] = [
     scope: "clients.create",
     description:
       "Create a new client and its first matter. legal_name is required; everything else is optional. " +
-      "The client is owned by the staff member who enrolled this agent. ssn_last4 is stored but never returned.",
+      "The client is owned by the staff member who enrolled this agent and is recorded as intake_channel=agent. " +
+      "Set payment_standing when known (paid_in_full, partial, unpaid, subscriber). ssn_last4 is stored but never returned.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -441,6 +454,7 @@ const TOOLS: ToolDef[] = [
         email: { type: "string" },
         phone: { type: "string" },
         status: { type: "string", enum: [...CLIENT_STATUSES] },
+        payment_standing: { type: "string", enum: [...PAYMENT_STANDINGS], description: "default unknown" },
         notes: { type: "string" },
         date_of_birth: { type: "string", description: "YYYY-MM-DD" },
         current_address: { type: "string" },
@@ -459,7 +473,9 @@ const TOOLS: ToolDef[] = [
     name: "update_client",
     scope: "clients.update",
     description:
-      "Update allow-listed client fields: legal_name, preferred_name, email, phone, status, notes.",
+      "Update allow-listed client fields: legal_name, preferred_name, email, phone, status, notes, " +
+      "intake_channel (staff, agent, control_center, website_subscription), " +
+      "payment_standing (subscriber, paid_in_full, partial, unpaid, unknown).",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -833,6 +849,17 @@ export function parseCreateClientArgs(
     status = args.status;
   }
 
+  let paymentStanding = "unknown";
+  if (args.payment_standing != null) {
+    if (
+      typeof args.payment_standing !== "string" ||
+      !(PAYMENT_STANDINGS as readonly string[]).includes(args.payment_standing)
+    ) {
+      return { ok: false, error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` };
+    }
+    paymentStanding = args.payment_standing;
+  }
+
   const preferredName = singleLine(args.preferred_name, "preferred_name", 300);
   if (preferredName && typeof preferredName === "object") return { ok: false, error: preferredName.error };
   const email = singleLine(args.email, "email", 320);
@@ -905,6 +932,8 @@ export function parseCreateClientArgs(
       legal_name: legalName,
       owner_id: ownerId,
       status,
+      intake_channel: "agent",
+      payment_standing: paymentStanding,
       preferred_name: typeof preferredName === "string" ? preferredName : null,
       email: typeof email === "string" ? email.toLowerCase() : null,
       phone: typeof phone === "string" ? phone : null,
@@ -1040,6 +1069,16 @@ async function executeTool(
           return { ok: false, error: "status must be Active, Inactive, or Pending" };
         }
         safe.status = value;
+      } else if (key === "intake_channel") {
+        if (typeof value !== "string" || !(INTAKE_CHANNELS as readonly string[]).includes(value)) {
+          return { ok: false, error: `intake_channel must be one of ${INTAKE_CHANNELS.join(", ")}` };
+        }
+        safe.intake_channel = value;
+      } else if (key === "payment_standing") {
+        if (typeof value !== "string" || !(PAYMENT_STANDINGS as readonly string[]).includes(value)) {
+          return { ok: false, error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` };
+        }
+        safe.payment_standing = value;
       } else if (key === "email" || key === "phone" || key === "preferred_name" || key === "notes") {
         const max = key === "notes" ? 20000 : key === "email" ? 320 : key === "phone" ? 40 : 300;
         const parsed = optionalBoundedString(value, key, max);

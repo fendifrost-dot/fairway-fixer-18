@@ -31,9 +31,11 @@ app. It is not derived from `payment_plans`, which is empty.
 | All three migrations on the live database | ✅ applied 2026-10-15 via the Lovable query tool and re-read afterwards: one `create_client_and_matter` overload (11 args, acl authenticated + service_role); scopes CHECK lists `clients.create`; `claude`, `cursor`, `grok` hold it; trigger uses `COALESCE(auth.uid(), NEW.owner_id)`; `clients.intake_channel` / `payment_standing` present with CHECKs, all 37 rows `staff` / `unknown` |
 | Rolled-back live dry run of the insert path | ✅ with no `auth.uid()`, the matter kept the explicit staff owner; 0 dry-run rows remain |
 | Local validation | ✅ `npx vitest run` 16 files / 203 tests pass; `npx tsc -p tsconfig.app.json --noEmit` clean; eslint clean on every changed file except three pre-existing `as any` casts in `AddClientDialog.tsx` that predate this work |
-| Code merged to `main` | see PR #5 |
-| Edge functions redeployed (`guardian-mcp`, `guardian-mcp-enroll`, `cross-project-api`, `control-center-api`) | ❌ until the step below is executed and verified |
-| Frontend published | ❌ until executed |
+| Code merged to `main` | ✅ PR #5 merged 2026-10-15, merge commit `25160f4`. Lovable then added `924097a` (its own preview-auth plumbing and a types metadata line; none of this work) |
+| Lovable synced `main` | ✅ `guardianMcp.ts` read back from Lovable at `main` shows `SERVER_VERSION = "1.1.0"` and `clients.create` |
+| Edge functions redeployed (`guardian-mcp`, `guardian-mcp-enroll`, `cross-project-api`, `control-center-api`) | ✅ Lovable reported all four deployed 2026-10-15 23:18 UTC. Independently confirmed for `guardian-mcp`: a live `list_clients` call returned `intake_channel` and `payment_standing` on every row, fields the old server never emitted. The other three are confirmed only by Lovable's deploy report |
+| Frontend published | ⚠️ Publish requested through Lovable (deployment `59906df5…`, status `pending` when requested). Not independently verified: the session's proxy cannot reach `fairway-fixer-18.lovable.app`. Open the client list and look for the payment and channel badges |
+| MCP clients already connected | ⚠️ An MCP client that connected before the redeploy still shows 11 tools; the server does not push list changes. Reconnect (new session) to see `create_client` |
 | Deajah Newman | ❌ not created (secondary; 0 rows match `%newman%`) |
 
 ## Hard rules
@@ -48,28 +50,23 @@ app. It is not derived from `payment_plans`, which is empty.
 
 ## Remaining steps
 
-### 1 — Confirm Lovable has synced `main`
+### 1 — Confirm the Publish landed
 
-In Lovable, `supabase/functions/_shared/guardianMcp.ts` must contain
-`name: "create_client"` and `SERVER_VERSION = "1.1.0"`, and
-`creditGuardianApi.ts` must contain `action === "create_client"`. If not, Lovable
-has not pulled `main`; redeploying now ships the old code.
+Open the app. The client list must show a payment badge and a channel badge on
+every card; Add Client must have a "Payment standing" select in both tabs; Settings →
+Agent access must list "Create a client and its first matter". If none of that is
+there, press Lovable → Publish once more.
 
-### 2 — Redeploy four edge functions
+### 2 — Confirm the Control Center API from a caller that holds the key
 
-`guardian-mcp`, `guardian-mcp-enroll` (same shared module), `cross-project-api`,
-`control-center-api` (same shared module).
+POST `{"action":"nonsense"}` with the `x-api-key`; the 400 `hint` must list
+`create_client`. Old code does not. This was not checked from the session that
+redeployed because it does not hold `CREDIT_GUARDIAN_KEY` (and must not).
 
-**Verify:** with any enrolled agent secret, MCP `tools/list` returns **12 tools**
-including `create_client` (old server: 11, none). For the API, POST
-`{"action":"nonsense"}` with the `x-api-key`; the 400 `hint` must list
-`create_client` (old code does not).
+### 3 — From a fresh MCP session, confirm `tools/list` returns 12 tools
 
-### 3 — Publish the frontend
-
-Client list shows a payment badge and a channel badge on every card; Add Client has a
-"Payment standing" select in both tabs; Settings → Agent access lists "Create a
-client and its first matter".
+Including `create_client`. A client connected before the redeploy keeps the old
+11-tool list until it reconnects.
 
 ### 4 — Deajah Newman (secondary)
 

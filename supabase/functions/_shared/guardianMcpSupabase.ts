@@ -13,10 +13,12 @@ import {
   TIMELINE_FIELDS,
   type AuditInsert,
   type AuditPublic,
+  type ClientCreateInsert,
   type EnrollStore,
   type EnrolledAgentPublic,
   type GuardianMcpStore,
   type LetterDraftInsert,
+  type MatterCreateInsert,
   type McpAgentRecord,
   type TimelineInsert,
 } from "./guardianMcp.ts";
@@ -63,7 +65,7 @@ export function createGuardianMcpStore(supabase: SupabaseClient): GuardianMcpSto
     async findAgentByHash(secretHash) {
       const { data, error } = await supabase
         .from("mcp_agents")
-        .select("id, name, secret_hash, scopes, expires_at, revoked_at")
+        .select("id, name, secret_hash, scopes, expires_at, revoked_at, created_by")
         .eq("secret_hash", secretHash)
         .maybeSingle();
       if (error) throw new Error("agent lookup failed");
@@ -76,6 +78,7 @@ export function createGuardianMcpStore(supabase: SupabaseClient): GuardianMcpSto
         scopes: Array.isArray(row.scopes) ? row.scopes.map(String) : [],
         expiresAt: String(row.expires_at),
         revokedAt: row.revoked_at == null ? null : String(row.revoked_at),
+        createdBy: row.created_by == null ? null : String(row.created_by),
       } satisfies McpAgentRecord;
     },
 
@@ -95,10 +98,12 @@ export function createGuardianMcpStore(supabase: SupabaseClient): GuardianMcpSto
       return { id: String(asRecord(data).id) };
     },
 
-    async finishAudit(id, success, errorText) {
+    async finishAudit(id, success, errorText, clientId) {
+      const patch: Record<string, unknown> = { success, error: errorText };
+      if (clientId) patch.client_id = clientId;
       const { error } = await supabase
         .from("mcp_audit_log")
-        .update({ success, error: errorText })
+        .update(patch)
         .eq("id", id);
       if (error) throw new Error("audit finish failed");
     },
@@ -204,6 +209,43 @@ export function createGuardianMcpStore(supabase: SupabaseClient): GuardianMcpSto
       const { data, error } = await supabase.from("clients").select("id").eq("id", clientId).maybeSingle();
       if (error) return dbFail(error);
       return { exists: !!data };
+    },
+
+    async createClient(client: ClientCreateInsert, matter: MatterCreateInsert) {
+      const inserted = await supabase
+        .from("clients")
+        .insert(client)
+        .select(`${columns(CLIENT_LIST_FIELDS)}, notes`)
+        .single();
+      if (inserted.error || !inserted.data) return dbFail(inserted.error);
+      const clientRow = asRecord(inserted.data);
+      const clientId = String(clientRow.id);
+
+      // matters.owner_id is NOT NULL with DEFAULT auth.uid(); the service role has no
+      // auth.uid(), so the owner is passed explicitly (the enrolling staff member).
+      const matterRow = await supabase
+        .from("matters")
+        .insert({
+          client_id: clientId,
+          owner_id: matter.owner_id,
+          title: `${client.legal_name} - ${matter.matter_type} Matter`,
+          matter_type: matter.matter_type,
+          jurisdiction: "Federal (FCRA)",
+          primary_state: "DisputePreparation",
+          intake_raw_text: matter.intake_raw_text,
+          intake_source: matter.intake_source,
+          intake_created_at: matter.intake_raw_text == null ? null : new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (matterRow.error || !matterRow.data) {
+        // Do not leave a client without a matter. Roll the client insert back by hand;
+        // PostgREST has no transaction spanning two requests.
+        const cleanup = await supabase.from("clients").delete().eq("id", clientId);
+        if (cleanup.error) console.error("guardian-mcp createClient cleanup failed", cleanup.error.code ?? "");
+        return dbFail(matterRow.error);
+      }
+      return { data: { client: clientRow, matter_id: String(asRecord(matterRow.data).id) } };
     },
 
     async updateClient(clientId, fields) {

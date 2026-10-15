@@ -20,6 +20,7 @@ const SCOPE_LABELS: Record<McpScope, string> = {
   "letters.read": "Read letters",
   "tasks.read": "Read tasks",
   "deadlines.read": "Read deadlines",
+  "clients.create": "Create a client and its first matter",
   "clients.update": "Update name, email, phone, status, notes",
   "timeline.write": "Add a timeline event",
   "letters.draft": "Save a letter draft",

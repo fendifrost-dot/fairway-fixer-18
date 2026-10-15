@@ -3,6 +3,11 @@
  * Auth: x-api-key === CREDIT_GUARDIAN_KEY. Uses service role.
  */
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.91.1";
+import { INTAKE_CHANNELS, PAYMENT_STANDINGS } from "./guardianMcp.ts";
+
+/** Channels the Control Center API may stamp on a client it creates. */
+const API_INTAKE_CHANNELS = ["control_center", "website_subscription"] as const;
+const API_MATTER_TYPES = ["Credit", "Consulting", "Both"] as const;
 
 /**
  * Allow-listed browser origins for the Continuum OS ↔ Credit Guardian bridge.
@@ -217,7 +222,9 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
     const limit = Math.min(Number(p.limit ?? raw.limit ?? 200) || 200, 500);
     const { data, error } = await supabase
       .from("clients")
-      .select("id, legal_name, preferred_name, email, phone, status, created_at, updated_at")
+      .select(
+        "id, legal_name, preferred_name, email, phone, status, intake_channel, payment_standing, created_at, updated_at",
+      )
       .order("created_at", { ascending: false })
       .limit(limit);
     return json({ data, error });
@@ -259,7 +266,16 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
     if (!clientId || !fields) {
       return json({ error: "client_id and fields required" }, 400);
     }
-    const allowed = ["legal_name", "preferred_name", "email", "phone", "status", "notes"];
+    const allowed = [
+      "legal_name",
+      "preferred_name",
+      "email",
+      "phone",
+      "status",
+      "notes",
+      "intake_channel",
+      "payment_standing",
+    ];
     const safe: Record<string, unknown> = {};
     for (const k of Object.keys(fields)) {
       if (allowed.includes(k)) safe[k] = fields[k];
@@ -267,8 +283,96 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
     if (Object.keys(safe).length === 0) {
       return json({ error: "No valid fields provided" }, 400);
     }
+    if ("intake_channel" in safe && !(INTAKE_CHANNELS as readonly string[]).includes(String(safe.intake_channel))) {
+      return json({ error: `intake_channel must be one of ${INTAKE_CHANNELS.join(", ")}` }, 400);
+    }
+    if (
+      "payment_standing" in safe &&
+      !(PAYMENT_STANDINGS as readonly string[]).includes(String(safe.payment_standing))
+    ) {
+      return json({ error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` }, 400);
+    }
     const { data, error } = await supabase.from("clients").update(safe).eq("id", clientId).select().single();
     return json({ data, error });
+  }
+
+  if (action === "create_client") {
+    // Any authorized caller (Control Center, Telegram route, Capital-site subscription
+    // bridge) may add a client. The row is owned by the configured default staff
+    // member, the same convention import_timeline_events already uses.
+    const legalName = String(p.legal_name ?? raw.legal_name ?? "").trim();
+    if (!legalName || legalName.length > 300) {
+      return json({ error: "legal_name required" }, 400);
+    }
+    const ownerId = Deno.env.get("CREDIT_GUARDIAN_DEFAULT_OWNER_ID");
+    if (!ownerId) {
+      return json({ error: "CREDIT_GUARDIAN_DEFAULT_OWNER_ID is not set; a new client needs a staff owner" }, 500);
+    }
+    const channel = p.intake_channel == null ? "control_center" : String(p.intake_channel);
+    if (!(API_INTAKE_CHANNELS as readonly string[]).includes(channel)) {
+      return json({ error: `intake_channel must be one of ${API_INTAKE_CHANNELS.join(", ")}` }, 400);
+    }
+    const standing =
+      p.payment_standing == null
+        ? channel === "website_subscription"
+          ? "subscriber"
+          : "unknown"
+        : String(p.payment_standing);
+    if (!(PAYMENT_STANDINGS as readonly string[]).includes(standing)) {
+      return json({ error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` }, 400);
+    }
+    const matterType = p.matter_type == null ? "Credit" : String(p.matter_type);
+    if (!(API_MATTER_TYPES as readonly string[]).includes(matterType)) {
+      return json({ error: `matter_type must be one of ${API_MATTER_TYPES.join(", ")}` }, 400);
+    }
+    const optional = (key: string, max: number): string | null => {
+      const value = p[key];
+      if (value == null) return null;
+      const text = String(value).trim();
+      return text === "" ? null : text.slice(0, max);
+    };
+    const email = optional("email", 320);
+
+    const { data: client, error: clientErr } = await supabase
+      .from("clients")
+      .insert({
+        legal_name: legalName,
+        owner_id: ownerId,
+        status: "Active",
+        email: email ? email.toLowerCase() : null,
+        phone: optional("phone", 40),
+        notes: optional("notes", 20000),
+        intake_channel: channel,
+        payment_standing: standing,
+      })
+      .select("id, legal_name, email, phone, status, intake_channel, payment_standing, created_at")
+      .single();
+    if (clientErr || !client) {
+      return json({ error: clientErr?.message ?? "client insert failed" }, 500);
+    }
+
+    const intakeText = optional("intake_raw_text", 100000);
+    const { data: matter, error: matterErr } = await supabase
+      .from("matters")
+      .insert({
+        client_id: client.id,
+        owner_id: ownerId,
+        title: `${legalName} - ${matterType} Matter`,
+        matter_type: matterType,
+        jurisdiction: "Federal (FCRA)",
+        primary_state: "DisputePreparation",
+        intake_raw_text: intakeText,
+        intake_source: optional("intake_source", 100) ?? "Control Center",
+        intake_created_at: intakeText ? new Date().toISOString() : null,
+      })
+      .select("id")
+      .single();
+    if (matterErr || !matter) {
+      // Never leave a client without a matter; undo the client insert.
+      await supabase.from("clients").delete().eq("id", client.id);
+      return json({ error: matterErr?.message ?? "matter insert failed" }, 500);
+    }
+    return json({ client, matter_id: matter.id });
   }
 
   if (action === "get_documents") {
@@ -363,6 +467,7 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
           legal_name: clientName,
           owner_id: ownerId,
           status: "Active",
+          intake_channel: "control_center",
         })
         .select("id")
         .single();
@@ -388,5 +493,12 @@ export async function handleCreditGuardianRequest(req: Request): Promise<Respons
     });
   }
 
-  return json({ error: "Unknown action", hint: "Supported: get_clients, get_client_detail, update_client_record, get_documents, get_recent_activity, import_timeline_events" }, 400);
+  return json(
+    {
+      error: "Unknown action",
+      hint:
+        "Supported: get_clients, get_client_detail, create_client, update_client_record, get_documents, get_recent_activity, import_timeline_events",
+    },
+    400,
+  );
 }

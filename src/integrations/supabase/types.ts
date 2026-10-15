@@ -409,12 +409,14 @@ export type Database = {
           ftc_identity_theft_report_number: string | null
           id: string
           intake_auto_extracted_at: string | null
+          intake_channel: string
           intake_date: string | null
           last_report_date: string | null
           legal_full_name: string | null
           legal_name: string
           notes: string | null
           owner_id: string | null
+          payment_standing: string
           phone: string | null
           preferred_name: string | null
           scores_updated_at: string | null
@@ -443,12 +445,14 @@ export type Database = {
           ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
+          intake_channel?: string
           intake_date?: string | null
           last_report_date?: string | null
           legal_full_name?: string | null
           legal_name: string
           notes?: string | null
           owner_id?: string | null
+          payment_standing?: string
           phone?: string | null
           preferred_name?: string | null
           scores_updated_at?: string | null
@@ -477,12 +481,14 @@ export type Database = {
           ftc_identity_theft_report_number?: string | null
           id?: string
           intake_auto_extracted_at?: string | null
+          intake_channel?: string
           intake_date?: string | null
           last_report_date?: string | null
           legal_full_name?: string | null
           legal_name?: string
           notes?: string | null
           owner_id?: string | null
+          payment_standing?: string
           phone?: string | null
           preferred_name?: string | null
           scores_updated_at?: string | null
@@ -2048,39 +2054,25 @@ export type Database = {
         }
         Returns: Json
       }
-      create_client_and_matter:
-        | {
-            Args: {
-              _client_notes?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-            }
-            Returns: {
-              client_id: string
-              matter_id: string
-            }[]
-          }
-        | {
-            Args: {
-              _alternate_addresses?: string[]
-              _client_notes?: string
-              _current_address?: string
-              _dob?: string
-              _email?: string
-              _intake_raw_text: string
-              _intake_source: string
-              _legal_name: string
-              _matter_type: Database["public"]["Enums"]["matter_type"]
-              _phone?: string
-              _ssn_last4?: string
-            }
-            Returns: {
-              client_id: string
-              matter_id: string
-            }[]
-          }
+      create_client_and_matter: {
+        Args: {
+          _alternate_addresses?: string[]
+          _client_notes?: string
+          _current_address?: string
+          _dob?: string
+          _email?: string
+          _intake_raw_text: string
+          _intake_source: string
+          _legal_name: string
+          _matter_type: Database["public"]["Enums"]["matter_type"]
+          _phone?: string
+          _ssn_last4?: string
+        }
+        Returns: {
+          client_id: string
+          matter_id: string
+        }[]
+      }
       debug_create_client_and_matter: {
         Args: {
           _alternate_addresses?: string[]

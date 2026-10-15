@@ -11,7 +11,7 @@
  */
 
 export const SERVER_NAME = "credit-guardian";
-export const SERVER_VERSION = "1.0.0";
+export const SERVER_VERSION = "1.1.0";
 
 export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] as const;
 export const LATEST_PROTOCOL_VERSION = "2025-06-18";
@@ -26,6 +26,7 @@ export const READ_SCOPES = [
 ] as const;
 
 export const WRITE_SCOPES = [
+  "clients.create",
   "clients.update",
   "timeline.write",
   "letters.draft",
@@ -45,6 +46,8 @@ export const CLIENT_LIST_FIELDS = [
   "email",
   "phone",
   "status",
+  "intake_channel",
+  "payment_standing",
   "created_at",
   "updated_at",
 ] as const;
@@ -57,14 +60,42 @@ export const CLIENT_SUMMARY_FIELDS = [
   "ftc_identity_theft_report_number",
 ] as const;
 
+/** Fields create_client accepts. ssn_last4 is written but never returned. */
+export const CLIENT_CREATE_FIELDS = [
+  "legal_name",
+  "preferred_name",
+  "email",
+  "phone",
+  "status",
+  "payment_standing",
+  "notes",
+  "date_of_birth",
+  "current_address",
+  "alternate_addresses",
+  "ssn_last4",
+  "experian_score",
+  "equifax_score",
+  "transunion_score",
+  "matter_type",
+  "intake_raw_text",
+  "intake_source",
+] as const;
+
 export const CLIENT_UPDATE_FIELDS = [
   "legal_name",
   "preferred_name",
   "email",
   "phone",
   "status",
+  "intake_channel",
+  "payment_standing",
   "notes",
 ] as const;
+
+/** How a client entered the file. create_client always records "agent". */
+export const INTAKE_CHANNELS = ["staff", "agent", "control_center", "website_subscription"] as const;
+/** Staff-maintained payment state. Not derived from payment_plans. */
+export const PAYMENT_STANDINGS = ["subscriber", "paid_in_full", "partial", "unpaid", "unknown"] as const;
 
 export const TIMELINE_FIELDS = [
   "id",
@@ -137,6 +168,10 @@ export const EVENT_SOURCES = [
 const EVENT_CATEGORIES = ["Action", "Response", "Outcome", "Note"] as const;
 const EVENT_KINDS = ["action", "response", "outcome", "note"] as const;
 const CLIENT_STATUSES = ["Active", "Inactive", "Pending"] as const;
+const MATTER_TYPES = ["Credit", "Consulting", "Both"] as const;
+const SSN_LAST4_RE = /^\d{4}$/;
+const SCORE_MIN = 300;
+const SCORE_MAX = 850;
 const RECIPIENT_TYPES = ["cra", "furnisher", "collector", "regulator"] as const;
 
 /** High-risk names from the phase 1 plan. They are not tools. */
@@ -171,6 +206,8 @@ export interface McpAgentRecord {
   scopes: string[];
   expiresAt: string;
   revokedAt: string | null;
+  /** Staff user who enrolled the agent. Rows an agent creates are owned by this user. */
+  createdBy: string | null;
 }
 
 export interface AuditInsert {
@@ -209,6 +246,37 @@ export interface TimelineInsert {
   is_draft: false;
 }
 
+export interface ClientCreateInsert {
+  legal_name: string;
+  owner_id: string;
+  status: string;
+  intake_channel: "agent";
+  payment_standing: string;
+  preferred_name: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  date_of_birth: string | null;
+  current_address: string | null;
+  alternate_addresses: string[];
+  ssn_last4: string | null;
+  experian_score: number | null;
+  equifax_score: number | null;
+  transunion_score: number | null;
+}
+
+export interface MatterCreateInsert {
+  owner_id: string;
+  matter_type: string;
+  intake_raw_text: string | null;
+  intake_source: string;
+}
+
+export interface ClientCreatePayload {
+  client: Record<string, unknown>;
+  matter_id: string;
+}
+
 export interface LetterDraftInsert {
   client_id: string;
   recipient_type: string;
@@ -221,7 +289,7 @@ export interface LetterDraftInsert {
 export interface GuardianMcpStore {
   findAgentByHash(secretHash: string): Promise<McpAgentRecord | null>;
   insertAudit(row: AuditInsert): Promise<{ id: string } | { error: string }>;
-  finishAudit(id: string, success: boolean, error: string | null): Promise<void>;
+  finishAudit(id: string, success: boolean, error: string | null, clientId?: string | null): Promise<void>;
   listClients(limit: number): Promise<{ data: Record<string, unknown>[] } | { error: string }>;
   getClientSummary(clientId: string): Promise<StoreResult<ClientSummaryPayload>>;
   listTimeline(clientId: string): Promise<{ data: Record<string, unknown>[] } | { error: string }>;
@@ -229,6 +297,7 @@ export interface GuardianMcpStore {
   listTasks(clientId: string): Promise<{ data: Record<string, unknown>[] } | { error: string }>;
   listDeadlines(clientId: string): Promise<{ data: Record<string, unknown>[] } | { error: string }>;
   clientExists(clientId: string): Promise<{ exists: boolean } | { error: string }>;
+  createClient(client: ClientCreateInsert, matter: MatterCreateInsert): Promise<StoreResult<ClientCreatePayload>>;
   updateClient(
     clientId: string,
     fields: Record<string, unknown>,
@@ -369,10 +438,44 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "create_client",
+    scope: "clients.create",
+    description:
+      "Create a new client and its first matter. legal_name is required; everything else is optional. " +
+      "The client is owned by the staff member who enrolled this agent and is recorded as intake_channel=agent. " +
+      "Set payment_standing when known (paid_in_full, partial, unpaid, subscriber). ssn_last4 is stored but never returned.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["legal_name"],
+      properties: {
+        legal_name: { type: "string" },
+        preferred_name: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+        status: { type: "string", enum: [...CLIENT_STATUSES] },
+        payment_standing: { type: "string", enum: [...PAYMENT_STANDINGS], description: "default unknown" },
+        notes: { type: "string" },
+        date_of_birth: { type: "string", description: "YYYY-MM-DD" },
+        current_address: { type: "string" },
+        alternate_addresses: { type: "array", items: { type: "string" } },
+        ssn_last4: { type: "string", description: "exactly 4 digits" },
+        experian_score: { type: "integer", minimum: SCORE_MIN, maximum: SCORE_MAX },
+        equifax_score: { type: "integer", minimum: SCORE_MIN, maximum: SCORE_MAX },
+        transunion_score: { type: "integer", minimum: SCORE_MIN, maximum: SCORE_MAX },
+        matter_type: { type: "string", enum: [...MATTER_TYPES], description: "default Credit" },
+        intake_raw_text: { type: "string" },
+        intake_source: { type: "string", description: "default MCP" },
+      },
+    },
+  },
+  {
     name: "update_client",
     scope: "clients.update",
     description:
-      "Update allow-listed client fields: legal_name, preferred_name, email, phone, status, notes.",
+      "Update allow-listed client fields: legal_name, preferred_name, email, phone, status, notes, " +
+      "intake_channel (staff, agent, control_center, website_subscription), " +
+      "payment_standing (subscriber, paid_in_full, partial, unpaid, unknown).",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -656,10 +759,12 @@ async function requireClient(
   return { ok: true };
 }
 
+type ToolOutcome = { ok: true; value: unknown; clientId?: string } | { ok: false; error: string };
+
 async function withAudit(
   store: GuardianMcpStore,
   row: AuditInsert,
-  run: () => Promise<{ ok: true; value: unknown } | { ok: false; error: string }>,
+  run: () => Promise<ToolOutcome>,
 ): Promise<{ isError: boolean; value: unknown }> {
   const inserted = await store.insertAudit({
     ...row,
@@ -672,7 +777,7 @@ async function withAudit(
       value: { error: "Audit log did not record this call, so it was refused." },
     };
   }
-  let outcome: { ok: true; value: unknown } | { ok: false; error: string };
+  let outcome: ToolOutcome;
   try {
     outcome = await run();
   } catch (err) {
@@ -681,8 +786,9 @@ async function withAudit(
   }
   const failed = outcome.ok !== true;
   const error = failed ? publicError((outcome as { error: string }).error) : null;
+  const createdClientId = outcome.ok === true && typeof outcome.clientId === "string" ? outcome.clientId : null;
   try {
-    await store.finishAudit(inserted.id, !failed, error);
+    await store.finishAudit(inserted.id, !failed, error, createdClientId ?? row.clientId);
   } catch (err) {
     console.error("guardian-mcp audit finish failed", err instanceof Error ? err.name : "error");
   }
@@ -697,11 +803,188 @@ function parseLimit(value: unknown): number | { error: string } {
   return value;
 }
 
+function isCalendarDate(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
+}
+
+function singleLine(value: unknown, field: string, max: number): string | null | { error: string } {
+  const parsed = optionalBoundedString(value, field, max);
+  if (parsed && typeof parsed === "object") return parsed;
+  if (typeof parsed !== "string") return null;
+  const trimmed = parsed.trim();
+  if (trimmed === "") return null;
+  if (trimmed.includes("\n") || trimmed.includes("\r")) return { error: `${field} must be a single line` };
+  return trimmed;
+}
+
+function optionalScore(value: unknown, field: string): number | null | { error: string } {
+  if (value == null) return null;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < SCORE_MIN || value > SCORE_MAX) {
+    return { error: `${field} must be a whole number from ${SCORE_MIN} to ${SCORE_MAX}` };
+  }
+  return value;
+}
+
+/** Validate create_client arguments. Exported so the validation is unit-testable without a store. */
+export function parseCreateClientArgs(
+  args: Record<string, unknown>,
+  ownerId: string,
+): { ok: true; client: ClientCreateInsert; matter: MatterCreateInsert } | { ok: false; error: string } {
+  const extra = unknownField(args, CLIENT_CREATE_FIELDS);
+  if (extra) return { ok: false, error: `unknown field: ${extra}` };
+
+  if (typeof args.legal_name !== "string" || args.legal_name.trim() === "" || args.legal_name.length > 300) {
+    return { ok: false, error: "legal_name must be non-empty text" };
+  }
+  const legalName = args.legal_name.trim();
+
+  let status = "Active";
+  if (args.status != null) {
+    if (typeof args.status !== "string" || !(CLIENT_STATUSES as readonly string[]).includes(args.status)) {
+      return { ok: false, error: "status must be Active, Inactive, or Pending" };
+    }
+    status = args.status;
+  }
+
+  let paymentStanding = "unknown";
+  if (args.payment_standing != null) {
+    if (
+      typeof args.payment_standing !== "string" ||
+      !(PAYMENT_STANDINGS as readonly string[]).includes(args.payment_standing)
+    ) {
+      return { ok: false, error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` };
+    }
+    paymentStanding = args.payment_standing;
+  }
+
+  const preferredName = singleLine(args.preferred_name, "preferred_name", 300);
+  if (preferredName && typeof preferredName === "object") return { ok: false, error: preferredName.error };
+  const email = singleLine(args.email, "email", 320);
+  if (email && typeof email === "object") return { ok: false, error: email.error };
+  const phone = singleLine(args.phone, "phone", 40);
+  if (phone && typeof phone === "object") return { ok: false, error: phone.error };
+  const currentAddress = singleLine(args.current_address, "current_address", 500);
+  if (currentAddress && typeof currentAddress === "object") return { ok: false, error: currentAddress.error };
+
+  const notesResult = optionalBoundedString(args.notes, "notes", 20000);
+  if (notesResult && typeof notesResult === "object") return { ok: false, error: notesResult.error };
+  const notes = typeof notesResult === "string" && notesResult.trim() !== "" ? notesResult : null;
+
+  let dateOfBirth: string | null = null;
+  if (args.date_of_birth != null) {
+    if (typeof args.date_of_birth !== "string" || !isCalendarDate(args.date_of_birth)) {
+      return { ok: false, error: "date_of_birth must be YYYY-MM-DD" };
+    }
+    dateOfBirth = args.date_of_birth;
+  }
+
+  let ssnLast4: string | null = null;
+  if (args.ssn_last4 != null) {
+    if (typeof args.ssn_last4 !== "string" || !SSN_LAST4_RE.test(args.ssn_last4.trim())) {
+      return { ok: false, error: "ssn_last4 must be exactly 4 digits" };
+    }
+    ssnLast4 = args.ssn_last4.trim();
+  }
+
+  const alternateAddresses: string[] = [];
+  if (args.alternate_addresses != null) {
+    if (!Array.isArray(args.alternate_addresses) || args.alternate_addresses.length > 20) {
+      return { ok: false, error: "alternate_addresses must be a list of up to 20 addresses" };
+    }
+    for (const entry of args.alternate_addresses) {
+      if (typeof entry !== "string" || entry.length > 500) {
+        return { ok: false, error: "alternate_addresses entries must be text" };
+      }
+      const trimmed = entry.trim();
+      if (trimmed !== "") alternateAddresses.push(trimmed);
+    }
+  }
+
+  const experian = optionalScore(args.experian_score, "experian_score");
+  if (experian && typeof experian === "object") return { ok: false, error: experian.error };
+  const equifax = optionalScore(args.equifax_score, "equifax_score");
+  if (equifax && typeof equifax === "object") return { ok: false, error: equifax.error };
+  const transunion = optionalScore(args.transunion_score, "transunion_score");
+  if (transunion && typeof transunion === "object") return { ok: false, error: transunion.error };
+
+  let matterType = "Credit";
+  if (args.matter_type != null) {
+    if (typeof args.matter_type !== "string" || !(MATTER_TYPES as readonly string[]).includes(args.matter_type)) {
+      return { ok: false, error: "matter_type must be Credit, Consulting, or Both" };
+    }
+    matterType = args.matter_type;
+  }
+
+  const intakeResult = optionalBoundedString(args.intake_raw_text, "intake_raw_text", 100000);
+  if (intakeResult && typeof intakeResult === "object") return { ok: false, error: intakeResult.error };
+  const intakeRawText = typeof intakeResult === "string" && intakeResult.trim() !== "" ? intakeResult : null;
+
+  const sourceResult = singleLine(args.intake_source, "intake_source", 100);
+  if (sourceResult && typeof sourceResult === "object") return { ok: false, error: sourceResult.error };
+  const intakeSource = typeof sourceResult === "string" ? sourceResult : "MCP";
+
+  return {
+    ok: true,
+    client: {
+      legal_name: legalName,
+      owner_id: ownerId,
+      status,
+      intake_channel: "agent",
+      payment_standing: paymentStanding,
+      preferred_name: typeof preferredName === "string" ? preferredName : null,
+      email: typeof email === "string" ? email.toLowerCase() : null,
+      phone: typeof phone === "string" ? phone : null,
+      notes,
+      date_of_birth: dateOfBirth,
+      current_address: typeof currentAddress === "string" ? currentAddress : null,
+      alternate_addresses: alternateAddresses,
+      ssn_last4: ssnLast4,
+      experian_score: typeof experian === "number" ? experian : null,
+      equifax_score: typeof equifax === "number" ? equifax : null,
+      transunion_score: typeof transunion === "number" ? transunion : null,
+    },
+    matter: {
+      owner_id: ownerId,
+      matter_type: matterType,
+      intake_raw_text: intakeRawText,
+      intake_source: intakeSource,
+    },
+  };
+}
+
 async function executeTool(
   store: GuardianMcpStore,
+  agent: McpAgentRecord,
   name: string,
   args: Record<string, unknown>,
-): Promise<{ ok: true; value: unknown } | { ok: false; error: string }> {
+): Promise<ToolOutcome> {
+  if (name === "create_client") {
+    if (!agent.createdBy || !UUID_RE.test(agent.createdBy)) {
+      return {
+        ok: false,
+        error: "this agent has no enrolling staff member to own the new client; re-enroll it in Settings",
+      };
+    }
+    const parsed = parseCreateClientArgs(args, agent.createdBy);
+    if (parsed.ok !== true) return { ok: false, error: (parsed as { error: string }).error };
+    const { client, matter } = parsed as { client: ClientCreateInsert; matter: MatterCreateInsert };
+    const created = await store.createClient(client, matter);
+    if ("error" in created) return { ok: false, error: created.error };
+    if ("notFound" in created) return { ok: false, error: "request failed" };
+    const clientId = String(created.data.client.id ?? "");
+    return {
+      ok: true,
+      clientId: UUID_RE.test(clientId) ? clientId : undefined,
+      value: {
+        client: pick(created.data.client, [...CLIENT_LIST_FIELDS, "notes"]),
+        matter_id: created.data.matter_id,
+      },
+    };
+  }
+
   if (name === "list_clients") {
     const extra = unknownField(args, ["limit"]);
     if (extra) return { ok: false, error: `unknown field: ${extra}` };
@@ -786,6 +1069,16 @@ async function executeTool(
           return { ok: false, error: "status must be Active, Inactive, or Pending" };
         }
         safe.status = value;
+      } else if (key === "intake_channel") {
+        if (typeof value !== "string" || !(INTAKE_CHANNELS as readonly string[]).includes(value)) {
+          return { ok: false, error: `intake_channel must be one of ${INTAKE_CHANNELS.join(", ")}` };
+        }
+        safe.intake_channel = value;
+      } else if (key === "payment_standing") {
+        if (typeof value !== "string" || !(PAYMENT_STANDINGS as readonly string[]).includes(value)) {
+          return { ok: false, error: `payment_standing must be one of ${PAYMENT_STANDINGS.join(", ")}` };
+        }
+        safe.payment_standing = value;
       } else if (key === "email" || key === "phone" || key === "preferred_name" || key === "notes") {
         const max = key === "notes" ? 20000 : key === "email" ? 320 : key === "phone" ? 40 : 300;
         const parsed = optionalBoundedString(value, key, max);
@@ -1042,7 +1335,7 @@ async function handleMessage(
         return { ok: false, error: "agent is not allowed to use this tool" };
       }
       const args = isRecord(params.arguments) ? params.arguments : {};
-      return executeTool(store, name, args);
+      return executeTool(store, agent, name, args);
     }
     return { ok: false, error: "unknown method" };
   });

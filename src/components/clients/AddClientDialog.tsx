@@ -44,6 +44,8 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
   const { user } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'paste' | 'manual'>('paste');
+  // Staff-maintained payment state. Saved right after the RPC creates the row.
+  const [paymentStanding, setPaymentStanding] = useState<string>('unknown');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<null | { friendly: string; technical?: string }>(null);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
@@ -94,6 +96,7 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     setLegalName('');
     setMatterType('Credit');
     setIssueNote('');
+    setPaymentStanding('unknown');
     setMode('paste');
     setSubmitError(null);
     setShowErrorDetails(false);
@@ -194,6 +197,17 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
     const row = Array.isArray(data) ? data[0] : data;
     if (!row || !row.client_id) {
       throw { stage: 'rpc_call', message: 'No data returned from server' };
+    }
+
+    // The RPC does not take payment_standing; the row defaults to 'unknown'.
+    if (paymentStanding !== 'unknown') {
+      const { error: standingError } = await supabase
+        .from('clients')
+        .update({ payment_standing: paymentStanding })
+        .eq('id', row.client_id as string);
+      if (standingError) {
+        toast.error('Client created, but payment standing was not saved. Set it on the client page.');
+      }
     }
 
     return {
@@ -417,6 +431,24 @@ export function AddClientDialog({ open, onOpenChange, onSuccess }: AddClientDial
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="paste-payment-standing" className="text-sm font-medium">
+                Payment standing
+              </Label>
+              <Select value={paymentStanding} onValueChange={setPaymentStanding}>
+                <SelectTrigger id="paste-payment-standing" className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="unknown">Not set yet</SelectItem>
+                  <SelectItem value="paid_in_full">Paid in full</SelectItem>
+                  <SelectItem value="partial">Partially paid</SelectItem>
+                  <SelectItem value="unpaid">Not paid</SelectItem>
+                  <SelectItem value="subscriber">Website subscriber</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="intake-text" className="text-sm font-medium">
                 Intake Text (optional)
               </Label>
@@ -514,6 +546,22 @@ This text will be stored verbatim. Use ChatGPT Import after creation to add time
                   <SelectItem value="Credit">Credit</SelectItem>
                   <SelectItem value="Consulting">Consulting</SelectItem>
                   <SelectItem value="Both">Both</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manual-payment-standing">Payment standing</Label>
+              <Select value={paymentStanding} onValueChange={setPaymentStanding}>
+                <SelectTrigger id="manual-payment-standing" className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="unknown">Not set yet</SelectItem>
+                  <SelectItem value="paid_in_full">Paid in full</SelectItem>
+                  <SelectItem value="partial">Partially paid</SelectItem>
+                  <SelectItem value="unpaid">Not paid</SelectItem>
+                  <SelectItem value="subscriber">Website subscriber</SelectItem>
                 </SelectContent>
               </Select>
             </div>

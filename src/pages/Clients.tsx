@@ -16,6 +16,35 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const PAYMENT_LABELS: Record<string, string> = {
+  subscriber: 'Subscriber',
+  paid_in_full: 'Paid in full',
+  partial: 'Partially paid',
+  unpaid: 'Unpaid',
+  unknown: 'Payment not set',
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  staff: 'Added by staff',
+  agent: 'Added by agent',
+  control_center: 'Control Center',
+  website_subscription: 'Website subscription',
+};
+
+const getPaymentStyle = (standing: string) => {
+  switch (standing) {
+    case 'paid_in_full':
+    case 'subscriber':
+      return 'bg-state-resolved/15 text-state-resolved';
+    case 'unpaid':
+      return 'bg-destructive/15 text-destructive';
+    case 'partial':
+      return 'bg-state-active/15 text-state-active';
+    default:
+      return 'bg-secondary text-muted-foreground';
+  }
+};
+
 export default function Clients() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,6 +213,24 @@ export default function Clients() {
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Since {format(new Date(client.created_at), 'MMM yyyy')}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    'px-2 py-0.5 rounded-full text-xs font-medium',
+                    getPaymentStyle(client.payment_standing ?? 'unknown')
+                  )}
+                  title="Payment standing"
+                >
+                  {PAYMENT_LABELS[client.payment_standing ?? 'unknown'] ?? client.payment_standing}
+                </span>
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-muted-foreground"
+                  title="How this client was added"
+                >
+                  {CHANNEL_LABELS[client.intake_channel ?? 'staff'] ?? client.intake_channel}
                 </span>
               </div>
 
